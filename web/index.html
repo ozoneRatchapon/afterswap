@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AfterSwap — ruliology exit autopilot</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%233987e5'/><circle cx='11' cy='5' r='3' fill='%23d95926'/></svg>">
 <style>
   /* Reference dark palette (validated: #3987e5,#d95926 on #1a1a19 — all checks pass) */
   :root {
@@ -131,6 +132,10 @@
     <div class="panel">
       <h2>Simulation gate</h2>
       <div id="gate" class="empty">no tournament yet</div>
+    </div>
+    <div class="panel">
+      <h2>Activity</h2>
+      <div id="feed" class="empty">quiet so far</div>
     </div>
     <div class="panel">
       <h2>Fills tape</h2>
@@ -273,8 +278,10 @@ function renderBoard(s) {
 function renderFsm(s) {
   const svg = $("fsm"), W = svg.clientWidth, H = 190;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  const arm = s.arms.find(a => a.index === s.live_arm);
-  $("livechip").textContent = arm ? `#${arm.id.toString(16).slice(0, 6)}` : "";
+  const armIdx = s.live_arm ?? s.last_arm;
+  const arm = s.arms.find(a => a.index === armIdx);
+  $("livechip").textContent = arm
+    ? `#${arm.id.toString(16).slice(0, 6)}${s.live_arm == null ? " (last)" : ""}` : "";
   if (!arm) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`; return; }
   const n = arm.n_states, cx = W / 2, cy = H / 2, R = n === 1 ? 0 : 58;
   const pos = Array.from({ length: n }, (_, i) => {
@@ -323,6 +330,40 @@ function renderGate(s) {
     <div style="font-size:12px; color:var(--muted); margin-top:4px">compression ratio ${s.gate.compression_ratio.toFixed(2)} — decides skip / light / full re-tournament</div>`;
 }
 
+function feedLine(te, s) {
+  const e = te.event, armId = (i) => {
+    const a = s.arms.find(x => x.index === i);
+    return a ? `#${a.id.toString(16).slice(0, 6)}` : `arm ${i}`;
+  };
+  switch (e.type) {
+    case "tournament":
+      return `tournament (${e.route}): ${e.strategies} machines → ${e.arms} arms`;
+    case "arm_selected":
+      return `${armId(e.arm)} takes the seat`;
+    case "window_closed": {
+      const r = e.reward_bps, cls = r >= 0 ? "up" : "down";
+      return `${armId(e.arm)} scored <span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(1)} bps</span>`;
+    }
+    case "tranche_filled":
+      return `${armId(e.arm)} sold ${(e.frac * 100).toFixed(0)}% @ ${e.price.toFixed(3)}`;
+    case "position_closed":
+      return `position fully exited @ ${e.final_value_norm.toFixed(4)}×`;
+    default:
+      return e.type;
+  }
+}
+
+function renderFeed(s) {
+  const evs = s.recent_events || [];
+  if (!evs.length) { $("feed").className = "empty"; $("feed").textContent = "quiet so far"; return; }
+  $("feed").className = "";
+  $("feed").innerHTML = `<div style="display:grid; gap:4px; font-size:12.5px; color:var(--ink-2); max-height:180px; overflow-y:auto">${
+    evs.slice(0, 14).map(te =>
+      `<div><span style="color:var(--muted)">t${te.tick}</span> · ${feedLine(te, s)}</div>`
+    ).join("")
+  }</div>`;
+}
+
 function renderTape(s) {
   const ap = activePos(s);
   const fills = ap ? [...ap.fills].reverse() : [];
@@ -335,7 +376,7 @@ function renderTape(s) {
 
 function render(s) {
   last = s;
-  renderStats(s); renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderTape(s);
+  renderStats(s); renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderFeed(s); renderTape(s);
 }
 
 $("open").onclick = async () => {
