@@ -1,0 +1,17 @@
+[package]
+name = "afterswap-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "AfterSwap dashboard server — axum + SSE over the exit engine"
+
+[dependencies]
+afterswap-engine = { path = "../afterswap-engine" }
+afterswap-dflow = { path = "../afterswap-dflow" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+anyhow = { workspace = true }

@@ -1,0 +1,6 @@
+/target
+.env
+/secrets/
+*.keypair.json
+.DS_Store
+.heal/

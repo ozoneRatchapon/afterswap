@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/afterswap-engine",
+    "crates/afterswap-dflow",
+    "crates/afterswap-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+# The ruliology engine from katgpt-rs — exhaustive FSM enumeration, Pareto
+# pruning, UCB1 arms, simulation gating. Pinned to the public upstream rev.
+katgpt-ruliology = { git = "https://github.com/katopz/katgpt-rs", rev = "6f392727774b6f20d52b061cbdbba4ba78c61129" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+axum = "0.8"
+log = "0.4"
+env_logger = "0.11"
+anyhow = "1"
+thiserror = "2"
