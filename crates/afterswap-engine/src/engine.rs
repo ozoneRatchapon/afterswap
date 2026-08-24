@@ -57,6 +57,16 @@ pub enum EngineEvent {
     PositionClosed { tick: u64, final_value_norm: f64 },
 }
 
+/// Activity-feed ring size.
+const RECENT_EVENTS: usize = 24;
+
+/// One engine event with the tick it happened on (activity feed).
+#[derive(Debug, Clone, Serialize)]
+pub struct TickEvent {
+    pub tick: u64,
+    pub event: EngineEvent,
+}
+
 /// Locked result of the last fully-exited position (keeps the story on
 /// screen after close).
 #[derive(Debug, Clone, Serialize)]
@@ -91,6 +101,10 @@ pub struct EngineSnapshot {
     pub live_fsm_state: Option<u8>,
     pub gate: Option<GateSummary>,
     pub last_closed: Option<ClosedSummary>,
+    /// Newest-first recent events for the activity feed.
+    pub recent_events: Vec<TickEvent>,
+    /// Arm that most recently drove (kept after close for the FSM panel).
+    pub last_arm: Option<usize>,
     pub completed_windows: usize,
     pub strategies_enumerated: usize,
     pub recent_prices: Vec<f64>,
@@ -117,6 +131,8 @@ pub struct ExitEngine {
     last_gate: Option<GateSummary>,
     position: Option<Position>,
     last_closed: Option<ClosedSummary>,
+    recent_events: std::collections::VecDeque<TickEvent>,
+    last_arm: Option<usize>,
     live: Option<LiveArm>,
     completed_windows: usize,
     windows_since_refresh: usize,
@@ -146,6 +162,8 @@ impl ExitEngine {
             last_gate: None,
             position: None,
             last_closed: None,
+            recent_events: std::collections::VecDeque::new(),
+            last_arm: None,
             live: None,
             completed_windows: 0,
             windows_since_refresh: 0,
@@ -183,6 +201,14 @@ impl ExitEngine {
             self.drive_live(tick, prev_p, cur_p, &mut events);
         }
 
+        let tick = self.store.last_tick().unwrap_or(0);
+        for ev in &events {
+            self.recent_events.push_front(TickEvent {
+                tick,
+                event: ev.clone(),
+            });
+        }
+        self.recent_events.truncate(RECENT_EVENTS);
         events
     }
 
@@ -249,6 +275,8 @@ impl ExitEngine {
             live_fsm_state: self.live.as_ref().map(|l| l.fsm.state()),
             gate: self.last_gate.clone(),
             last_closed: self.last_closed.clone(),
+            recent_events: self.recent_events.iter().cloned().collect(),
+            last_arm: self.last_arm,
             completed_windows: self.completed_windows,
             strategies_enumerated: self.strategies.len(),
             recent_prices: self.store.recent(n_prices),
@@ -387,6 +415,7 @@ impl ExitEngine {
                 start_cash: pos.cash_norm,
                 start_remaining: pos.remaining_frac,
             });
+            self.last_arm = Some(arm);
             events.push(EngineEvent::ArmSelected {
                 arm,
                 fsm_id: bandit.strategy(arm).id(),
