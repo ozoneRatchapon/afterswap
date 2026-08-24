@@ -15,3 +15,5 @@ serde_json = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 anyhow = { workspace = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures-core = "0.3"
