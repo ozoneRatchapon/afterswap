@@ -41,6 +41,20 @@ honestly on live DFlow prices."
 sell tranche is a signed DFlow order. Post-swap execution, running
 strategies nobody designed. AfterSwap."
 
+## Deterministic mode (recommended for recording)
+
+Live markets can go flat mid-take. Replay a recorded segment instead — same
+engine, same dashboard, reproducible theater:
+
+```bash
+cargo run -p afterswap-server -- --serve 8787 --interval-ms 1000   --window 12 --states 3 --tranche 0.1 --replay data/recorded.jsonl
+```
+
+The recording loops, so the demo never runs out. To capture a fresh segment
+from live quotes, add `--record data/my-session.jsonl` to any live run.
+State honestly in the video if the segment is replayed ("recorded DFlow
+quotes" on the narration) — quotes are still real DFlow data.
+
 ## Fallback
 
 If the market is dead flat during recording, the machines mostly hold —

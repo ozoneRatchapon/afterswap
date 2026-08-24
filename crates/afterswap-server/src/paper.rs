@@ -4,6 +4,8 @@
 //! applied by the engine at the quoted price (paper semantics); live mode
 //! will mirror `TrancheFilled` events into real DFlow orders.
 
+use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -30,6 +32,10 @@ pub struct PaperConfig {
     pub size: f64,
     /// Engine tuning.
     pub engine: EngineConfig,
+    /// Replay these recorded prices (looping) instead of polling DFlow.
+    pub replay: Option<Vec<f64>>,
+    /// Append each live tick as a jsonl line for later replay.
+    pub record: Option<PathBuf>,
     /// Live executor: mirror paper tranche fills into real DFlow orders.
     #[cfg(feature = "live")]
     pub live: Option<LiveExecutor>,
@@ -43,10 +49,43 @@ impl Default for PaperConfig {
             open_after_ticks: 30,
             size: 0.5,
             engine: EngineConfig::default(),
+            replay: None,
+            record: None,
             #[cfg(feature = "live")]
             live: None,
         }
     }
+}
+
+/// Price feed: live DFlow polling, or a recorded loop for deterministic demos.
+enum PriceFeed {
+    Live(PricePoller),
+    Replay { prices: Vec<f64>, idx: usize },
+}
+
+impl PriceFeed {
+    async fn next(&mut self) -> Result<f64, afterswap_dflow::DflowError> {
+        match self {
+            Self::Live(poller) => poller.poll().await,
+            Self::Replay { prices, idx } => {
+                let p = prices[*idx % prices.len()];
+                *idx += 1;
+                Ok(p)
+            }
+        }
+    }
+}
+
+/// Load a `{"price": f}` jsonl recording.
+pub fn load_recording(path: &str) -> anyhow::Result<Vec<f64>> {
+    let text = std::fs::read_to_string(path)?;
+    let prices: Vec<f64> = text
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter_map(|v| v.get("price").and_then(|p| p.as_f64()))
+        .collect();
+    anyhow::ensure!(prices.len() >= 2, "recording too short: {}", prices.len());
+    Ok(prices)
 }
 
 /// CLI wrapper: fresh engine, no broadcast, run to completion.
@@ -59,11 +98,22 @@ pub async fn run(cfg: PaperConfig) -> anyhow::Result<SharedEngine> {
 
 /// Core loop over a shared engine; broadcasts a full snapshot every tick.
 pub async fn run_shared(
-    cfg: PaperConfig,
+    mut cfg: PaperConfig,
     shared: SharedEngine,
     snapshots: broadcast::Sender<String>,
 ) -> anyhow::Result<()> {
-    let poller = PricePoller::sol_usdc(DflowClient::dev());
+    let mut feed = match cfg.replay.take() {
+        Some(prices) => {
+            info!("REPLAY mode: {} recorded ticks (looping)", prices.len());
+            PriceFeed::Replay { prices, idx: 0 }
+        }
+        None => PriceFeed::Live(PricePoller::sol_usdc(DflowClient::dev())),
+    };
+    let mut recorder = cfg
+        .record
+        .as_ref()
+        .map(|p| std::fs::OpenOptions::new().create(true).append(true).open(p))
+        .transpose()?;
     let mut interval = tokio::time::interval(Duration::from_millis(cfg.interval_ms));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
@@ -72,13 +122,16 @@ pub async fn run_shared(
 
     loop {
         interval.tick().await;
-        let price = match poller.poll().await {
+        let price = match feed.next().await {
             Ok(p) => p,
             Err(e) => {
                 warn!("quote poll failed (skipping tick): {e}");
                 continue;
             }
         };
+        if let Some(f) = recorder.as_mut() {
+            let _ = writeln!(f, "{}", serde_json::json!({"price": price}));
+        }
 
         let mut engine = shared.lock().await;
         let events = engine.on_tick(price);

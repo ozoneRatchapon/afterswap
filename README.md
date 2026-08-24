@@ -69,6 +69,14 @@ Open http://localhost:8787, press **Open position** (paper — no wallet needed)
 You'll watch machines get selected, sell tranches at live DFlow prices, and
 accumulate realized edge vs holding on the leaderboard.
 
+Deterministic demo (replay recorded DFlow quotes, looping):
+
+```bash
+cargo run -p afterswap-server -- --serve 8787 --interval-ms 1000   --window 12 --states 3 --tranche 0.1 --replay data/recorded.jsonl
+```
+
+Add `--record <file>` to any live run to capture your own segment.
+
 Terminal-only e2e (no dashboard):
 
 ```bash

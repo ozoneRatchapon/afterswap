@@ -43,6 +43,11 @@ async fn main() -> anyhow::Result<()> {
         open_after_ticks: arg(&args, "--open-after").unwrap_or(30),
         size: arg(&args, "--size").unwrap_or(0.5),
         engine,
+        replay: match arg::<String>(&args, "--replay") {
+            Some(path) => Some(paper::load_recording(&path)?),
+            None => None,
+        },
+        record: arg::<String>(&args, "--record").map(Into::into),
         #[cfg(feature = "live")]
         live: match arg::<String>(&args, "--keypair") {
             Some(path) => {
