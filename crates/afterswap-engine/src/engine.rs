@@ -57,6 +57,19 @@ pub enum EngineEvent {
     PositionClosed { tick: u64, final_value_norm: f64 },
 }
 
+/// Locked result of the last fully-exited position (keeps the story on
+/// screen after close).
+#[derive(Debug, Clone, Serialize)]
+pub struct ClosedSummary {
+    pub closed_at_tick: u64,
+    pub final_value_norm: f64,
+    pub hold_value_norm: f64,
+    /// Final edge vs never-selling, in bps.
+    pub edge_bps: f64,
+    /// The closed position (entry, fills) for chart/tape rendering.
+    pub position: Position,
+}
+
 /// Serializable gate/routing summary for the UI.
 #[derive(Debug, Clone, Serialize)]
 pub struct GateSummary {
@@ -77,6 +90,7 @@ pub struct EngineSnapshot {
     pub live_arm: Option<usize>,
     pub live_fsm_state: Option<u8>,
     pub gate: Option<GateSummary>,
+    pub last_closed: Option<ClosedSummary>,
     pub completed_windows: usize,
     pub strategies_enumerated: usize,
     pub recent_prices: Vec<f64>,
@@ -102,6 +116,7 @@ pub struct ExitEngine {
     gate: SimulationGate,
     last_gate: Option<GateSummary>,
     position: Option<Position>,
+    last_closed: Option<ClosedSummary>,
     live: Option<LiveArm>,
     completed_windows: usize,
     windows_since_refresh: usize,
@@ -130,6 +145,7 @@ impl ExitEngine {
             gate: SimulationGate::default(),
             last_gate: None,
             position: None,
+            last_closed: None,
             live: None,
             completed_windows: 0,
             windows_since_refresh: 0,
@@ -183,10 +199,29 @@ impl ExitEngine {
     /// Force-close (UI escape hatch). Returns the final normalized value.
     pub fn close_position(&mut self) -> Option<f64> {
         let price = self.store.last_price()?;
-        let value = self.position.as_ref().map(|p| p.value_norm(price));
-        self.position = None;
+        let pos = self.position.take()?;
+        let tick = self.store.last_tick().unwrap_or(0);
+        let value = pos.value_norm(price);
+        self.record_close(pos, tick, price);
         self.live = None;
-        value
+        Some(value)
+    }
+
+    /// Store the locked result of a fully- or force-closed position.
+    fn record_close(&mut self, position: Position, tick: u64, price: f64) {
+        let final_value_norm = position.value_norm(price);
+        let hold_value_norm = price / position.entry_price;
+        let edge_bps = match hold_value_norm.abs() > f64::EPSILON {
+            true => (final_value_norm - hold_value_norm) / hold_value_norm * 10_000.0,
+            false => 0.0,
+        };
+        self.last_closed = Some(ClosedSummary {
+            closed_at_tick: tick,
+            final_value_norm,
+            hold_value_norm,
+            edge_bps,
+            position,
+        });
     }
 
     /// Latest full snapshot for the dashboard.
@@ -213,6 +248,7 @@ impl ExitEngine {
             live_arm: self.live.as_ref().map(|l| l.arm),
             live_fsm_state: self.live.as_ref().map(|l| l.fsm.state()),
             gate: self.last_gate.clone(),
+            last_closed: self.last_closed.clone(),
             completed_windows: self.completed_windows,
             strategies_enumerated: self.strategies.len(),
             recent_prices: self.store.recent(n_prices),
@@ -227,42 +263,51 @@ impl ExitEngine {
         }
 
         // Route on the PREVIOUS matrix: reducible dynamics → keep arms.
-        let route = match &self.last_matrix {
-            Some(m) => self.gate.route(m),
-            None => self.gate.route(&WinMatrix::new(
-                vec![vec![0.0; 1]; 1],
-                vec![0],
-            )),
+        // First run has no matrix — that's a bootstrap, always full.
+        let (route, route_name) = match &self.last_matrix {
+            Some(m) => {
+                let r = self.gate.route(m);
+                let name = match r.strategy {
+                    SimulationStrategy::AnalyticalShortcut => "skip",
+                    SimulationStrategy::LightweightSimulation => "light",
+                    SimulationStrategy::FullSimulation => "full",
+                };
+                (Some(r), name)
+            }
+            None => (None, "bootstrap"),
         };
-        let route_name = match route.strategy {
-            SimulationStrategy::AnalyticalShortcut => "skip",
-            SimulationStrategy::LightweightSimulation => "light",
-            SimulationStrategy::FullSimulation => "full",
+        let (compression_ratio, is_irreducible) = match &route {
+            Some(r) => (r.compression_ratio, r.is_irreducible),
+            None => (1.0, true),
         };
         self.last_gate = Some(GateSummary {
             route: route_name.to_string(),
-            compression_ratio: route.compression_ratio,
-            is_irreducible: route.is_irreducible,
+            compression_ratio,
+            is_irreducible,
         });
 
-        let skip = matches!(route.strategy, SimulationStrategy::AnalyticalShortcut)
-            && self.bandit.is_some();
+        let skip = matches!(
+            route.as_ref().map(|r| &r.strategy),
+            Some(SimulationStrategy::AnalyticalShortcut)
+        ) && self.bandit.is_some();
         if skip {
             return Some(EngineEvent::Tournament {
                 route: route_name.to_string(),
                 windows_used: 0,
                 strategies: self.strategies.len(),
                 arms: self.bandit.as_ref().map(ExitBandit::num_arms).unwrap_or(0),
-                compression_ratio: route.compression_ratio,
+                compression_ratio,
             });
         }
 
-        // Lightweight → newest half of the windows; full → all.
-        let windows: Vec<Vec<f64>> = match route.strategy {
-            SimulationStrategy::LightweightSimulation if all_windows.len() > 2 => {
-                all_windows[all_windows.len() / 2..].to_vec()
-            }
-            _ => all_windows,
+        // Lightweight → newest half of the windows; full/bootstrap → all.
+        let light = matches!(
+            route.as_ref().map(|r| &r.strategy),
+            Some(SimulationStrategy::LightweightSimulation)
+        );
+        let windows: Vec<Vec<f64>> = match light && all_windows.len() > 2 {
+            true => all_windows[all_windows.len() / 2..].to_vec(),
+            false => all_windows,
         };
 
         let (matrix, complexities) =
@@ -271,7 +316,16 @@ impl ExitEngine {
             self.config.payoff_threshold_bps,
             self.config.complexity_threshold,
         );
-        let survivors = pruner.filter(&matrix, &complexities);
+        let mut survivors = pruner.filter(&matrix, &complexities);
+        // Cap arms: top by simulated edge, simplest first on ties. On flat
+        // windows nothing dominates, so the front can be the whole space.
+        survivors.sort_by(|&a, &b| {
+            matrix
+                .avg_payoff(b)
+                .total_cmp(&matrix.avg_payoff(a))
+                .then(complexities[a].total_cmp(&complexities[b]))
+        });
+        survivors.truncate(self.config.max_arms);
         self.sim_edges = survivors.iter().map(|&i| matrix.avg_payoff(i)).collect();
 
         let arms: Vec<RuliologyArm> = survivors
@@ -307,7 +361,7 @@ impl ExitEngine {
             windows_used,
             strategies: self.strategies.len(),
             arms: n_arms,
-            compression_ratio: route.compression_ratio,
+            compression_ratio,
         })
     }
 
@@ -388,11 +442,38 @@ impl ExitEngine {
 
         if pos.is_closed() {
             let final_value = pos.value_norm(cur_p);
+            // Reward the partial window before the position vanishes — a
+            // machine that dumps fast must still teach the bandit. Guarded
+            // on `self.live`: if the window boundary above already rewarded
+            // and cleared it, don't double-count.
+            if let Some(l) = self.live.as_ref() {
+                let rel = cur_p / pos.entry_price;
+                let actual = pos.cash_norm + pos.remaining_frac * rel;
+                let counterfactual = l.start_cash + l.start_remaining * rel;
+                let reward_bps = match counterfactual.abs() > f64::EPSILON {
+                    true => (actual - counterfactual) / counterfactual * 10_000.0,
+                    false => 0.0,
+                };
+                let arm = l.arm;
+                bandit.update(arm, reward_bps);
+                let entry = self
+                    .realized
+                    .entry(bandit.strategy(arm).id())
+                    .or_insert((0.0, 0));
+                entry.0 += reward_bps;
+                entry.1 += 1;
+                events.push(EngineEvent::WindowClosed {
+                    arm,
+                    reward_bps,
+                    pulls: bandit.arms()[arm].pulls(),
+                });
+            }
             events.push(EngineEvent::PositionClosed {
                 tick,
                 final_value_norm: final_value,
             });
-            self.position = None;
+            let closed = self.position.take().expect("checked above");
+            self.record_close(closed, tick, cur_p);
             self.live = None;
         }
     }

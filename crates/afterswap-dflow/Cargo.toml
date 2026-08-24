@@ -12,7 +12,12 @@ tokio = { workspace = true }
 reqwest = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+# Live execution only (feature "live"): sign DFlow /order transactions and
+# submit via JSON-RPC. Paper mode carries none of this.
+solana-sdk = { version = "2", optional = true }
+bincode = { version = "1", optional = true }
+base64 = { version = "0.22", optional = true }
 
 [features]
 default = []
-live = []
+live = ["dep:solana-sdk", "dep:bincode", "dep:base64"]

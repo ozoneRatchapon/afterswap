@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterSwap — ruliology exit autopilot</title>
+<style>
+  /* Reference dark palette (validated: #3987e5,#d95926 on #1a1a19 — all checks pass) */
+  :root {
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface-1:   #1a1a19;
+    --surface-2:   #222221;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --muted:       #898781;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    --series-1:    #3987e5;   /* price line, active FSM state */
+    --series-2:    #d95926;   /* tranche-fill markers */
+    --seq-400:     #3987e5;   /* meter fill */
+    --seq-600:     #184f95;   /* meter track (lighter step of same ramp, dark mode) */
+    --delta-good:  #0ca30c;
+    --delta-bad:   #d03b3b;
+    --status-warn: #fab219;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--page); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 20px; max-width: 1180px; margin: 0 auto;
+  }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  .tag { color: var(--muted); font-size: 13px; }
+  .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); margin-left: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--delta-bad); }
+  .dot.ok { background: var(--delta-good); }
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .stats { grid-template-columns: 1.4fr repeat(4, 1fr); }
+  .stat .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stat .value { font-size: 22px; font-weight: 600; }
+  .stat .value.hero { font-size: 48px; line-height: 1.1; letter-spacing: -0.02em; }
+  .stat .sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+  .up   { color: var(--delta-good); }
+  .down { color: var(--delta-bad); }
+  .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  input[type=number] {
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
+    border-radius: 6px; padding: 6px 8px; width: 90px; font: inherit;
+  }
+  button {
+    background: var(--series-1); color: #fff; border: 0; border-radius: 6px;
+    padding: 7px 14px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .split { grid-template-columns: 1.5fr 1fr; align-items: start; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 10px; }
+  .markerkey { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .markerkey span { display: inline-flex; align-items: center; gap: 6px; }
+  .k { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  svg text { font: 11px system-ui, sans-serif; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: right; font-size: 11px; color: var(--muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; }
+  td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); font-size: 13px; color: var(--ink-2); }
+  tr.live td { color: var(--ink); background: var(--surface-2); }
+  tr.live td:first-child { box-shadow: inset 3px 0 0 var(--series-1); }
+  .chip { font-size: 10px; font-weight: 700; color: var(--series-1); letter-spacing: 0.05em; }
+  .meter { height: 8px; border-radius: 4px; background: var(--seq-600); overflow: hidden; margin-top: 6px; }
+  .meter > div { height: 100%; background: var(--seq-400); border-radius: 4px; }
+  #tooltip {
+    position: fixed; display: none; pointer-events: none; z-index: 10;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 9px; font-size: 12px; color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  #tooltip b { color: var(--ink); font-weight: 600; }
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+  footer a { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AfterSwap</h1>
+  <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow</span>
+  <span class="conn"><span id="conndot" class="dot"></span><span id="conntext">connecting…</span></span>
+</header>
+
+<div class="row stats panel" id="statrow">
+  <div class="stat">
+    <div class="label">Edge vs hold</div>
+    <div class="value hero" id="hero">—</div>
+    <div class="sub" id="herosub">open a position to start the fight</div>
+    <div class="controls">
+      <input id="size" type="number" value="0.5" min="0.01" step="0.01" aria-label="size in SOL">
+      <button id="open">Open position</button>
+      <button id="close" class="ghost">Close</button>
+    </div>
+  </div>
+  <div class="stat"><div class="label">Exit value</div><div class="value" id="vexit">—</div><div class="sub">× entry (cash + held)</div></div>
+  <div class="stat"><div class="label">Hold value</div><div class="value" id="vhold">—</div><div class="sub">× entry if never sold</div></div>
+  <div class="stat"><div class="label">Remaining</div><div class="value" id="vrem">—</div><div class="sub" id="vfills">no fills yet</div></div>
+  <div class="stat"><div class="label">Machines</div><div class="value" id="varms">—</div><div class="sub" id="vwind">enumerating…</div></div>
+</div>
+
+<div class="panel" style="margin-bottom:14px">
+  <h2>SOL / USDC — live DFlow quotes</h2>
+  <div class="markerkey">
+    <span><span class="k" style="background:var(--series-1)"></span>entry</span>
+    <span><span class="k" style="background:var(--series-2)"></span>tranche sold</span>
+  </div>
+  <svg id="chart" width="100%" height="260" role="img" aria-label="price line chart"></svg>
+</div>
+
+<div class="row split">
+  <div class="panel">
+    <h2>Arm leaderboard — Pareto survivors as UCB1 bandit arms</h2>
+    <div id="board"><div class="empty">waiting for first tournament…</div></div>
+  </div>
+  <div style="display:grid; gap:14px">
+    <div class="panel">
+      <h2>Live machine <span class="chip" id="livechip"></span></h2>
+      <svg id="fsm" width="100%" height="190" role="img" aria-label="FSM state diagram"></svg>
+      <div class="sub" style="color:var(--muted); font-size:12px" id="fsmhint">↑ = price up-tick, ↓ = down-tick · orange badge = sell state</div>
+    </div>
+    <div class="panel">
+      <h2>Simulation gate</h2>
+      <div id="gate" class="empty">no tournament yet</div>
+    </div>
+    <div class="panel">
+      <h2>Fills tape</h2>
+      <div id="tape" class="empty">no fills yet</div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+<footer>DFlow Trading API (dev) · engine: <a href="https://github.com/katopz/katgpt-rs">katgpt-ruliology</a> · paper mode — quotes real, fills simulated · MIT</footer>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 4) => x == null ? "—" : x.toFixed(d);
+let last = null;
+
+function bps(state) {
+  if (state.position_value_norm == null || state.hold_value_norm == null) return null;
+  return (state.position_value_norm - state.hold_value_norm) / state.hold_value_norm * 1e4;
+}
+
+function activePos(s) {
+  return s.position || (s.last_closed && s.last_closed.position) || null;
+}
+
+function renderStats(s) {
+  const e = bps(s);
+  const hero = $("hero");
+  const setHero = (v, sub) => {
+    hero.textContent = `${v >= 0 ? "+" : ""}${v.toFixed(1)} bps`;
+    hero.className = `value hero ${v >= 0 ? "up" : "down"}`;
+    $("herosub").textContent = sub;
+  };
+  if (e != null) setHero(e, "machine exit vs never selling — live");
+  else if (!s.position && s.last_closed) setHero(s.last_closed.edge_bps, "position fully exited — locked result");
+  else {
+    hero.textContent = "—"; hero.className = "value hero";
+    $("herosub").textContent = s.position ? "measuring…" : "open a position to start the fight";
+  }
+  const vexit = s.position_value_norm ?? (s.last_closed && s.last_closed.final_value_norm);
+  const vhold = s.hold_value_norm ?? (s.last_closed && s.last_closed.hold_value_norm);
+  $("vexit").textContent = fmt(vexit, 4);
+  $("vhold").textContent = fmt(vhold, 4);
+  const ap = activePos(s);
+  $("vrem").textContent = ap ? `${(ap.remaining_frac * 100).toFixed(0)}%` : "—";
+  $("vfills").textContent = ap ? `${ap.fills.length} tranche fills` : "no open position";
+  $("varms").textContent = s.arms.length ? `${s.arms.length} arms` : "—";
+  $("vwind").textContent = `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`;
+  $("open").disabled = !!s.position;
+  $("close").disabled = !s.position;
+}
+
+function niceStep(range) {
+  const raw = range / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 5, 10]) if (raw <= m * mag) return m * mag;
+  return 10 * mag;
+}
+
+function renderChart(s) {
+  const svg = $("chart"), W = svg.clientWidth, H = 260;
+  const P = { l: 54, r: 46, t: 10, b: 22 };
+  const prices = s.recent_prices || [];
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (prices.length < 2) { svg.innerHTML = ""; return; }
+  const t1 = s.tick, t0 = t1 - prices.length + 1;
+  let lo = Math.min(...prices), hi = Math.max(...prices);
+  if (hi - lo < 1e-9) { hi += 0.01; lo -= 0.01; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const X = (t) => P.l + (t - t0) / Math.max(1, t1 - t0) * (W - P.l - P.r);
+  const Y = (p) => P.t + (hi - p) / (hi - lo) * (H - P.t - P.b);
+  let g = "";
+  const step = niceStep(hi - lo);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>`
+       + `<text x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v.toFixed(2)}</text>`;
+  }
+  const pts = prices.map((p, i) => `${X(t0 + i)},${Y(p)}`).join(" ");
+  const areaPts = `${X(t0)},${Y(lo)} ${pts} ${X(t1)},${Y(lo)}`;
+  g += `<polygon points="${areaPts}" fill="var(--series-1)" opacity="0.10"/>`;
+  g += `<polyline points="${pts}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  g += `<line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1"/>`;
+  // entry + fill markers (2px surface ring per mark spec)
+  const ap = activePos(s);
+  if (ap && ap.opened_at_tick >= t0 && ap.entry_price >= lo && ap.entry_price <= hi) {
+    g += `<circle cx="${X(ap.opened_at_tick)}" cy="${Y(ap.entry_price)}" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>`;
+  }
+  const fills = ap ? ap.fills : [];
+  for (const f of fills) if (f.tick >= t0) {
+    g += `<circle cx="${X(f.tick)}" cy="${Y(f.price)}" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>`;
+  }
+  // selective direct label: line end only
+  const lastP = prices[prices.length - 1];
+  g += `<text x="${W - P.r + 6}" y="${Y(lastP) + 4}" fill="var(--ink-2)">${lastP.toFixed(2)}</text>`;
+  g += `<line id="xhair" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
+  svg.innerHTML = g;
+  svg.onmousemove = (ev) => {
+    const r = svg.getBoundingClientRect();
+    const frac = (ev.clientX - r.left - P.l) / (W - P.l - P.r);
+    const i = Math.round(frac * (prices.length - 1));
+    if (i < 0 || i >= prices.length) return hideTip();
+    const t = t0 + i, x = X(t);
+    const xh = $("xhair"); xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("visibility", "visible");
+    const evts = fills.filter(f => f.tick === t).map(f => `<br>sold ${(f.frac * 100).toFixed(0)}% @ ${f.price.toFixed(3)}`).join("");
+    showTip(ev.clientX, ev.clientY, `tick <b>${t}</b> · <b>${prices[i].toFixed(4)}</b> USDC${evts}`);
+  };
+  svg.onmouseleave = () => { hideTip(); const xh = $("xhair"); if (xh) xh.setAttribute("visibility", "hidden"); };
+}
+
+function showTip(x, y, html) {
+  const tip = $("tooltip");
+  tip.innerHTML = html; tip.style.display = "block";
+  tip.style.left = `${Math.min(x + 14, window.innerWidth - 180)}px`;
+  tip.style.top = `${y + 14}px`;
+}
+function hideTip() { $("tooltip").style.display = "none"; }
+
+function renderBoard(s) {
+  if (!s.arms.length) return;
+  const rows = [...s.arms].sort((a, b) => b.ucb1 - a.ucb1).slice(0, 16).map((a) => {
+    const live = a.index === s.live_arm;
+    const real = a.pulls > 0
+      ? `<span class="${a.mean_reward_bps >= 0 ? "up" : "down"}">${a.mean_reward_bps >= 0 ? "+" : ""}${a.mean_reward_bps.toFixed(1)}</span>`
+      : "·";
+    return `<tr class="${live ? "live" : ""}">
+      <td>#${a.id.toString(16).slice(0, 6)} ${live ? '<span class="chip">LIVE</span>' : ""}</td>
+      <td>${a.n_states}</td>
+      <td>${a.complexity.toFixed(2)}</td>
+      <td>${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)}</td>
+      <td>${real}</td>
+      <td>${a.pulls}</td>
+      <td>${Number.isFinite(a.ucb1) ? a.ucb1.toFixed(1) : "∞"}</td>
+    </tr>`;
+  }).join("");
+  $("board").innerHTML = `<table>
+    <thead><tr><th>machine</th><th>states</th><th>cx</th><th>sim bps</th><th>real bps</th><th>pulls</th><th>ucb1</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function renderFsm(s) {
+  const svg = $("fsm"), W = svg.clientWidth, H = 190;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const arm = s.arms.find(a => a.index === s.live_arm);
+  $("livechip").textContent = arm ? `#${arm.id.toString(16).slice(0, 6)}` : "";
+  if (!arm) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`; return; }
+  const n = arm.n_states, cx = W / 2, cy = H / 2, R = n === 1 ? 0 : 58;
+  const pos = Array.from({ length: n }, (_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    return [cx + R * Math.cos(a), cy + R * Math.sin(a)];
+  });
+  let g = "";
+  for (let st = 0; st < n; st++) {
+    for (const input of [0, 1]) {
+      const to = arm.transitions[st][input];
+      const [x1, y1] = pos[st], [x2, y2] = pos[to];
+      const lbl = input === 1 ? "↑" : "↓";
+      if (to === st) {
+        const a = Math.atan2(y1 - cy, x1 - cx), lx = x1 + 34 * Math.cos(a), ly = y1 + 34 * Math.sin(a);
+        g += `<circle cx="${x1 + 26 * Math.cos(a)}" cy="${y1 + 26 * Math.sin(a)}" r="9" fill="none" stroke="var(--grid)" stroke-width="1.5"/>`
+           + `<text x="${lx + (input ? 7 : -7)}" y="${ly + 4}" text-anchor="middle">${lbl}</text>`;
+      } else {
+        const mx = (x1 + x2) / 2 + (y2 - y1) * 0.18 * (input ? 1 : -1);
+        const my = (y1 + y2) / 2 - (x2 - x1) * 0.18 * (input ? 1 : -1);
+        g += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="var(--grid)" stroke-width="1.5"/>`
+           + `<text x="${mx}" y="${my}" text-anchor="middle">${lbl}</text>`;
+      }
+    }
+  }
+  for (let st = 0; st < n; st++) {
+    const [x, y] = pos[st], active = st === s.live_fsm_state;
+    g += `<circle cx="${x}" cy="${y}" r="20" fill="${active ? "var(--series-1)" : "var(--surface-2)"}" stroke="var(--surface-1)" stroke-width="2"/>`
+       + `<text x="${x}" y="${y + 4}" text-anchor="middle" fill="${active ? "#fff" : "var(--ink-2)"}">S${st}</text>`;
+    if (arm.outputs[st] === 1) {
+      g += `<circle cx="${x + 15}" cy="${y - 15}" r="6" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>`;
+    }
+  }
+  svg.innerHTML = g;
+}
+
+function renderGate(s) {
+  if (!s.gate) return;
+  const pct = Math.round(s.gate.compression_ratio * 100);
+  $("gate").className = "";
+  $("gate").innerHTML = `
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--ink-2)">
+      <span>route: <b style="color:var(--ink)">${s.gate.route}</b></span>
+      <span>${s.gate.is_irreducible ? "irreducible" : "reducible"}</span>
+    </div>
+    <div class="meter" role="meter" aria-label="compression ratio"><div style="width:${pct}%"></div></div>
+    <div style="font-size:12px; color:var(--muted); margin-top:4px">compression ratio ${s.gate.compression_ratio.toFixed(2)} — decides skip / light / full re-tournament</div>`;
+}
+
+function renderTape(s) {
+  const ap = activePos(s);
+  const fills = ap ? [...ap.fills].reverse() : [];
+  if (!fills.length) { $("tape").className = "empty"; $("tape").textContent = "no fills yet"; return; }
+  $("tape").className = "";
+  $("tape").innerHTML = `<table><thead><tr><th>tick</th><th>frac</th><th>price</th></tr></thead><tbody>${
+    fills.slice(0, 8).map(f => `<tr><td>${f.tick}</td><td>${(f.frac * 100).toFixed(0)}%</td><td>${f.price.toFixed(3)}</td></tr>`).join("")
+  }</tbody></table>`;
+}
+
+function render(s) {
+  last = s;
+  renderStats(s); renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderTape(s);
+}
+
+$("open").onclick = async () => {
+  await fetch("/api/position/open", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ size: parseFloat($("size").value) || 0.5 }) });
+};
+$("close").onclick = async () => { await fetch("/api/position/close", { method: "POST" }); };
+
+async function boot() {
+  try { render(await (await fetch("/api/state")).json()); } catch {}
+  const es = new EventSource("/api/events");
+  es.onopen = () => { $("conndot").className = "dot ok"; $("conntext").textContent = "live"; };
+  es.onerror = () => { $("conndot").className = "dot"; $("conntext").textContent = "reconnecting…"; };
+  es.addEventListener("snapshot", (ev) => render(JSON.parse(ev.data)));
+}
+window.addEventListener("resize", () => { if (last) { renderChart(last); renderFsm(last); } });
+boot();
+</script>
+</body>
+</html>
