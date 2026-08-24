@@ -43,6 +43,21 @@ async fn main() -> anyhow::Result<()> {
         open_after_ticks: arg(&args, "--open-after").unwrap_or(30),
         size: arg(&args, "--size").unwrap_or(0.5),
         engine,
+        #[cfg(feature = "live")]
+        live: match arg::<String>(&args, "--keypair") {
+            Some(path) => {
+                let rpc = arg::<String>(&args, "--rpc")
+                    .unwrap_or_else(|| "https://api.mainnet-beta.solana.com".to_string());
+                let exec = afterswap_dflow::LiveExecutor::from_keypair_file(
+                    afterswap_dflow::DflowClient::dev(),
+                    &path,
+                    rpc,
+                )?;
+                log::info!("LIVE mode: selling real tranches as {}", exec.pubkey());
+                Some(exec)
+            }
+            None => None,
+        },
     };
 
     match arg::<u16>(&args, "--serve") {

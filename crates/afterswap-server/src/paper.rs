@@ -8,6 +8,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use afterswap_dflow::{DflowClient, PricePoller};
+#[cfg(feature = "live")]
+use afterswap_dflow::{LiveExecutor, QuoteRequest, mints};
+#[cfg(feature = "live")]
+use afterswap_engine::EngineEvent;
 use afterswap_engine::{EngineConfig, ExitEngine};
 use log::{info, warn};
 use tokio::sync::{Mutex, broadcast};
@@ -26,6 +30,9 @@ pub struct PaperConfig {
     pub size: f64,
     /// Engine tuning.
     pub engine: EngineConfig,
+    /// Live executor: mirror paper tranche fills into real DFlow orders.
+    #[cfg(feature = "live")]
+    pub live: Option<LiveExecutor>,
 }
 
 impl Default for PaperConfig {
@@ -36,6 +43,8 @@ impl Default for PaperConfig {
             open_after_ticks: 30,
             size: 0.5,
             engine: EngineConfig::default(),
+            #[cfg(feature = "live")]
+            live: None,
         }
     }
 }
@@ -77,7 +86,23 @@ pub async fn run_shared(
         info!("tick {ticks}: SOL/USDC {price:.5}");
         for ev in &events {
             info!("event: {}", serde_json::to_string(ev)?);
+            #[cfg(feature = "live")]
+            if let (Some(exec), EngineEvent::TrancheFilled { frac, .. }) = (&cfg.live, ev) {
+                let lamports = (frac * cfg.size * 1e9) as u64;
+                let req = QuoteRequest {
+                    input_mint: mints::SOL.to_string(),
+                    output_mint: mints::USDC.to_string(),
+                    amount: lamports,
+                    slippage_bps: 50,
+                };
+                match exec.sell(&req).await {
+                    Ok(sig) => info!("LIVE tranche sold: {lamports} lamports, sig {sig}"),
+                    Err(e) => warn!("LIVE tranche failed (paper state unchanged): {e}"),
+                }
+            }
         }
+        #[cfg(not(feature = "live"))]
+        let _ = &events;
 
         if !opened && cfg.open_after_ticks > 0 && ticks >= cfg.open_after_ticks {
             match engine.open_position(cfg.size) {
