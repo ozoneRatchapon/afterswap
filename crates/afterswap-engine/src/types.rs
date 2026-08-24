@@ -21,6 +21,10 @@ pub struct EngineConfig {
     pub payoff_threshold_bps: f64,
     /// Pareto pruner complexity ceiling (normalized 0..=1).
     pub complexity_threshold: f32,
+    /// Cap on bandit arms after Pareto pruning (top by sim edge, then
+    /// simplicity). Keeps UCB1 exploration meaningful — a flat market
+    /// degenerates the Pareto front to the whole enumeration.
+    pub max_arms: usize,
 }
 
 impl Default for EngineConfig {
@@ -34,6 +38,7 @@ impl Default for EngineConfig {
             refresh_every_windows: 2,
             payoff_threshold_bps: -1e9,
             complexity_threshold: 1.1,
+            max_arms: 24,
         }
     }
 }

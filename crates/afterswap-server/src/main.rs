@@ -33,6 +33,9 @@ async fn main() -> anyhow::Result<()> {
         engine.window_len = w;
         engine.window_stride = (w / 2).max(1);
     }
+    if let Some(t) = arg::<f64>(&args, "--tranche") {
+        engine.tranche_frac = t.clamp(0.01, 1.0);
+    }
 
     let cfg = PaperConfig {
         interval_ms: arg(&args, "--interval-ms").unwrap_or(2_000),

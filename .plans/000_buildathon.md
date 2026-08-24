@@ -56,10 +56,14 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 ## Day plan
 
 - D1 Aug 24 ✅ scaffold, engine + 6 tests, DFlow probes, this plan
-- D2 Aug 25 — dflow crate: PriceSource (poll), quote/order types, paper
-  executor; terminal e2e (live quotes → engine → paper fills)
-- D3 Aug 26 — server: axum, SSE snapshots, open/close endpoints; dashboard
-  v1 (price chart, arm leaderboard, fills tape)
+- D2 Aug 24 ✅ (early) dflow crate + paper loop; live e2e verified
+- D3 Aug 24 ✅ (early) axum + SSE + dashboard v1 (validated dark palette,
+  hero edge stat, price chart w/ fill markers, leaderboard, FSM diagram,
+  gate panel, fills tape). Arm cap (24), bootstrap gate label,
+  close-reward partial window, ClosedSummary locked result. Screenshots:
+  /tmp/aswap_dash.png, /tmp/aswap_dash2.png. Run:
+  `cargo run -p afterswap-server -- --serve 8787 --interval-ms 1000
+   --window 12 --states 3 --tranche 0.1`
 - D4 Aug 27 — dashboard v2 (FSM state diagrams, gate panel); `live` feature
   (solana-sdk sign+send); one real tiny mainnet swap
 - D5 Aug 28 — deploy (fly.io), README polish, screenshots
