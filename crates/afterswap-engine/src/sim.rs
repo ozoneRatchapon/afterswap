@@ -68,3 +68,152 @@ pub fn evaluate_matrix(
     let complexities: Vec<f32> = strategies.iter().map(|s| s.complexity()).collect();
     (WinMatrix::new(payoffs, ids), complexities)
 }
+
+// ---------------------------------------------------------------------------
+// GOAT harness: pure paper simulation over a full corpus, floor strategies,
+// deterministic synthetic corpora. No I/O except the corpus loader.
+// ---------------------------------------------------------------------------
+
+use crate::engine::{EngineEvent, ExitEngine};
+use crate::types::EngineConfig;
+
+/// Result of one simulated position lifecycle.
+#[derive(Debug, Clone)]
+pub struct SimResult {
+    /// Exit value in units of entry (cash + residual at last price).
+    pub final_value_norm: f64,
+    /// Hold-to-end value in units of entry.
+    pub hold_value_norm: f64,
+    /// Edge vs holding, in bps.
+    pub edge_vs_hold_bps: f64,
+    /// Fully serialized event stream (G1 bit-identity check).
+    pub events_json: String,
+    pub fills: usize,
+    pub closed: bool,
+}
+
+/// Feed `prices` through a fresh engine, opening one position at
+/// `open_at`. Fully deterministic for a fixed `(cfg, prices, open_at)`.
+pub fn simulate(cfg: EngineConfig, prices: &[f64], open_at: usize, size: f64) -> SimResult {
+    let mut engine = ExitEngine::new(cfg);
+    let mut events_json = String::new();
+    let mut fills = 0usize;
+    for (i, &p) in prices.iter().enumerate() {
+        for ev in engine.on_tick(p) {
+            if matches!(ev, EngineEvent::TrancheFilled { .. }) {
+                fills += 1;
+            }
+            events_json.push_str(&serde_json::to_string(&ev).expect("event serializes"));
+            events_json.push('\n');
+        }
+        if i == open_at {
+            engine.open_position(size);
+        }
+    }
+    let last = *prices.last().expect("non-empty corpus");
+    let snap = engine.snapshot(1);
+    let entry = prices[open_at];
+    let hold_value_norm = last / entry;
+    // Open → engine live values; fully exited → locked summary re-based to
+    // end-of-corpus (cash is final; hold counterfactual runs to the end).
+    let (final_value_norm, closed) = match (snap.position_value_norm, &snap.last_closed) {
+        (Some(v), _) => (v, false),
+        (None, Some(c)) => (c.final_value_norm * entry / c.position.entry_price, true),
+        (None, None) => (1.0, false),
+    };
+    let edge_vs_hold_bps = (final_value_norm - hold_value_norm) / hold_value_norm * 10_000.0;
+    SimResult {
+        final_value_norm,
+        hold_value_norm,
+        edge_vs_hold_bps,
+        events_json,
+        fills,
+        closed,
+    }
+}
+
+/// TWAP floor: sell `1/n_slices` every `stride` ticks from `open_at`,
+/// unconditionally. Returns final value in units of entry.
+pub fn twap_value_norm(prices: &[f64], open_at: usize, n_slices: usize, stride: usize) -> f64 {
+    let entry = prices[open_at];
+    let mut cash = 0.0f64;
+    let mut remaining = 1.0f64;
+    let frac = 1.0 / n_slices as f64;
+    let mut k = 0usize;
+    for (i, &p) in prices.iter().enumerate().skip(open_at + 1) {
+        if (i - open_at).is_multiple_of(stride) && remaining > 1e-12 {
+            let f = frac.min(remaining);
+            cash += f * (p / entry);
+            remaining -= f;
+            k += 1;
+            if k >= n_slices {
+                break;
+            }
+        }
+    }
+    cash + remaining * (prices[prices.len() - 1] / entry)
+}
+
+/// Synthetic market regimes (seeded, deterministic).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Regime {
+    TrendUp,
+    TrendDown,
+    Chop,
+    VShape,
+}
+
+impl Regime {
+    pub const ALL: [Regime; 4] = [
+        Regime::TrendUp,
+        Regime::TrendDown,
+        Regime::Chop,
+        Regime::VShape,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Regime::TrendUp => "trend_up",
+            Regime::TrendDown => "trend_down",
+            Regime::Chop => "chop",
+            Regime::VShape => "v_shape",
+        }
+    }
+}
+
+/// Generate a deterministic synthetic corpus: geometric walk with
+/// per-regime drift (in bps/tick) plus seeded noise.
+pub fn synthetic_corpus(regime: Regime, len: usize, seed: u64) -> Vec<f64> {
+    let mut rng = fastrand::Rng::with_seed(seed);
+    let mut p = 100.0f64;
+    let mut out = Vec::with_capacity(len);
+    for i in 0..len {
+        let drift_bps = match regime {
+            Regime::TrendUp => 1.5,
+            Regime::TrendDown => -1.5,
+            Regime::Chop => 0.0,
+            Regime::VShape => match i < len / 2 {
+                true => -3.0,
+                false => 3.0,
+            },
+        };
+        let noise_bps = (rng.f64() - 0.5) * 8.0;
+        let revert_bps = match regime {
+            Regime::Chop => (100.0 - p) / 100.0 * 40.0 * 100.0 / 100.0,
+            _ => 0.0,
+        };
+        p *= 1.0 + (drift_bps + noise_bps + revert_bps) * 1e-4;
+        out.push(p);
+    }
+    out
+}
+
+/// Load a `{"price": f}` jsonl recording.
+pub fn load_corpus(path: &str) -> std::io::Result<Vec<f64>> {
+    let text = std::fs::read_to_string(path)?;
+    Ok(text
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter_map(|v| v.get("price").and_then(|p| p.as_f64()))
+        .collect())
+}

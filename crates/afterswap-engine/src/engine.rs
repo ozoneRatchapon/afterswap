@@ -133,6 +133,8 @@ pub struct ExitEngine {
     last_closed: Option<ClosedSummary>,
     recent_events: std::collections::VecDeque<TickEvent>,
     last_arm: Option<usize>,
+    /// Seeded RNG for the random-arm floor (config.random_arm_seed).
+    floor_rng: Option<fastrand::Rng>,
     live: Option<LiveArm>,
     completed_windows: usize,
     windows_since_refresh: usize,
@@ -144,6 +146,7 @@ pub struct ExitEngine {
 impl ExitEngine {
     /// Enumerate the strategy space and prepare an empty engine.
     pub fn new(config: EngineConfig) -> Self {
+        let seed = config.random_arm_seed;
         let strategies = FsmEnumerator::enumerate(config.n_fsm_states);
         info!(
             "enumerated {} distinct {}-state FSM exit strategies",
@@ -164,6 +167,7 @@ impl ExitEngine {
             last_closed: None,
             recent_events: std::collections::VecDeque::new(),
             last_arm: None,
+            floor_rng: seed.map(fastrand::Rng::with_seed),
             live: None,
             completed_windows: 0,
             windows_since_refresh: 0,
@@ -404,7 +408,10 @@ impl ExitEngine {
 
         // (Re)select the driving arm.
         if self.live.is_none() {
-            let arm = bandit.select_arm();
+            let arm = match self.floor_rng.as_mut() {
+                Some(rng) => rng.usize(..bandit.num_arms()),
+                None => bandit.select_arm(),
+            };
             let mut fsm = bandit.strategy(arm).clone();
             fsm.reset();
             let pos = self.position.as_ref().expect("checked by caller");
