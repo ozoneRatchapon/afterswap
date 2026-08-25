@@ -91,7 +91,13 @@
 <header>
   <h1>AfterSwap</h1>
   <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow, running entirely in your tab</span>
-  <span class="conn"><span id="conndot" class="dot"></span><span id="conntext">connecting…</span></span>
+  <span class="conn">
+    <span style="position:relative">
+      <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
+      <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
+    </span>
+    <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
+  </span>
 </header>
 
 <div class="row stats panel" id="statrow">
@@ -99,10 +105,18 @@
     <div class="label">Edge vs hold</div>
     <div class="value hero" id="hero">—</div>
     <div class="sub" id="herosub">open a position to start the fight</div>
+    <div class="sub" style="color:var(--muted); max-width:34em; margin-top:6px" id="explainer">
+      Paper mode — nothing real moves. "Open position" pretend-buys SOL at
+      the current DFlow price; the robots then compete to sell it, tranche
+      by tranche, better than you would by doing nothing.
+    </div>
     <div class="controls">
       <input id="size" type="number" value="0.5" min="0.01" step="0.01" aria-label="size in SOL">
       <button id="open">Open position</button>
       <button id="close" class="ghost">Close</button>
+      <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
+        <input type="checkbox" id="livemode"> live sells via wallet
+      </label>
     </div>
   </div>
   <div class="stat"><div class="label">Exit value</div><div class="value" id="vexit">—</div><div class="sub">× entry (cash + held)</div></div>
@@ -142,6 +156,10 @@
     <div class="panel">
       <h2>Fills tape</h2>
       <div id="tape" class="empty">no fills yet</div>
+    </div>
+    <div class="panel" id="onchainpanel" style="display:none">
+      <h2>On-chain fills — real DFlow orders, approved in your wallet</h2>
+      <div id="onchain" style="display:grid; gap:4px; font-size:12.5px"></div>
     </div>
   </div>
 </div>
@@ -189,6 +207,7 @@ function renderStats(s) {
   $("varms").textContent = s.arms.length ? `${s.arms.length} arms` : "—";
   $("vwind").textContent = `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`;
   $("open").disabled = !!s.position;
+  $("explainer").style.display = (s.position || s.last_closed) ? "none" : "";
   $("close").disabled = !s.position;
 }
 
@@ -398,14 +417,144 @@ $("open").onclick = () => {
 };
 $("close").onclick = () => { engine.close_position(); refresh(); };
 
+// ---- Wallet (Wallet Standard): works with ANY Solana wallet that
+// announces itself (Phantom, Solflare, Backpack, ...). Self-custodial —
+// keys never leave the wallet; every tranche is a DFlow /order the user
+// approves. Raw tx bytes go straight to signAndSendTransaction, so no
+// web3.js dependency at all. ----
+let connectedWallet = null, connectedAccount = null, walletPubkey = null;
+let sellQueue = Promise.resolve();
+const ORDER_URL = "https://dev-quote-api.dflow.net/order";
+const CHAIN = "solana:mainnet";
+const detected = [];
+
+function isSolanaWallet(w) {
+  return w?.chains?.some((c) => c.startsWith("solana:"))
+    && w.features?.["standard:connect"]
+    && (w.features?.["solana:signAndSendTransaction"] || w.features?.["solana:signTransaction"]);
+}
+const wsApi = {
+  register: (...ws) => {
+    for (const w of ws) if (isSolanaWallet(w) && !detected.includes(w)) detected.push(w);
+    return () => {};
+  },
+};
+window.addEventListener("wallet-standard:register-wallet", (ev) => {
+  try { ev.detail(wsApi); } catch {}
+});
+window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: wsApi }));
+
+$("wallet").onclick = () => {
+  if (walletPubkey) return;
+  if (!detected.length) { window.open("https://phantom.app", "_blank"); return; }
+  if (detected.length === 1) { connectTo(detected[0]); return; }
+  const menu = $("walletmenu");
+  menu.style.display = menu.style.display === "none" ? "block" : "none";
+  menu.innerHTML = detected.map((w, i) =>
+    `<button class="ghost" style="display:flex; gap:8px; align-items:center; width:100%; margin:2px 0" data-w="${i}">
+       <img src="${w.icon}" width="16" height="16" alt=""> ${w.name}
+     </button>`).join("");
+  menu.querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { menu.style.display = "none"; connectTo(detected[+b.dataset.w]); };
+  });
+};
+
+async function connectTo(wallet) {
+  try {
+    const { accounts } = await wallet.features["standard:connect"].connect();
+    const account = accounts.find((a) => a.chains?.some((c) => c.startsWith("solana:"))) ?? accounts[0];
+    if (!account) return;
+    connectedWallet = wallet;
+    connectedAccount = account;
+    walletPubkey = account.address;
+    $("wallet").textContent = `${wallet.name} · ${walletPubkey.slice(0, 4)}…${walletPubkey.slice(-4)}`;
+    $("livelabel").style.display = "inline-flex";
+    const bal = await rpcBalance(walletPubkey);
+    if (bal != null) $("wallet").textContent += ` · ${(bal / 1e9).toFixed(3)} SOL`;
+  } catch { /* user rejected */ }
+}
+
+$("livemode").onchange = (ev) => {
+  if (ev.target.checked) {
+    if (parseFloat($("size").value) > 0.1) $("size").value = "0.05";
+    alert("Live mode: every tranche the robots sell asks your wallet to sign a REAL DFlow swap of your SOL. Size set to 0.05 — start tiny.");
+  }
+};
+
+async function rpcBalance(pubkey) {
+  try {
+    const r = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [pubkey] }),
+    });
+    return (await r.json()).result?.value ?? null;
+  } catch { return null; }
+}
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58(bytes) {
+  let n = 0n;
+  for (const b of bytes) n = n * 256n + BigInt(b);
+  let out = "";
+  while (n > 0n) { out = B58[Number(n % 58n)] + out; n /= 58n; }
+  for (const b of bytes) { if (b !== 0) break; out = "1" + out; }
+  return out;
+}
+
+function liveSell(solAmount) {
+  // Serialize sells so wallet popups never overlap.
+  sellQueue = sellQueue.then(async () => {
+    const lamports = Math.floor(solAmount * 1e9);
+    const url = `${ORDER_URL}?inputMint=So11111111111111111111111111111111111111112`
+      + `&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+      + `&amount=${lamports}&slippageBps=50&userPublicKey=${walletPubkey}`;
+    const order = await (await fetch(url)).json();
+    const txBytes = Uint8Array.from(atob(order.transaction), (c) => c.charCodeAt(0));
+
+    let sig;
+    const sas = connectedWallet.features["solana:signAndSendTransaction"];
+    if (sas) {
+      const [res] = await sas.signAndSendTransaction({
+        transaction: txBytes, account: connectedAccount, chain: CHAIN,
+      });
+      sig = base58(res.signature);
+    } else {
+      // signTransaction-only wallets: sign, then submit via public RPC.
+      const [res] = await connectedWallet.features["solana:signTransaction"].signTransaction({
+        transaction: txBytes, account: connectedAccount, chain: CHAIN,
+      });
+      const b64 = btoa(String.fromCharCode(...res.signedTransaction));
+      const rpc = await (await fetch("https://api.mainnet-beta.solana.com", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "sendTransaction",
+          params: [b64, { encoding: "base64" }] }),
+      })).json();
+      if (!rpc.result) throw new Error(JSON.stringify(rpc.error ?? rpc).slice(0, 80));
+      sig = rpc.result;
+    }
+    $("onchainpanel").style.display = "";
+    $("onchain").insertAdjacentHTML("afterbegin",
+      `<div>sold ${(lamports / 1e9).toFixed(3)} SOL · <a style="color:var(--series-1)" target="_blank" rel="noopener" href="https://solscan.io/tx/${sig}">${sig.slice(0, 16)}… ↗</a></div>`);
+  }).catch((e) => {
+    $("onchainpanel").style.display = "";
+    $("onchain").insertAdjacentHTML("afterbegin",
+      `<div class="down">live sell failed: ${String(e).slice(0, 80)} (paper state unchanged)</div>`);
+  });
+}
+
 // ---- WASM engine loop: quotes in, snapshots out. No server anywhere. ----
 import("./pkg/afterswap_wasm.js").then(async (mod) => {
   await mod.default();
   engine = new mod.WasmEngine(12, 3, 0.1, 24);
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
   setConn(true, replay ? "replay" : "live");
-  setInterval(tick, 1000);
+  scheduleTick();
 });
+
+// Tick on wall-clock second boundaries so parallel tabs stay in lockstep.
+function scheduleTick() {
+  setTimeout(async () => { await tick(); scheduleTick(); }, 1000 - (Date.now() % 1000));
+}
 
 let engine = null, replay = null, replayIdx = 0, failures = 0;
 const QUOTE_URL = "https://dev-quote-api.dflow.net/quote"
@@ -455,7 +604,14 @@ async function tick() {
       return;
     }
   }
-  engine.on_tick(price);
+  const events = JSON.parse(engine.on_tick(price));
+  if ($("livemode")?.checked && connectedWallet) {
+    for (const e of events) {
+      if (e.type === "tranche_filled") {
+        liveSell(e.frac * (parseFloat($("size").value) || 0.05));
+      }
+    }
+  }
   refresh();
 }
 </script>
