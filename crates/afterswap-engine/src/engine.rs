@@ -567,8 +567,13 @@ impl ExitEngine {
             self.config.complexity_threshold,
         );
         let mut survivors = pruner.filter(&matrix, &complexities);
-        // Cap arms: top by simulated edge, simplest first on ties. On flat
-        // windows nothing dominates, so the front can be the whole space.
+        // Cap arms: top by simulated edge (bps), simplest first on ties.
+        // Plackett–Luce rank-consistency ordering was tried here (roadmap
+        // #3, bench 006) and MEASURED WORSE on every floor — the objective
+        // is bps magnitude, not rank consistency; a machine that wins big
+        // in trend windows beats one that consistently edges flat ones.
+        // PL stays available in `rating.rs`; mean payoff stays the ranker.
+        // On flat windows nothing dominates → the cap does the bounding.
         survivors.sort_by(|&a, &b| {
             matrix
                 .avg_payoff(b)

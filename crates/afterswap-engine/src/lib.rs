@@ -9,6 +9,7 @@
 
 pub mod bandit;
 pub mod engine;
+pub mod rating;
 pub mod sim;
 pub mod types;
 pub mod windows;

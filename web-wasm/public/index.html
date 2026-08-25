@@ -509,6 +509,31 @@ async function rpcBalance(pubkey) {
   } catch { return null; }
 }
 
+// On-chain policy commitment (roadmap #4 precursor): before a position's
+// first live fill, publish the driving machine's fingerprint as a Memo tx
+// — the exit policy is committed on-chain before any sale follows it.
+let policyCommitted = false;
+const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+
+async function commitPolicy(arm) {
+  const w3 = await import("https://esm.sh/@solana/web3.js@1.95.8");
+  const { blockhash } = (await (await fetch("https://api.mainnet-beta.solana.com", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash", params: [] }),
+  })).json()).result.value;
+  const memo = `afterswap:policy fp=${BigInt(arm.id).toString(16)} machine="${arm.name}" gen=${arm.generation} states=${arm.n_states} tranche=10%`;
+  const tx = new w3.Transaction({ feePayer: new w3.PublicKey(walletPubkey), recentBlockhash: blockhash });
+  tx.add(new w3.TransactionInstruction({
+    keys: [], programId: new w3.PublicKey(MEMO_PROGRAM),
+    data: new TextEncoder().encode(memo),
+  }));
+  const bytes = new Uint8Array(tx.serialize({ requireAllSignatures: false, verifySignatures: false }));
+  const sas = connectedWallet.features["solana:signAndSendTransaction"];
+  const [res] = await sas.signAndSendTransaction({ transaction: bytes, account: connectedAccount, chain: CHAIN });
+  const sig = base58(res.signature);
+  liveNote(`📜 policy committed on-chain: ${arm.name} · <a style="color:var(--series-1)" target="_blank" rel="noopener" href="https://solscan.io/tx/${sig}">${sig.slice(0, 16)}… ↗</a>`);
+}
+
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 function base58(bytes) {
   let n = 0n;
@@ -530,6 +555,16 @@ function liveSell(solAmount) {
   // Serialize sells so wallet popups never overlap.
   sellQueue = sellQueue.then(async () => {
     if (!$("livemode").checked) return; // user turned it off mid-queue
+    // First live fill of this position → commit the policy fingerprint
+    // first (its own wallet approval; sells proceed even if declined).
+    if (!policyCommitted && last?.live_arm != null) {
+      const arm = last.arms.find((a) => a.index === last.live_arm);
+      if (arm) {
+        policyCommitted = true;
+        try { await commitPolicy(arm); }
+        catch (e) { liveNote(`<span class="down">policy memo skipped: ${String(e).slice(0, 60)}</span>`); }
+      }
+    }
     const lamports = Math.floor(solAmount * 1e9);
     // Pre-flight: skip (don't popup) if the wallet can't afford this fill.
     const bal = await rpcBalance(walletPubkey);
@@ -665,7 +700,7 @@ async function tick() {
   const events = JSON.parse(engine.on_tick(price));
   // Continuous-learning mode: reopen a paper position a few ticks after
   // each full exit. Paper only — never combined with live wallet sells.
-  if (events.some((e) => e.type === "position_closed")) reopenCooldown = 5;
+  if (events.some((e) => e.type === "position_closed")) { reopenCooldown = 5; policyCommitted = false; }
   if ($("autoreopen").checked && !$("livemode").checked && reopenCooldown > 0) {
     reopenCooldown -= 1;
     if (reopenCooldown === 0) engine.open_position(parseFloat($("size").value) || 0.5);
