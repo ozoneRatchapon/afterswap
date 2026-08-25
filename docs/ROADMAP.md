@@ -9,8 +9,14 @@ Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 direction, then off-peak ≥30 bps) — zero upstream changes needed. Result:
 trailing-stop gap closed (−24.5 → **+2.0 bps**), TWAP floor +60.0 → +87.4,
 TP-ladder +95.4 → +122.8, bracket +53.3 → +80.7. G1–G6 re-validated.
-Remaining from the original plan (still parked): magnitude quantization
-(big/small moves) as a third bit.
+Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench 008)
+— at 5 bps threshold every floor degraded and G2b FAILED (−7.3: the bit
+sits in the noise band and burns 3-state capacity); at 10 bps G2b
+improved (+5.7) but every other floor still degraded vs the 2-bit
+baseline. The 2-bit protocol (direction + off-peak) remains optimal at
+n=3 states. Revisit only together with a state-budget increase (n=4
+enumeration or evolution-heavy pools) — more alphabet needs more states
+to spend it on.
 
 ### (original plan, for the record)
 
