@@ -90,3 +90,12 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - PARKED with evidence: docs/ROADMAP.md (input alphabet v2 #1 priority).
 - REMAINING (user-only): 2-min video, Google Form (Aug 31 23:59 ICT),
   Demo Day luma signup, optional wallet-signed evidence tx.
+
+## Status 2026-08-26 late (v2.1)
+- Alphabet v2 SHIPPED (off-peak bit via 2-step unroll; bench 005/007:
+  beats ALL standard Solana exits — TWAP +87.4, ladder +122.8, bracket
+  +80.7, trailing +2.0; was −24.5 vs trailing in bench 004).
+- PL ratings tried→reverted with record (bench 006; module kept).
+- On-chain policy-commitment Memo before first live fill SHIPPED.
+- G1–G6 re-validated incl. wasm byte-parity; 18 tests green; prod
+  deployed. Docs synced (SUBMISSION/PITCH/README numbers = bench 007).

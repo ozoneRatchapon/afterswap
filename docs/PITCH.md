@@ -66,7 +66,7 @@ pure Rust."
 
 - Lead with the **GOAT report** (`benches/002_goat/report.md`): named
   floors (TWAP, random-arm), 5 corpora, ablations, bit-identical replays.
-  "+60.9 bps vs TWAP mean" is a claim with a reproduce command, not a chart
+  "+87.4 bps vs TWAP mean" is a claim with a reproduce command, not a chart
   crop.
 - The spicy details they'll bite on: Pareto front degenerating to the whole
   space on flat markets (why the cap exists), rewarding partial windows so
@@ -90,7 +90,8 @@ pure Rust."
 ## Demo-day extras
 
 - **On-chain program design (when asked "where's the program?"):** "Deliberately none this week — self-custodial demo first. The design is written: a PDA policy registry committing the machine's blake3 fingerprint before the first fill, then SPL-delegate execution validated against that commitment — approval once, not per tranche, still non-custodial. See docs/ROADMAP.md §4."
-- **The honest benchmark line:** "We benchmarked against what Solana actually uses — we beat TP-ladders by +95 bps and TP/SL brackets by +53, and we *lose* to Jupiter's trailing stop in up-trends by design: it reads distance-from-peak, our alphabet can't yet. That measured gap defines our next input symbol." (Losing gracefully with a mechanism beats winning vaguely.)
+- **The redemption-arc benchmark line:** "We benchmarked against what Solana actually uses and found we *lost* to Jupiter's trailing stop by 24 bps — because our machines couldn't see distance-from-peak. We added that one input bit. Now we beat every standard exit on Solana: DCA +87, TP-ladders +123, brackets +81, and trailing stops themselves +2 — and trailing-stop behavior simply *emerged* from the enumeration as a special case. Every number reproduces with one command." (A measured weakness fixed beats a spotless claim.)
+- **Engineering-discipline line (if asked about process):** "We also tried Plackett–Luce ratings for arm ranking — measured worse on every floor, reverted, and kept the negative result in the repo. We ship what measures better, not what sounds smarter."
 
 ## Q&A armor (any audience)
 
