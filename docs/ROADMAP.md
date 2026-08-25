@@ -121,6 +121,20 @@ machine → royalty per fill. Requires #4 Phase A for verifiable
 provenance. Social loop: "Eager Puffin has exited 4,120 positions at
 +31 bps mean."
 
+## 7b. Monetization rail — exit-decisions-as-an-API via pay.sh (HTTP 402)
+
+pay.sh (Solana Foundation) lets AI agents pay per API call with no
+accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
+fit: trading agents are proliferating and share the human weakness —
+good at entries, undisciplined at exits. Expose `POST /decide`
+(price window + position → machine decision + policy fingerprint) priced
+per call over 402. Everything an agent-facing decision API needs, we
+already have: determinism (reproducible), µs latency, on-chain-auditable
+policies, and the GOAT report as the sales page. The browser demo stays
+free (marketing); agents pay for the hosted endpoint + evolved-machine
+leaderboards + corpora. This is the most concrete revenue path on this
+list — pairs with #5 (the DO host becomes the paid endpoint).
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);
