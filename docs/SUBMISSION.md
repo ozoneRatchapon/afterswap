@@ -1,5 +1,24 @@
 # Submission draft — paste into the Google Form
 
+## Exact form fields (as of the live form)
+
+- **Email:** ratchapon.poc@gmail.com
+- **Project Name:** AfterSwap
+- **One-line description:** Exit autopilot for anyone who just swapped:
+  1,054 exhaustively enumerated exit machines compete — and evolve — for
+  the right to sell your position tranche by tranche on DFlow, honestly
+  scored against doing nothing.
+  - Strict-short variant: "1,054 evolving exit machines fight over your
+    position — live on DFlow, scored honestly vs holding."
+- **Project category:** Trading / DeFi
+- **Team lead name:** Ratchapon [full name]
+- **Telegram / X:** [your handles]
+- **Team members + roles:** Solo — engineering, design, research (engine
+  ported from katgpt-rs).
+- **Team size:** 1
+- **Don't forget:** Demo Day signup is separate → https://luma.com/9pxt4y29
+
+
 **Project name:** AfterSwap
 
 **One-liner:** Exhaustively enumerated exit machines, fighting over your
