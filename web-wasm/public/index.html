@@ -474,11 +474,21 @@ async function connectTo(wallet) {
   } catch { /* user rejected */ }
 }
 
-$("livemode").onchange = (ev) => {
-  if (ev.target.checked) {
-    if (parseFloat($("size").value) > 0.1) $("size").value = "0.05";
-    alert("Live mode: every tranche the robots sell asks your wallet to sign a REAL DFlow swap of your SOL. Size set to 0.05 — start tiny.");
+$("livemode").onchange = async (ev) => {
+  if (!ev.target.checked) return;
+  let size = Math.min(parseFloat($("size").value) || 0.05, 0.05);
+  const bal = await rpcBalance(walletPubkey);
+  if (bal != null) {
+    const usable = Math.max(0, (bal - 2 * FEE_BUFFER_LAMPORTS) / 1e9);
+    if (usable < 0.005) {
+      ev.target.checked = false;
+      alert(`Not enough SOL for live fills (usable ~${usable.toFixed(4)}). Paper mode still works fully.`);
+      return;
+    }
+    size = Math.min(size, usable);
   }
+  $("size").value = size.toFixed(3);
+  alert(`Live mode: every tranche the robots sell asks your wallet to sign a REAL DFlow swap. Size set to ${size.toFixed(3)} SOL (fits your balance). Declining a signature turns live mode off.`);
 };
 
 async function rpcBalance(pubkey) {
@@ -501,10 +511,24 @@ function base58(bytes) {
   return out;
 }
 
+function liveNote(html) {
+  $("onchainpanel").style.display = "";
+  $("onchain").insertAdjacentHTML("afterbegin", `<div>${html}</div>`);
+}
+
+const FEE_BUFFER_LAMPORTS = 5_000_000; // fees + temporary wSOL rent
+
 function liveSell(solAmount) {
   // Serialize sells so wallet popups never overlap.
   sellQueue = sellQueue.then(async () => {
+    if (!$("livemode").checked) return; // user turned it off mid-queue
     const lamports = Math.floor(solAmount * 1e9);
+    // Pre-flight: skip (don't popup) if the wallet can't afford this fill.
+    const bal = await rpcBalance(walletPubkey);
+    if (bal != null && bal < lamports + FEE_BUFFER_LAMPORTS) {
+      liveNote(`<span class="down">live fill skipped: balance ${(bal / 1e9).toFixed(4)} SOL &lt; ${((lamports + FEE_BUFFER_LAMPORTS) / 1e9).toFixed(4)} needed (paper continues)</span>`);
+      return;
+    }
     const url = `${ORDER_URL}?inputMint=So11111111111111111111111111111111111111112`
       + `&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
       + `&amount=${lamports}&slippageBps=50&userPublicKey=${walletPubkey}`;
@@ -532,13 +556,17 @@ function liveSell(solAmount) {
       if (!rpc.result) throw new Error(JSON.stringify(rpc.error ?? rpc).slice(0, 80));
       sig = rpc.result;
     }
-    $("onchainpanel").style.display = "";
-    $("onchain").insertAdjacentHTML("afterbegin",
-      `<div>sold ${(lamports / 1e9).toFixed(3)} SOL · <a style="color:var(--series-1)" target="_blank" rel="noopener" href="https://solscan.io/tx/${sig}">${sig.slice(0, 16)}… ↗</a></div>`);
+    liveNote(`sold ${(lamports / 1e9).toFixed(4)} SOL · <a style="color:var(--series-1)" target="_blank" rel="noopener" href="https://solscan.io/tx/${sig}">${sig.slice(0, 16)}… ↗</a>`);
   }).catch((e) => {
-    $("onchainpanel").style.display = "";
-    $("onchain").insertAdjacentHTML("afterbegin",
-      `<div class="down">live sell failed: ${String(e).slice(0, 80)} (paper state unchanged)</div>`);
+    const msg = String(e);
+    // One rejection = stop asking. Live mode is opt-in per session.
+    const rejected = /reject|denied|declin|4001|blocked/i.test(msg);
+    if (rejected) {
+      $("livemode").checked = false;
+      liveNote(`<span class="down">live mode disabled — you declined a signature. Re-tick "live sells" to resume.</span>`);
+    } else {
+      liveNote(`<span class="down">live sell failed: ${msg.slice(0, 80)} (paper state unchanged)</span>`);
+    }
   });
 }
 
