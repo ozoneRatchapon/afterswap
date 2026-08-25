@@ -73,8 +73,11 @@ program PDA once (bounded amount); a permissionless crank triggers sells
 that the program validates against the committed policy. Kills the
 per-tranche wallet popup without custody. Phase B is real security
 surface — audit before mainnet.
-**Cheap precursor:** a Memo transaction with the fingerprint at position
-open (~1–2 h, no program).
+**Cheap precursor:** ✅ SHIPPED (v2.1) — before a position's first live
+fill, the dashboard publishes a Memo tx: `afterswap:policy fp=<blake3-64>
+machine="<name>" gen=<n> states=<n> tranche=10%`, signed by the user's
+wallet. The exit policy is now committed on-chain before any sale follows
+it — commitment only; program-enforced verification remains Phase A/B.
 
 ## 5. Shared world — Durable Object mode
 
