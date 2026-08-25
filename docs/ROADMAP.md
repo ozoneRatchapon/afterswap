@@ -140,6 +140,11 @@ provenance. Social loop: "Eager Puffin has exited 4,120 positions at
 
 ## 7b. Monetization rail — exit-decisions-as-an-API via pay.sh (HTTP 402)
 
+**Preview ✅ SHIPPED (v2.2):** `POST /decide` live on the Worker — same
+wasm binary as the dashboard, instantiated server-side; tournament roster
++ optional full simulated exit; verified deterministic across calls.
+Remaining for revenue: pay.sh registry onboarding + 402 challenge.
+
 pay.sh (Solana Foundation) lets AI agents pay per API call with no
 accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
 fit: trading agents are proliferating and share the human weakness —
