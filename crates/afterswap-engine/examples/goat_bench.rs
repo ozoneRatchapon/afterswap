@@ -6,7 +6,10 @@
 use std::fmt::Write as _;
 use std::time::Instant;
 
-use afterswap_engine::sim::{Regime, load_corpus, simulate, synthetic_corpus, twap_value_norm};
+use afterswap_engine::sim::{
+    Regime, bracket_value_norm, load_corpus, simulate, synthetic_corpus, tp_ladder_value_norm,
+    trailing_stop_value_norm, twap_value_norm,
+};
 use afterswap_engine::{EngineConfig, ExitEngine};
 
 const OPEN_AT: usize = 30;
@@ -104,6 +107,34 @@ fn main() {
         "\n**G2a vs TWAP: {mean_twap:+.2} bps mean — {}** · **G2b vs random-arm: {mean_rand:+.2} bps mean — {}** · vs hold is report-only (regime-dependent opportunity cost).\n",
         if mean_twap > 0.0 { "PASS" } else { "FAIL" },
         if mean_rand >= 0.0 { "PASS" } else { "FAIL" },
+    );
+
+    // Ecosystem floors (report): the exits Solana traders actually use —
+    // Jupiter trailing stop, TP ladders, third-party-bot TP+SL brackets.
+    // Parameters scaled to corpus volatility (~90 bps swings); disclosed.
+    let _ = writeln!(
+        md,
+        "## Ecosystem floors (report-only)\n\nTrailing stop 50 bps · TP ladder 10×10 bps · bracket ±50 bps.\n\n| corpus | engine | trailing | ladder | bracket | vs trail | vs ladder | vs bracket |\n|---|---|---|---|---|---|---|---|"
+    );
+    let (mut s_tr, mut s_la, mut s_br) = (0.0, 0.0, 0.0);
+    for (name, prices) in &corpora {
+        let e = simulate(goat_cfg(), prices, OPEN_AT, 1.0).final_value_norm;
+        let tr = trailing_stop_value_norm(prices, OPEN_AT, 50.0);
+        let la = tp_ladder_value_norm(prices, OPEN_AT, 10, 10.0);
+        let br = bracket_value_norm(prices, OPEN_AT, 50.0, 50.0);
+        let (dt, dl, db) = (diff_bps(e, tr), diff_bps(e, la), diff_bps(e, br));
+        s_tr += dt;
+        s_la += dl;
+        s_br += db;
+        let _ = writeln!(
+            md,
+            "| {name} | {e:.5} | {tr:.5} | {la:.5} | {br:.5} | {dt:+.1} | {dl:+.1} | {db:+.1} |"
+        );
+    }
+    let _ = writeln!(
+        md,
+        "\n**Means: vs trailing {:+.2} bps · vs TP-ladder {:+.2} bps · vs bracket {:+.2} bps.**\n",
+        s_tr / n, s_la / n, s_br / n
     );
 
     // G3

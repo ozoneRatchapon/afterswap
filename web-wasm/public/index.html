@@ -117,6 +117,9 @@
       <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
+      <label style="font-size:12px; color:var(--ink-2); display:inline-flex; gap:5px; align-items:center; cursor:pointer">
+        <input type="checkbox" id="autoreopen"> auto-reopen (paper) — learn forever
+      </label>
     </div>
   </div>
   <div class="stat"><div class="label">Exit value</div><div class="value" id="vexit">—</div><div class="sub">× entry (cash + held)</div></div>
@@ -636,6 +639,8 @@ function refresh() {
   if (engine) render(JSON.parse(engine.snapshot(240)));
 }
 
+let reopenCooldown = 0;
+
 async function tick() {
   if (!engine) return;
   let price;
@@ -658,6 +663,13 @@ async function tick() {
     }
   }
   const events = JSON.parse(engine.on_tick(price));
+  // Continuous-learning mode: reopen a paper position a few ticks after
+  // each full exit. Paper only — never combined with live wallet sells.
+  if (events.some((e) => e.type === "position_closed")) reopenCooldown = 5;
+  if ($("autoreopen").checked && !$("livemode").checked && reopenCooldown > 0) {
+    reopenCooldown -= 1;
+    if (reopenCooldown === 0) engine.open_position(parseFloat($("size").value) || 0.5);
+  }
   if ($("livemode")?.checked && connectedWallet) {
     for (const e of events) {
       if (e.type === "tranche_filled") {

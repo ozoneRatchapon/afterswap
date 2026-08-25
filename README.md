@@ -121,6 +121,7 @@ performance claim without a named floor
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
 | **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
+| **Ecosystem floors** (report) | Beats the Solana ecosystem's standard exits on 5-corpus mean — **+95.4 bps vs TP-ladder**, **+53.3 bps vs TP/SL bracket** — but **loses −24.5 bps to Jupiter-style trailing stop**, entirely in up-trends: trailing sees "distance from peak", which our binary up/down alphabet cannot express. Measured, disclosed, and it defines the next input-alphabet upgrade |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and

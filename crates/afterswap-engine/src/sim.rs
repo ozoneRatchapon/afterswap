@@ -154,6 +154,58 @@ pub fn twap_value_norm(prices: &[f64], open_at: usize, n_slices: usize, stride: 
     cash + remaining * (prices[prices.len() - 1] / entry)
 }
 
+/// Trailing stop (Jupiter's July-2026 flagship exit): sell everything the
+/// first time price drops `drop_bps` below its running peak since entry.
+pub fn trailing_stop_value_norm(prices: &[f64], open_at: usize, drop_bps: f64) -> f64 {
+    let entry = prices[open_at];
+    let mut peak = entry;
+    for &p in &prices[open_at + 1..] {
+        peak = peak.max(p);
+        if (peak - p) / peak * 10_000.0 >= drop_bps {
+            return p / entry;
+        }
+    }
+    prices[prices.len() - 1] / entry
+}
+
+/// Take-profit ladder: sell `1/n_rungs` each time price first reaches
+/// entry × (1 + k·step_bps), k = 1..=n_rungs. Residual rides to the end.
+pub fn tp_ladder_value_norm(
+    prices: &[f64],
+    open_at: usize,
+    n_rungs: usize,
+    step_bps: f64,
+) -> f64 {
+    let entry = prices[open_at];
+    let (mut cash, mut remaining, mut next) = (0.0f64, 1.0f64, 1usize);
+    let frac = 1.0 / n_rungs as f64;
+    for &p in &prices[open_at + 1..] {
+        while next <= n_rungs
+            && remaining > 1e-12
+            && p >= entry * (1.0 + next as f64 * step_bps * 1e-4)
+        {
+            let f = frac.min(remaining);
+            cash += f * (p / entry);
+            remaining -= f;
+            next += 1;
+        }
+    }
+    cash + remaining * (prices[prices.len() - 1] / entry)
+}
+
+/// TP+SL bracket (OCO, the third-party-bot default): all-out at
+/// entry+tp_bps or entry−sl_bps, whichever first.
+pub fn bracket_value_norm(prices: &[f64], open_at: usize, tp_bps: f64, sl_bps: f64) -> f64 {
+    let entry = prices[open_at];
+    for &p in &prices[open_at + 1..] {
+        let d = (p - entry) / entry * 10_000.0;
+        if d >= tp_bps || d <= -sl_bps {
+            return p / entry;
+        }
+    }
+    prices[prices.len() - 1] / entry
+}
+
 /// Synthetic market regimes (seeded, deterministic).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Regime {
