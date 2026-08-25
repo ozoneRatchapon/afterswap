@@ -71,15 +71,12 @@ sells real tranches via DFlow orders.
 
 ## Full-form answers (second page)
 
-**Working demo URL:** two paths, both configured in the repo:
-- **Cloudflare Containers** (account already authed): `brew install --cask
-  orbstack` (wrangler needs a local Docker daemon to build), then
-  `npx wrangler deploy` → https://afterswap.<subdomain>.workers.dev.
-  Config: `wrangler.jsonc` + `worker/index.ts` (singleton container DO,
-  lite instance, SSE proxied). Alternative without Docker: connect the
-  GitHub repo to Workers Builds in the CF dashboard.
-- **Fly.io** (no local Docker needed — remote builders): `fly auth signup
-  && fly launch --copy-config --now` (Dockerfile + fly.toml, region sin).
+**Working demo URL:** **https://afterswap.solana-thailand.workers.dev**
+(deployed, verified). The full engine runs in the visitor's browser as
+WASM; quotes fetched directly from DFlow's dev API (CORS-allowed). Add
+`?replay` for the deterministic recorded segment. Zero servers — Cloudflare
+Workers static assets. (Container/Fly kits remain in `deploy/` and repo
+root as alternatives.)
 
 **Where is DFlow used:** both directions — sensor (`GET /quote` polled
 every tick is the engine's only market input) and actuator (each sell
