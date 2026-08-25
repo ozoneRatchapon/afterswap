@@ -179,7 +179,7 @@ impl ExitEngine {
     /// Enumerate the strategy space and prepare an empty engine.
     pub fn new(config: EngineConfig) -> Self {
         let seed = config.random_arm_seed;
-        let strategies = FsmEnumerator::enumerate(config.n_fsm_states);
+        let strategies = enumerate_cached(config.n_fsm_states);
         info!(
             "enumerated {} distinct {}-state FSM exit strategies",
             strategies.len(),
@@ -745,6 +745,21 @@ impl ExitEngine {
             self.live = None;
         }
     }
+}
+
+/// Enumeration is pure and deterministic per state count — cache it per
+/// process so repeated engine construction (Workers requests, browser
+/// re-boots, GOAT sims) pays the blake3 dedup exactly once.
+fn enumerate_cached(n_states: u8) -> Vec<FsmStrategy> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<HashMap<u8, Vec<FsmStrategy>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = cache.lock().expect("enumeration cache poisoned");
+    guard
+        .entry(n_states)
+        .or_insert_with(|| FsmEnumerator::enumerate(n_states))
+        .clone()
 }
 
 /// Pool cap for admitted mutants (bounds tournament cost).

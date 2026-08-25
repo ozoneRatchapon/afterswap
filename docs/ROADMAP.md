@@ -140,10 +140,14 @@ provenance. Social loop: "Eager Puffin has exited 4,120 positions at
 
 ## 7b. Monetization rail — exit-decisions-as-an-API via pay.sh (HTTP 402)
 
-**Preview ✅ SHIPPED (v2.2):** `POST /decide` live on the Worker — same
-wasm binary as the dashboard, instantiated server-side; tournament roster
-+ optional full simulated exit; verified deterministic across calls.
-Remaining for revenue: pay.sh registry onboarding + 402 challenge.
+**Preview ✅ built (v2.2), gated on plan:** `POST /decide` deployed —
+same wasm binary server-side, roster + full simulated exit, verified
+deterministic under `wrangler dev`. Free-tier Workers caps CPU at 10 ms;
+honest full enumeration needs more, and degraded modes are against the
+project's discipline → public endpoint 503s until Workers Paid ($5/mo,
+30 s CPU — also unlocks Durable Objects for #5). Enumeration is now
+process-cached (`enumerate_cached`) either way. Remaining for revenue:
+plan upgrade, pay.sh registry onboarding, 402 challenge.
 
 pay.sh (Solana Foundation) lets AI agents pay per API call with no
 accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
