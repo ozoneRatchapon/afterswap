@@ -78,7 +78,7 @@ use crate::engine::{EngineEvent, ExitEngine};
 use crate::types::EngineConfig;
 
 /// Result of one simulated position lifecycle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SimResult {
     /// Exit value in units of entry (cash + residual at last price).
     pub final_value_norm: f64,

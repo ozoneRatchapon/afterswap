@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- GOAT G6: wasm parity test page. Runs the same simulate() as the native
+     gates on the bundled corpus; the harness compares output byte-for-byte
+     with the native reference. Not linked from the dashboard. -->
+<html><head><meta charset="utf-8"><title>G6 parity</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import init, { parity_run } from "./pkg/afterswap_wasm.js";
+await init();
+const text = await (await fetch("./recorded.jsonl")).text();
+const prices = text.split("\n").filter(Boolean).map((l) => JSON.parse(l).price);
+document.getElementById("out").textContent = parity_run(JSON.stringify(prices), 30);
+document.title = "G6 done";
+</script></body></html>
