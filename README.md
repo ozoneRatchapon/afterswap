@@ -128,6 +128,21 @@ performance claim without a named floor
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
 `cargo run -p afterswap-engine --example goat_bench --release` (report).
 
+## Agent API (preview)
+
+The same engine, callable by AI agents — deterministic, stateless:
+
+```bash
+curl -X POST https://afterswap.solana-thailand.workers.dev/decide \
+  -H 'content-type: application/json' \
+  -d '{"prices": [/* ≥30 ticks */], "open_at": 30}'
+```
+
+Returns the tournament roster (names, blake3 fingerprints, simulated
+edges) and, with `open_at`, a full simulated exit with fills and the
+honest edge vs holding. Same input → byte-identical output (G1/G6).
+Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
+
 ## Architecture
 
 | Crate | What |
