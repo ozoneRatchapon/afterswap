@@ -13,8 +13,9 @@
 - **Project category:** Trading / DeFi
 - **Team lead name:** Ratchapon [full name]
 - **Telegram / X:** [your handles]
-- **Team members + roles:** Solo — engineering, design, research (engine
-  ported from katgpt-rs).
+- **Team members + roles:** Solo — engineering, design, research. (Uses
+  the third-party MIT crate katgpt-ruliology by @katopz for FSM
+  enumeration primitives — disclosed below.)
 - **Team size:** 1
 - **Don't forget:** Demo Day signup is separate → https://luma.com/9pxt4y29
 
@@ -24,7 +25,8 @@
 **One-liner:** Exhaustively enumerated exit machines, fighting over your
 position — live on DFlow.
 
-**Team:** solo — [your name / @handle here]
+**Team:** solo — [your name / @handle here]. Third-party: katgpt-ruliology
+(MIT, @katopz) for FSM enumeration primitives.
 
 **Description (short):**
 Every swap UI goes silent at the moment that decides your PnL: the exit.
@@ -99,8 +101,9 @@ plain-language feed), record/replay, GOAT harness (7 gates PASS: +60.9 bps
 vs TWAP, +7.7 vs random, bit-reproducible, 1.2 µs/tick).
 
 **Existed before?** No. Disclosure: depends on `katgpt-ruliology`, a
-pre-existing MIT open-source crate (FSM enumeration primitives, pinned git
-rev) — used as a library; all product code built during the sprint.
+pre-existing third-party MIT open-source crate by @katopz (FSM enumeration
+primitives, pinned public git rev) — used as a library dependency, same as
+any crates.io dep; all product code built during the sprint.
 
 **Explorer evidence:** blank in paper mode; fund throwaway keypair (~0.2
 SOL) → run one live tranche → paste Solscan tx link. Recommended.

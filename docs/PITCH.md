@@ -72,7 +72,7 @@ pure Rust."
   space on flat markets (why the cap exists), rewarding partial windows so
   fast exits still teach the bandit, renoise rank-stability as per-decision
   confidence, spectral irreducibility as a re-tournament scheduler.
-- Provenance: engine extracted from katgpt-rs (Wolfram ruliology, Plan 188).
+- Provenance: FSM enumeration/mutation primitives from @katopz's open-source katgpt-ruliology crate (MIT, pinned git rev); all trading logic, integration, and proofs built during the sprint.
 
 ## 5. Community / social (Superteam TH) — the meme
 
