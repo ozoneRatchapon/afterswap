@@ -18,7 +18,10 @@ pub struct ExitBandit {
 #[derive(Debug, Clone, Serialize)]
 pub struct ArmSnapshot {
     pub index: usize,
-    pub id: u64,
+    /// Decimal string — u64 ids overflow JS number precision.
+    pub id: String,
+    /// Deterministic human name derived from the id.
+    pub name: String,
     pub n_states: u8,
     pub transitions: Vec<[u8; 2]>,
     pub outputs: Vec<u8>,
@@ -95,7 +98,8 @@ impl ExitBandit {
                 let n = s.n_states() as usize;
                 ArmSnapshot {
                     index: i,
-                    id: s.id(),
+                    id: s.id().to_string(),
+                    name: machine_name(s.id()),
                     n_states: s.n_states(),
                     transitions: s.transitions()[..n].to_vec(),
                     outputs: s.outputs()[..n].to_vec(),
@@ -109,4 +113,24 @@ impl ExitBandit {
             })
             .collect()
     }
+}
+
+/// Deterministic human-friendly machine name from the FSM id.
+/// 32×32 = 1,024 combos; the UI appends a short hex tag for uniqueness.
+pub fn machine_name(id: u64) -> String {
+    const ADJ: [&str; 32] = [
+        "Patient", "Jumpy", "Stoic", "Greedy", "Cautious", "Bold", "Sleepy", "Twitchy",
+        "Calm", "Feral", "Humble", "Sly", "Steady", "Nervous", "Brave", "Quiet",
+        "Eager", "Grumpy", "Gentle", "Rowdy", "Prudent", "Wily", "Sturdy", "Skittish",
+        "Cheery", "Dour", "Nimble", "Stubborn", "Mellow", "Zesty", "Frosty", "Sunny",
+    ];
+    const ANIMAL: [&str; 32] = [
+        "Mantis", "Otter", "Falcon", "Badger", "Gecko", "Heron", "Wombat", "Lynx",
+        "Puffin", "Marmot", "Viper", "Ibis", "Stoat", "Tapir", "Osprey", "Newt",
+        "Quokka", "Shrike", "Beetle", "Civet", "Dingo", "Egret", "Ferret", "Gibbon",
+        "Hornet", "Jackal", "Kestrel", "Lemur", "Magpie", "Numbat", "Ocelot", "Pangolin",
+    ];
+    let adj = ADJ[(id % 32) as usize];
+    let animal = ANIMAL[((id >> 8) % 32) as usize];
+    format!("{adj} {animal}")
 }

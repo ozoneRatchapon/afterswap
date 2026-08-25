@@ -36,6 +36,10 @@ pub enum EngineEvent {
         price: f64,
         frac: f64,
         remaining: f64,
+        /// FSM state after the transition that emitted this sell.
+        state: u8,
+        /// Tick direction the machine saw: 1 = up, 0 = down/flat.
+        input: u8,
     },
     /// The live evaluation window closed; the driving arm was rewarded.
     WindowClosed {
@@ -44,8 +48,13 @@ pub enum EngineEvent {
         pulls: u32,
     },
     /// A new arm took over the live position.
-    ArmSelected { arm: usize, fsm_id: u64 },
-    Evolved { parent_id: u64, child_id: u64, generation: u32, sim_edge_bps: f64 },
+    ArmSelected { arm: usize, fsm_id: u64, name: String },
+    Evolved {
+        parent_name: String,
+        child_name: String,
+        generation: u32,
+        sim_edge_bps: f64,
+    },
     /// A (re-)tournament ran and the arm set was rebuilt.
     Tournament {
         route: String,
@@ -373,8 +382,8 @@ impl ExitEngine {
             child.id()
         );
         Some(EngineEvent::Evolved {
-            parent_id,
-            child_id: child.id(),
+            parent_name: crate::bandit::machine_name(parent_id),
+            child_name: crate::bandit::machine_name(child.id()),
             generation,
             sim_edge_bps: best_edge,
         })
@@ -566,6 +575,7 @@ impl ExitEngine {
             events.push(EngineEvent::ArmSelected {
                 arm,
                 fsm_id: bandit.strategy(arm).id(),
+                name: crate::bandit::machine_name(bandit.strategy(arm).id()),
             });
         }
 
@@ -589,6 +599,8 @@ impl ExitEngine {
                 price: cur_p,
                 frac,
                 remaining: pos.remaining_frac,
+                state: live.fsm.state(),
+                input,
             });
         }
 
