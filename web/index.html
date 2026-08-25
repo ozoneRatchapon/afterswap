@@ -152,6 +152,7 @@
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
+const hexTag = (idStr) => "#" + BigInt(idStr).toString(16).slice(0, 4);
 const fmt = (x, d = 4) => x == null ? "—" : x.toFixed(d);
 let last = null;
 
@@ -263,7 +264,7 @@ function renderBoard(s) {
       ? `<span class="${a.mean_reward_bps >= 0 ? "up" : "down"}">${a.mean_reward_bps >= 0 ? "+" : ""}${a.mean_reward_bps.toFixed(1)}</span>`
       : "·";
     return `<tr class="${live ? "live" : ""}">
-      <td>#${a.id.toString(16).slice(0, 6)}${a.generation > 0 ? ` <span class="chip ev">✦g${a.generation}</span>` : ""} ${live ? '<span class="chip">LIVE</span>' : ""}</td>
+      <td>${a.name} <span style="color:var(--muted)">${hexTag(a.id)}</span>${a.generation > 0 ? ` <span class="chip ev">✦g${a.generation}</span>` : ""} ${live ? '<span class="chip">LIVE</span>' : ""}</td>
       <td>${a.n_states}</td>
       <td>${a.complexity.toFixed(2)}</td>
       <td>${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)}</td>
@@ -291,7 +292,7 @@ function renderFsm(s) {
   const armIdx = s.live_arm ?? s.last_arm;
   const arm = s.arms.find(a => a.index === armIdx);
   $("livechip").textContent = arm
-    ? `#${arm.id.toString(16).slice(0, 6)}${s.live_arm == null ? " (last)" : ""}` : "";
+    ? `${arm.name} ${hexTag(arm.id)}${s.live_arm == null ? " (last)" : ""}` : "";
   if (!arm) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`; return; }
   const n = arm.n_states, cx = W / 2, cy = H / 2, R = n === 1 ? 0 : 58;
   const pos = Array.from({ length: n }, (_, i) => {
@@ -341,25 +342,25 @@ function renderGate(s) {
 }
 
 function feedLine(te, s) {
-  const e = te.event, armId = (i) => {
+  const e = te.event, armName = (i) => {
     const a = s.arms.find(x => x.index === i);
-    return a ? `#${a.id.toString(16).slice(0, 6)}` : `arm ${i}`;
+    return a ? a.name : `machine ${i}`;
   };
   switch (e.type) {
     case "tournament":
-      return `tournament (${e.route}): ${e.strategies} machines → ${e.arms} arms`;
+      return `tournament (${e.route}): ${e.strategies} machines fought → ${e.arms} got seats`;
     case "arm_selected":
-      return `${armId(e.arm)} takes the seat`;
+      return `<b>${e.name}</b> takes the seat`;
     case "window_closed": {
       const r = e.reward_bps, cls = r >= 0 ? "up" : "down";
-      return `${armId(e.arm)} scored <span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(1)} bps</span>`;
+      return `${armName(e.arm)} scored <span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(1)} bps</span> vs holding`;
     }
     case "tranche_filled":
-      return `${armId(e.arm)} sold ${(e.frac * 100).toFixed(0)}% @ ${e.price.toFixed(3)}`;
+      return `${armName(e.arm)} saw a ${e.input === 1 ? "rise" : "dip"} → sell-state S${e.state} → sold ${(e.frac * 100).toFixed(0)}% @ ${e.price.toFixed(3)}`;
     case "evolved":
-      return `✦ evolved gen${e.generation}: #${e.parent_id.toString(16).slice(0, 6)} → #${e.child_id.toString(16).slice(0, 6)} (${e.sim_edge_bps >= 0 ? "+" : ""}${e.sim_edge_bps.toFixed(1)} bps sim)`;
+      return `✦ ${e.parent_name} bred <b>${e.child_name}</b> (gen ${e.generation}, ${e.sim_edge_bps >= 0 ? "+" : ""}${e.sim_edge_bps.toFixed(1)} bps sim)`;
     case "position_closed":
-      return `position fully exited @ ${e.final_value_norm.toFixed(4)}×`;
+      return `position fully exited @ ${e.final_value_norm.toFixed(4)}× entry`;
     default:
       return e.type;
   }

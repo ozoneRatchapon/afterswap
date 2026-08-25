@@ -26,8 +26,11 @@ DFlow quote windows. A Pareto filter keeps 24; they become bandit arms."
 
 **0:40–1:20 — the fight.** Click **Open position**.
 "I just opened half a SOL, paper mode, priced by real DFlow quotes."
-Point at: FSM diagram ("this machine is driving — orange states sell"),
+Point at: FSM diagram ("this machine — it has a name, watch the feed —
+is driving; orange states sell"),
 first orange fill markers on the chart, fills tape ticking.
+Read one feed line out loud — "Eager Puffin saw a dip, moved to its sell
+state, sold 10%" — that's the whole explainability story in one sentence.
 "Every window, the machine's exit value is scored against doing nothing.
 Win → it keeps the seat. Lose → the bandit benches it." Point at leaderboard
 real-bps column updating.
