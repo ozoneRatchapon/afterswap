@@ -34,6 +34,11 @@ pub struct EngineConfig {
     pub evolve_every_windows: usize,
     /// Mutant candidates proposed per evolution step.
     pub evolve_candidates: usize,
+    /// Second input bit: 1 when price sits at least this many bps below
+    /// its running peak. Lets machines express trailing-stop behavior
+    /// (Bench 004 showed the binary alphabet loses to trailing stops in
+    /// up-trends precisely for lack of this signal).
+    pub peak_drop_bps: f64,
 }
 
 impl Default for EngineConfig {
@@ -51,6 +56,7 @@ impl Default for EngineConfig {
             random_arm_seed: None,
             evolve_every_windows: 1,
             evolve_candidates: 12,
+            peak_drop_bps: 30.0,
         }
     }
 }
@@ -80,6 +86,8 @@ pub struct Position {
     /// Cash accumulated from tranche sells, in output units per 1.0 size,
     /// normalized by entry price (i.e. sum of frac * price/entry).
     pub cash_norm: f64,
+    /// Running peak price since entry (drives the off-peak input bit).
+    pub peak_price: f64,
     /// Executed tranche fills.
     pub fills: Vec<TrancheFill>,
 }
@@ -93,6 +101,7 @@ impl Position {
             opened_at_tick: tick,
             remaining_frac: 1.0,
             cash_norm: 0.0,
+            peak_price: entry_price,
             fills: Vec::new(),
         }
     }

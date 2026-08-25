@@ -21,11 +21,12 @@ Instead of hand-designing one exit heuristic (trailing stop, TWAP, take-profit
 ladder), AfterSwap **enumerates the entire space of simple exit strategies** and
 lets data pick the winner:
 
-1. **Enumerate** — every deterministic finite-state machine up to N states over
-   a binary input (price up-tick / down-tick) with a binary output (sell a
-   tranche / hold). 3 states → **1,054 behaviorally distinct machines**
-   (blake3-fingerprint dedup). No training, no gradients — the strategy space
-   is *complete* by construction.
+1. **Enumerate** — every deterministic finite-state machine up to N states,
+   reading two bits per tick (price up/down, then off-peak: ≥30 bps below the
+   running high) and emitting sell-a-tranche / hold. 3 states → **1,054
+   behaviorally distinct machines** (blake3-fingerprint dedup). No training,
+   no gradients — the strategy space is *complete* by construction, and it
+   provably contains trailing-stop behavior as a special case.
 2. **Tournament** — every machine replays recent live price windows; a Pareto
    filter (edge vs complexity) plus a top-K cap keeps ~24 survivors.
 3. **Bandit** — survivors become **UCB1 arms**. When you open a position, the
@@ -115,13 +116,13 @@ performance claim without a named floor
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+60.0 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
-| **G2b floor: random arm** | PASS — **+5.0 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2a floor: TWAP** | PASS — **+87.4 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
+| **G2b floor: random arm** | PASS — **+3.8 bps mean** vs seeded random arm selection (8 seeds) |
 | **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
 | **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats the Solana ecosystem's standard exits on 5-corpus mean — **+95.4 bps vs TP-ladder**, **+53.3 bps vs TP/SL bracket** — but **loses −24.5 bps to Jupiter-style trailing stop**, entirely in up-trends: trailing sees "distance from peak", which our binary up/down alphabet cannot express. Measured, disclosed, and it defines the next input-alphabet upgrade |
+| **Ecosystem floors** (report) | Beats every standard Solana exit on 5-corpus mean: **+122.8 bps vs TP-ladder**, **+80.7 bps vs TP/SL bracket**, **+2.0 bps vs Jupiter-style trailing stop**. Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it in bench 005 — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
