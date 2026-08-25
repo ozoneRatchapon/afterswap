@@ -139,9 +139,14 @@ curl -X POST https://afterswap.solana-thailand.workers.dev/decide \
 ```
 
 Returns the tournament roster (names, blake3 fingerprints, simulated
-edges) and, with `open_at`, a full simulated exit with fills and the
+edges) or, with `open_at`, a full simulated exit with fills and the
 honest edge vs holding. Same input → byte-identical output (G1/G6).
-Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
+
+**Status:** fully working under `wrangler dev` and on Workers Paid; the
+free tier's 10 ms CPU budget cannot fit an honest 1,054-machine
+enumeration and we don't ship degraded modes, so the public endpoint
+returns 503 until the plan upgrade. Pay-per-decision via pay.sh HTTP-402
+is the roadmap (7b).
 
 ## Architecture
 
