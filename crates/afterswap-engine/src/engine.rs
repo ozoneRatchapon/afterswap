@@ -40,6 +40,9 @@ pub enum EngineEvent {
         state: u8,
         /// Tick direction the machine saw: 1 = up, 0 = down/flat.
         input: u8,
+        /// Whether the off-peak bit was set (price ≥ peak_drop_bps below
+        /// its running peak) when this sell fired.
+        off_peak: bool,
     },
     /// The live evaluation window closed; the driving arm was rewarded.
     WindowClosed {
@@ -366,7 +369,12 @@ impl ExitEngine {
         }
 
         let pool: Vec<FsmStrategy> = candidates.iter().map(|(_, c)| c.clone()).collect();
-        let (matrix, _) = evaluate_matrix(&pool, &windows, self.config.tranche_frac);
+        let (matrix, _) = evaluate_matrix(
+            &pool,
+            &windows,
+            self.config.tranche_frac,
+            self.config.peak_drop_bps,
+        );
         let best = (0..pool.len()).max_by(|&a, &b| {
             matrix.avg_payoff(a).total_cmp(&matrix.avg_payoff(b))
         })?;
@@ -419,7 +427,14 @@ impl ExitEngine {
         }
         let rank_of = |prices: &[f64]| -> usize {
             let edges: Vec<f64> = (0..bandit.num_arms())
-                .map(|i| replay_exit(bandit.strategy(i), prices, self.config.tranche_frac))
+                .map(|i| {
+                    replay_exit(
+                        bandit.strategy(i),
+                        prices,
+                        self.config.tranche_frac,
+                        self.config.peak_drop_bps,
+                    )
+                })
                 .collect();
             let live_edge = edges[live.arm];
             edges.iter().filter(|&&e| e > live_edge).count()
@@ -541,7 +556,12 @@ impl ExitEngine {
             .cloned()
             .collect();
         let (matrix, complexities) =
-            evaluate_matrix(&pool, &windows, self.config.tranche_frac);
+            evaluate_matrix(
+                &pool,
+                &windows,
+                self.config.tranche_frac,
+                self.config.peak_drop_bps,
+            );
         let pruner = RuliologyPruner::new(
             self.config.payoff_threshold_bps,
             self.config.complexity_threshold,
@@ -631,12 +651,17 @@ impl ExitEngine {
         let live = self.live.as_mut().expect("set above");
         let pos = self.position.as_mut().expect("checked by caller");
 
-        // Step the machine on the realized tick direction.
+        // Two machine steps per tick: direction bit, then off-peak bit —
+        // the same protocol the tournament replays use (sim::replay_exit).
         let input: u8 = match cur_p > prev_p {
             true => 1,
             false => 0,
         };
-        let action = live.fsm.next_action(&[input]);
+        pos.peak_price = pos.peak_price.max(cur_p);
+        let off_peak = (pos.peak_price - cur_p) / pos.peak_price * 10_000.0
+            >= self.config.peak_drop_bps;
+        live.fsm.next_action(&[input]);
+        let action = live.fsm.next_action(&[u8::from(off_peak)]);
         live.ticks += 1;
 
         if action == 1 && !pos.is_closed() {
@@ -650,6 +675,7 @@ impl ExitEngine {
                 remaining: pos.remaining_frac,
                 state: live.fsm.state(),
                 input,
+                off_peak,
             });
         }
 

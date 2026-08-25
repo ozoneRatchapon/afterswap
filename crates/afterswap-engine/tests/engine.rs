@@ -21,7 +21,7 @@ fn replay_exit_hand_math() {
     // Always-sell: sells 0.5 @ 1.1 (cash 0.55) and 0.5 @ 0.9 (cash 1.0).
     // Hold ends at 0.8 → edge = (1.0 - 0.8) / 0.8 * 1e4 = 2500 bps.
     let window = [100.0, 110.0, 90.0, 80.0];
-    let edge = replay_exit(&always_sell(), &window, 0.5);
+    let edge = replay_exit(&always_sell(), &window, 0.5, 30.0);
     assert!((edge - 2500.0).abs() < 1e-9, "edge = {edge}");
 }
 
@@ -32,7 +32,7 @@ fn hold_machine_is_always_zero_edge() {
         vec![50.0, 49.0, 48.0, 47.5, 51.0],
     ];
     for w in &windows {
-        let edge = replay_exit(&never_sell(), w, 0.25);
+        let edge = replay_exit(&never_sell(), w, 0.25, 30.0);
         assert!(edge.abs() < 1e-12, "hold edge must be 0, got {edge}");
     }
 }
@@ -43,7 +43,7 @@ fn nobody_beats_hold_on_monotone_rise() {
     // so the best possible edge is exactly 0 (the hold machines).
     let rising: Vec<f64> = (0..32).map(|i| 100.0 * 1.01f64.powi(i)).collect();
     let strategies = FsmEnumerator::enumerate(2);
-    let (matrix, _cx) = evaluate_matrix(&strategies, &[rising], 0.25);
+    let (matrix, _cx) = evaluate_matrix(&strategies, &[rising], 0.25, 30.0);
     let best = (0..strategies.len())
         .map(|i| matrix.avg_payoff(i))
         .fold(f64::NEG_INFINITY, f64::max);
@@ -54,7 +54,7 @@ fn nobody_beats_hold_on_monotone_rise() {
 fn sellers_win_on_monotone_crash() {
     let falling: Vec<f64> = (0..32).map(|i| 100.0 * 0.99f64.powi(i)).collect();
     let strategies = FsmEnumerator::enumerate(2);
-    let (matrix, _cx) = evaluate_matrix(&strategies, &[falling], 0.25);
+    let (matrix, _cx) = evaluate_matrix(&strategies, &[falling], 0.25, 30.0);
     let best = (0..strategies.len())
         .map(|i| matrix.avg_payoff(i))
         .fold(f64::NEG_INFINITY, f64::max);

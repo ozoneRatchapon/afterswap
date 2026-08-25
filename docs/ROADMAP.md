@@ -3,7 +3,16 @@
 Everything here was considered during the buildathon and parked on purpose.
 Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 
-## 1. Input alphabet v2 — "distance from peak" (highest priority)
+## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench 005)
+
+**Outcome:** implemented via input unrolling (two binary steps per tick:
+direction, then off-peak ≥30 bps) — zero upstream changes needed. Result:
+trailing-stop gap closed (−24.5 → **+2.0 bps**), TWAP floor +60.0 → +87.4,
+TP-ladder +95.4 → +122.8, bracket +53.3 → +80.7. G1–G6 re-validated.
+Remaining from the original plan (still parked): magnitude quantization
+(big/small moves) as a third bit.
+
+### (original plan, for the record)
 
 **Evidence:** Bench 004 — the engine beats TP-ladders (+95.4 bps) and
 TP/SL brackets (+53.3 bps) but loses −24.5 bps to Jupiter-style trailing

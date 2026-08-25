@@ -9,8 +9,18 @@ use katgpt_ruliology::{FsmStrategy, SimpleProgram, WinMatrix};
 /// Replay `fsm` over `window` (raw prices), selling `tranche_frac` of the
 /// original position on each SELL signal. Returns edge vs hold in bps.
 ///
+/// Two machine steps per tick: first the direction bit (price up-tick),
+/// then the off-peak bit (price ≥ `peak_drop_bps` below its running peak).
+/// The sell decision is the output after both bits — so the enumerated
+/// binary machines gain trailing-stop expressiveness with zero new types.
+///
 /// Prices are normalized to `window[0]`, so the result is entry-invariant.
-pub fn replay_exit(fsm: &FsmStrategy, window: &[f64], tranche_frac: f64) -> f64 {
+pub fn replay_exit(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+) -> f64 {
     if window.len() < 2 {
         return 0.0;
     }
@@ -20,13 +30,20 @@ pub fn replay_exit(fsm: &FsmStrategy, window: &[f64], tranche_frac: f64) -> f64 
 
     let mut remaining = 1.0f64;
     let mut cash = 0.0f64;
+    let mut peak = entry;
 
     for t in 1..window.len() {
-        let input: u8 = match window[t] > window[t - 1] {
+        let dir: u8 = match window[t] > window[t - 1] {
             true => 1,
             false => 0,
         };
-        let action = m.next_action(&[input]);
+        peak = peak.max(window[t]);
+        let off_peak: u8 = match (peak - window[t]) / peak * 10_000.0 >= peak_drop_bps {
+            true => 1,
+            false => 0,
+        };
+        m.next_action(&[dir]);
+        let action = m.next_action(&[off_peak]);
         if action == 1 && remaining > 0.0 {
             let frac = tranche_frac.min(remaining);
             remaining -= frac;
@@ -54,13 +71,14 @@ pub fn evaluate_matrix(
     strategies: &[FsmStrategy],
     windows: &[Vec<f64>],
     tranche_frac: f64,
+    peak_drop_bps: f64,
 ) -> (WinMatrix, Vec<f32>) {
     let payoffs: Vec<Vec<f64>> = strategies
         .iter()
         .map(|s| {
             windows
                 .iter()
-                .map(|w| replay_exit(s, w, tranche_frac))
+                .map(|w| replay_exit(s, w, tranche_frac, peak_drop_bps))
                 .collect()
         })
         .collect();
