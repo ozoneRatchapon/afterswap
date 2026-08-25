@@ -3,6 +3,10 @@
 > **Exhaustively enumerated exit machines, fighting over your position — live on DFlow.**
 >
 > DFlow × Superteam Thailand Buildathon 2026 — *"build what happens after the swap."*
+>
+> **Live demo (no install, no wallet): https://afterswap.solana-thailand.workers.dev**
+> — the entire engine runs in your browser as WASM; quotes come straight
+> from DFlow. Add `?replay` for the recorded deterministic segment.
 
 You swapped into SOL. Now what? Every wallet goes silent at exactly the moment
 that decides whether you make money: **the exit**. AfterSwap picks up where the
@@ -71,6 +75,13 @@ DFlow /quote ──► tick ──► FSM population ──► UCB1 bandit ─�
 
 ## Run it
 
+**Zero-install:** open the [live demo](https://afterswap.solana-thailand.workers.dev)
+— engine compiled to WASM (208 KB), no server anywhere, your browser polls
+DFlow directly (their dev API allows CORS). Falls back to the bundled
+recording automatically if DFlow is unreachable.
+
+**Native:**
+
 ```bash
 cargo run -p afterswap-server -- --serve 8787 \
   --interval-ms 1000 --window 12 --states 3 --tranche 0.1
@@ -121,6 +132,7 @@ Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
 | `afterswap-engine` | FSM enumeration, window tournament, Pareto+cap pruning, UCB1 bandit, spectral simulation gate, tranche executor. Pure — no I/O. |
 | `afterswap-dflow` | DFlow Trading API client (`/quote`, `/order`), price poller. Types verified against live captures. |
 | `afterswap-server` | Paper loop + axum server, SSE snapshot stream, vanilla-JS/SVG dashboard. |
+| `afterswap-wasm` | Browser build of the engine (wasm-bindgen) — powers the serverless live demo on Cloudflare Workers static assets. |
 
 Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The

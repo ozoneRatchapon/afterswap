@@ -1,0 +1,29 @@
+// AfterSwap on Cloudflare Containers: the Rust axum server (Dockerfile)
+// runs as a singleton container-backed Durable Object; this Worker proxies
+// all traffic (incl. SSE) to it.
+{
+  "name": "afterswap",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-01",
+  // A stray ~/.pnp.cjs on this machine breaks normal resolution; alias
+  // the dep to its installed path explicitly.
+  "alias": {
+    "@cloudflare/containers": "./node_modules/@cloudflare/containers/dist/index.js"
+  },
+  "containers": [
+    {
+      "class_name": "AfterSwapContainer",
+      "image": "./Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "AFTERSWAP", "class_name": "AfterSwapContainer" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AfterSwapContainer"] }
+  ]
+}
