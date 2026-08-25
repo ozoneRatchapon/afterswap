@@ -78,3 +78,15 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [ ] Public repo (this one) — push to GitHub
 - [ ] "How DFlow integrates" writeup (README section)
 - [ ] Application via Google Form on stth-buildathon.vercel.app
+
+## Status 2026-08-26 (v1.9)
+- SHIPPED: engine (enum+tournament+UCB1+evolution+renoise+gate), dflow
+  client (+live feature), axum server, WASM in-browser build DEPLOYED at
+  https://afterswap.solana-thailand.workers.dev (zero servers), any-wallet
+  live sells (Wallet Standard), localStorage learning persistence,
+  auto-reopen learn-forever, GOAT G1–G6 all PASS (bench 004: +60.0 vs
+  TWAP, +95.4 vs TP-ladder, +53.3 vs bracket, −24.5 vs trailing —
+  disclosed), named machines + Thai-friendly UX.
+- PARKED with evidence: docs/ROADMAP.md (input alphabet v2 #1 priority).
+- REMAINING (user-only): 2-min video, Google Form (Aug 31 23:59 ICT),
+  Demo Day luma signup, optional wallet-signed evidence tx.

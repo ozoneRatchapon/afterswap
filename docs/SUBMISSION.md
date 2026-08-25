@@ -60,6 +60,13 @@ well.
 --window 12 --states 3 --tranche 0.1 --replay data/recorded.jsonl`
 then open http://localhost:8787 and press "Open position".
 
+**Ecosystem benchmark:** measured against the exits Solana traders
+actually use — beats TP-ladders (+95.4 bps) and TP/SL brackets
+(+53.3 bps) on 5-corpus mean; loses to trailing stops in up-trends
+(−24.5 bps) for a structural reason we disclose and that defines the
+roadmap (input-alphabet v2, docs/ROADMAP.md). Same engine generalizes to
+DFlow prediction-market outcome tokens — exits after the *bet*.
+
 **Proof discipline:** the engine is GOAT-gated (methodology from katgpt-rs):
 bit-reproducible replays, +59.0 bps mean vs a same-cadence TWAP floor and
 +5.8 bps vs random arm selection across 5 corpora, 1 µs/tick — full report

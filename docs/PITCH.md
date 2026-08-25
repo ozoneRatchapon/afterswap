@@ -87,6 +87,11 @@ pure Rust."
 
 ---
 
+## Demo-day extras
+
+- **On-chain program design (when asked "where's the program?"):** "Deliberately none this week — self-custodial demo first. The design is written: a PDA policy registry committing the machine's blake3 fingerprint before the first fill, then SPL-delegate execution validated against that commitment — approval once, not per tranche, still non-custodial. See docs/ROADMAP.md §4."
+- **The honest benchmark line:** "We benchmarked against what Solana actually uses — we beat TP-ladders by +95 bps and TP/SL brackets by +53, and we *lose* to Jupiter's trailing stop in up-trends by design: it reads distance-from-peak, our alphabet can't yet. That measured gap defines our next input symbol." (Losing gracefully with a mechanism beats winning vaguely.)
+
 ## Q&A armor (any audience)
 
 - **"Is +5.8 bps even a lot?"** — On one 2-minute demo, no. The point is
