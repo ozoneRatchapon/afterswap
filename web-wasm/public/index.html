@@ -91,7 +91,10 @@
 <header>
   <h1>AfterSwap</h1>
   <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow, running entirely in your tab</span>
-  <span class="conn"><span id="conndot" class="dot"></span><span id="conntext">connecting…</span></span>
+  <span class="conn">
+    <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect Phantom</button>
+    <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
+  </span>
 </header>
 
 <div class="row stats panel" id="statrow">
@@ -108,6 +111,9 @@
       <input id="size" type="number" value="0.5" min="0.01" step="0.01" aria-label="size in SOL">
       <button id="open">Open position</button>
       <button id="close" class="ghost">Close</button>
+      <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
+        <input type="checkbox" id="livemode"> live sells via wallet
+      </label>
     </div>
   </div>
   <div class="stat"><div class="label">Exit value</div><div class="value" id="vexit">—</div><div class="sub">× entry (cash + held)</div></div>
@@ -147,6 +153,10 @@
     <div class="panel">
       <h2>Fills tape</h2>
       <div id="tape" class="empty">no fills yet</div>
+    </div>
+    <div class="panel" id="onchainpanel" style="display:none">
+      <h2>On-chain fills — real DFlow orders, signed by your wallet</h2>
+      <div id="onchain" style="display:grid; gap:4px; font-size:12.5px"></div>
     </div>
   </div>
 </div>
@@ -404,14 +414,77 @@ $("open").onclick = () => {
 };
 $("close").onclick = () => { engine.close_position(); refresh(); };
 
+// ---- Wallet (Phantom): self-custodial live sells. Keys never leave the wallet;
+// every tranche is a separate DFlow /order the user approves in Phantom. ----
+let provider = null, walletPubkey = null, sellQueue = Promise.resolve();
+const ORDER_URL = "https://dev-quote-api.dflow.net/order";
+
+$("wallet").onclick = async () => {
+  const p = window.phantom?.solana ?? window.solana;
+  if (!p?.isPhantom) { window.open("https://phantom.app", "_blank"); return; }
+  try {
+    const resp = await p.connect();
+    provider = p;
+    walletPubkey = resp.publicKey.toString();
+    $("wallet").textContent = `${walletPubkey.slice(0, 4)}…${walletPubkey.slice(-4)}`;
+    $("livelabel").style.display = "inline-flex";
+    const bal = await rpcBalance(walletPubkey);
+    if (bal != null) $("wallet").textContent += ` · ${(bal / 1e9).toFixed(3)} SOL`;
+  } catch { /* user rejected */ }
+};
+
+$("livemode").onchange = (ev) => {
+  if (ev.target.checked) {
+    if (parseFloat($("size").value) > 0.1) $("size").value = "0.05";
+    alert("Live mode: every tranche the robots sell asks Phantom to sign a REAL DFlow swap of your SOL. Size set to 0.05 — start tiny.");
+  }
+};
+
+async function rpcBalance(pubkey) {
+  try {
+    const r = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [pubkey] }),
+    });
+    return (await r.json()).result?.value ?? null;
+  } catch { return null; }
+}
+
+function liveSell(solAmount) {
+  // Serialize sells so Phantom popups never overlap.
+  sellQueue = sellQueue.then(async () => {
+    const lamports = Math.floor(solAmount * 1e9);
+    const url = `${ORDER_URL}?inputMint=So11111111111111111111111111111111111111112`
+      + `&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+      + `&amount=${lamports}&slippageBps=50&userPublicKey=${walletPubkey}`;
+    const order = await (await fetch(url)).json();
+    const bytes = Uint8Array.from(atob(order.transaction), (c) => c.charCodeAt(0));
+    const w3 = await import("https://esm.sh/@solana/web3.js@1.95.8");
+    const tx = w3.VersionedTransaction.deserialize(bytes);
+    const { signature } = await provider.signAndSendTransaction(tx);
+    $("onchainpanel").style.display = "";
+    $("onchain").insertAdjacentHTML("afterbegin",
+      `<div>sold ${(lamports / 1e9).toFixed(3)} SOL · <a style="color:var(--series-1)" target="_blank" rel="noopener" href="https://solscan.io/tx/${signature}">${signature.slice(0, 16)}… ↗</a></div>`);
+  }).catch((e) => {
+    $("onchainpanel").style.display = "";
+    $("onchain").insertAdjacentHTML("afterbegin",
+      `<div class="down">live sell failed: ${String(e).slice(0, 80)} (paper state unchanged)</div>`);
+  });
+}
+
 // ---- WASM engine loop: quotes in, snapshots out. No server anywhere. ----
 import("./pkg/afterswap_wasm.js").then(async (mod) => {
   await mod.default();
   engine = new mod.WasmEngine(12, 3, 0.1, 24);
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
   setConn(true, replay ? "replay" : "live");
-  setInterval(tick, 1000);
+  scheduleTick();
 });
+
+// Tick on wall-clock second boundaries so parallel tabs stay in lockstep.
+function scheduleTick() {
+  setTimeout(async () => { await tick(); scheduleTick(); }, 1000 - (Date.now() % 1000));
+}
 
 let engine = null, replay = null, replayIdx = 0, failures = 0;
 const QUOTE_URL = "https://dev-quote-api.dflow.net/quote"
@@ -461,7 +534,14 @@ async function tick() {
       return;
     }
   }
-  engine.on_tick(price);
+  const events = JSON.parse(engine.on_tick(price));
+  if ($("livemode")?.checked && provider) {
+    for (const e of events) {
+      if (e.type === "tranche_filled") {
+        liveSell(e.frac * (parseFloat($("size").value) || 0.05));
+      }
+    }
+  }
   refresh();
 }
 </script>
