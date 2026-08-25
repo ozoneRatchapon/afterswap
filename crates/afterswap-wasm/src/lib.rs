@@ -46,6 +46,23 @@ impl WasmEngine {
         self.inner.close_position().unwrap_or(f64::NAN)
     }
 
+    /// Export learning state (JSON) — persist in localStorage.
+    pub fn export_learning(&self) -> String {
+        serde_json::to_string(&self.inner.export_learning()).unwrap_or_default()
+    }
+
+    /// Import learning state (JSON) from a previous session. Call before
+    /// feeding prices. Returns false on parse failure.
+    pub fn import_learning(&mut self, json: &str) -> bool {
+        match serde_json::from_str(json) {
+            Ok(state) => {
+                self.inner.import_learning(&state);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// Full dashboard snapshot as JSON (same shape as the server's SSE).
     pub fn snapshot(&self, n_prices: usize) -> String {
         serde_json::to_string(&self.inner.snapshot(n_prices)).unwrap_or_else(|_| "{}".to_string())

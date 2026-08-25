@@ -4,6 +4,8 @@ export const memory: WebAssembly.Memory;
 export const __wbg_wasmengine_free: (a: number, b: number) => void;
 export const parity_run: (a: number, b: number, c: number) => [number, number];
 export const wasmengine_close_position: (a: number) => number;
+export const wasmengine_export_learning: (a: number) => [number, number];
+export const wasmengine_import_learning: (a: number, b: number, c: number) => number;
 export const wasmengine_new: (a: number, b: number, c: number, d: number) => number;
 export const wasmengine_on_tick: (a: number, b: number) => [number, number];
 export const wasmengine_open_position: (a: number, b: number) => number;

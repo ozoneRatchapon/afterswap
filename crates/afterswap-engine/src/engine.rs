@@ -67,6 +67,18 @@ pub enum EngineEvent {
     PositionClosed { tick: u64, final_value_norm: f64 },
 }
 
+/// Portable learning state: what's worth keeping across sessions.
+/// Enumeration is free to redo; realized rewards and evolved genomes are not.
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct LearningState {
+    /// (fsm_id, reward_sum_bps, pulls)
+    pub realized: Vec<(u64, f64, u32)>,
+    /// Evolved genomes: (transitions, outputs, n_states)
+    pub evolved: Vec<([[u8; 2]; MAX_STATES], [u8; MAX_STATES], u8)>,
+    /// (fsm_id, generation)
+    pub generations: Vec<(u64, u32)>,
+}
+
 /// Activity-feed ring size.
 const RECENT_EVENTS: usize = 24;
 
@@ -430,6 +442,41 @@ impl ExitEngine {
             })
             .count();
         Some(hits as f64 / PERTURBATIONS as f64)
+    }
+
+    /// Export the learning artifacts (for localStorage / cross-session).
+    pub fn export_learning(&self) -> LearningState {
+        LearningState {
+            realized: self
+                .realized
+                .iter()
+                .map(|(&id, &(sum, pulls))| (id, sum, pulls))
+                .collect(),
+            evolved: self
+                .evolved
+                .iter()
+                .map(|f| (*f.transitions(), *f.outputs(), f.n_states()))
+                .collect(),
+            generations: self.generations.iter().map(|(&k, &v)| (k, v)).collect(),
+        }
+    }
+
+    /// Import learning artifacts. Call BEFORE feeding prices so the first
+    /// tournament already sees the evolved pool and realized seeding.
+    pub fn import_learning(&mut self, state: &LearningState) {
+        for &(id, sum, pulls) in &state.realized {
+            self.realized.insert(id, (sum, pulls));
+        }
+        for &(transitions, outputs, n_states) in &state.evolved {
+            let fsm = FsmStrategy::new(transitions, outputs, n_states, 0);
+            if !self.evolved.iter().any(|f| f.id() == fsm.id()) {
+                self.evolved.push(fsm);
+            }
+        }
+        self.evolved.truncate(MAX_EVOLVED);
+        for &(id, generation) in &state.generations {
+            self.generations.insert(id, generation);
+        }
     }
 
     fn run_tournament(&mut self) -> Option<EngineEvent> {
