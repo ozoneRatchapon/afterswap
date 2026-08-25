@@ -4,3 +4,4 @@
 *.keypair.json
 .DS_Store
 .heal/
+node_modules/

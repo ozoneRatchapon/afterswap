@@ -1,0 +1,7 @@
+{
+  "name": "afterswap-deploy",
+  "private": true,
+  "dependencies": {
+    "@cloudflare/containers": "latest"
+  }
+}

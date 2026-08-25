@@ -71,10 +71,15 @@ sells real tranches via DFlow orders.
 
 ## Full-form answers (second page)
 
-**Working demo URL:** deploy with `fly launch --copy-config --now` after
-`fly auth signup` (Dockerfile + fly.toml in repo root, region sin). Until
-deployed: the repo one-liner run counts as the working build; the URL slot
-needs the fly deploy.
+**Working demo URL:** two paths, both configured in the repo:
+- **Cloudflare Containers** (account already authed): `brew install --cask
+  orbstack` (wrangler needs a local Docker daemon to build), then
+  `npx wrangler deploy` → https://afterswap.<subdomain>.workers.dev.
+  Config: `wrangler.jsonc` + `worker/index.ts` (singleton container DO,
+  lite instance, SSE proxied). Alternative without Docker: connect the
+  GitHub repo to Workers Builds in the CF dashboard.
+- **Fly.io** (no local Docker needed — remote builders): `fly auth signup
+  && fly launch --copy-config --now` (Dockerfile + fly.toml, region sin).
 
 **Where is DFlow used:** both directions — sensor (`GET /quote` polled
 every tick is the engine's only market input) and actuator (each sell
