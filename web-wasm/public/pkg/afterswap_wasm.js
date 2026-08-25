@@ -20,6 +20,34 @@ export class WasmEngine {
         return ret;
     }
     /**
+     * Export learning state (JSON) — persist in localStorage.
+     * @returns {string}
+     */
+    export_learning() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmengine_export_learning(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Import learning state (JSON) from a previous session. Call before
+     * feeding prices. Returns false on parse failure.
+     * @param {string} json
+     * @returns {boolean}
+     */
+    import_learning(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmengine_import_learning(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Build an engine with demo-relevant knobs; everything else defaults.
      * @param {number} window_len
      * @param {number} n_states

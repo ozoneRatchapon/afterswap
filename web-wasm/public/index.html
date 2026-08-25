@@ -186,13 +186,18 @@ function activePos(s) {
 function renderStats(s) {
   const e = bps(s);
   const hero = $("hero");
-  const setHero = (v, sub) => {
+  const usdcEquiv = (v, pos) => {
+    if (!pos) return "";
+    const usdc = (v / 10000) * pos.size * pos.entry_price;
+    return ` · ≈ ${usdc >= 0 ? "+" : ""}${usdc.toFixed(3)} USDC on this position`;
+  };
+  const setHero = (v, sub, pos) => {
     hero.textContent = `${v >= 0 ? "+" : ""}${v.toFixed(1)} bps`;
     hero.className = `value hero ${v >= 0 ? "up" : "down"}`;
-    $("herosub").textContent = sub;
+    $("herosub").textContent = sub + usdcEquiv(v, pos);
   };
-  if (e != null) setHero(e, "machine exit vs never selling — live");
-  else if (!s.position && s.last_closed) setHero(s.last_closed.edge_bps, "position fully exited — locked result");
+  if (e != null) setHero(e, "machine exit vs never selling — live", s.position);
+  else if (!s.position && s.last_closed) setHero(s.last_closed.edge_bps, "position fully exited — locked result", s.last_closed.position);
   else {
     hero.textContent = "—"; hero.className = "value hero";
     $("herosub").textContent = s.position ? "measuring…" : "open a position to start the fight";
@@ -571,12 +576,32 @@ function liveSell(solAmount) {
 }
 
 // ---- WASM engine loop: quotes in, snapshots out. No server anywhere. ----
+const STORE_KEY = "afterswap-learning-v1";
+
 import("./pkg/afterswap_wasm.js").then(async (mod) => {
   await mod.default();
   engine = new mod.WasmEngine(12, 3, 0.1, 24);
+  // Restore what the robots learned in earlier sessions (realized rewards,
+  // evolved genomes) BEFORE the first prices, then replay saved prices so
+  // the chart and windows have continuity across refreshes.
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null");
+    if (saved?.learning) engine.import_learning(saved.learning);
+    if (Array.isArray(saved?.prices)) for (const p of saved.prices) engine.on_tick(p);
+    if (saved?.learning) refresh();
+  } catch { /* corrupt store — start fresh */ }
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
   setConn(true, replay ? "replay" : "live");
   scheduleTick();
+  setInterval(() => {
+    try {
+      const snap = JSON.parse(engine.snapshot(240));
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        learning: engine.export_learning(),
+        prices: snap.recent_prices ?? [],
+      }));
+    } catch { /* quota — skip */ }
+  }, 15000);
 });
 
 // Tick on wall-clock second boundaries so parallel tabs stay in lockstep.

@@ -9,6 +9,15 @@ export class WasmEngine {
      */
     close_position(): number;
     /**
+     * Export learning state (JSON) — persist in localStorage.
+     */
+    export_learning(): string;
+    /**
+     * Import learning state (JSON) from a previous session. Call before
+     * feeding prices. Returns false on parse failure.
+     */
+    import_learning(json: string): boolean;
+    /**
      * Build an engine with demo-relevant knobs; everything else defaults.
      */
     constructor(window_len: number, n_states: number, tranche_frac: number, max_arms: number);
@@ -40,6 +49,8 @@ export interface InitOutput {
     readonly __wbg_wasmengine_free: (a: number, b: number) => void;
     readonly parity_run: (a: number, b: number, c: number) => [number, number];
     readonly wasmengine_close_position: (a: number) => number;
+    readonly wasmengine_export_learning: (a: number) => [number, number];
+    readonly wasmengine_import_learning: (a: number, b: number, c: number) => number;
     readonly wasmengine_new: (a: number, b: number, c: number, d: number) => number;
     readonly wasmengine_on_tick: (a: number, b: number) => [number, number];
     readonly wasmengine_open_position: (a: number, b: number) => number;
