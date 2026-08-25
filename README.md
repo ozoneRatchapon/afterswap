@@ -115,12 +115,13 @@ performance claim without a named floor
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+60.9 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
-| **G2b floor: random arm** | PASS — **+7.7 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2a floor: TWAP** | PASS — **+60.0 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
+| **G2b floor: random arm** | PASS — **+5.0 bps mean** vs seeded random arm selection (8 seeds) |
 | **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
 | **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
-| **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance; on the bench it *adds* ~2 bps to both G2 floors |
+| **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
+| **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
 `cargo run -p afterswap-engine --example goat_bench --release` (report).

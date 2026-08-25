@@ -26,17 +26,27 @@ export class WasmEngine {
     snapshot(n_prices: number): string;
 }
 
+/**
+ * GOAT G6 (wasm parity): run the exact `sim::simulate` used by the native
+ * gates and return its JSON — compared byte-for-byte against the native
+ * output by `tests/goat.rs` + the parity page.
+ */
+export function parity_run(prices_json: string, open_at: number): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmengine_free: (a: number, b: number) => void;
+    readonly parity_run: (a: number, b: number, c: number) => [number, number];
     readonly wasmengine_close_position: (a: number) => number;
     readonly wasmengine_new: (a: number, b: number, c: number, d: number) => number;
     readonly wasmengine_on_tick: (a: number, b: number) => [number, number];
     readonly wasmengine_open_position: (a: number, b: number) => number;
     readonly wasmengine_snapshot: (a: number, b: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
+    readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }

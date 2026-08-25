@@ -334,7 +334,9 @@ impl ExitEngine {
 
         let mut candidates: Vec<(u64, FsmStrategy)> = Vec::new();
         for _ in 0..self.config.evolve_candidates {
-            let parent = bandit.strategy(rng.usize(..bandit.num_arms())).clone();
+            let parent = bandit
+                .strategy(rng.u32(..bandit.num_arms() as u32) as usize)
+                .clone();
             let grow = (parent.n_states() as usize) < MAX_STATES && rng.f32() < 0.35;
             let child = match grow {
                 true => grow_state(&parent, &mut rng),
@@ -558,7 +560,7 @@ impl ExitEngine {
         // (Re)select the driving arm.
         if self.live.is_none() {
             let arm = match self.floor_rng.as_mut() {
-                Some(rng) => rng.usize(..bandit.num_arms()),
+                Some(rng) => rng.u32(..bandit.num_arms() as u32) as usize,
                 None => bandit.select_arm(),
             };
             let mut fsm = bandit.strategy(arm).clone();
@@ -680,7 +682,7 @@ fn grow_state(parent: &FsmStrategy, rng: &mut fastrand::Rng) -> FsmStrategy {
     let new = n as usize;
     transitions[new] = [rng.u8(..n + 1), rng.u8(..n + 1)];
     outputs[new] = rng.u8(..2);
-    let (st, input) = (rng.usize(..new), rng.usize(..2));
+    let (st, input) = (rng.u32(..new as u32) as usize, rng.u32(..2) as usize);
     transitions[st][input] = new as u8;
     FsmStrategy::new(transitions, outputs, n + 1, 0)
 }
