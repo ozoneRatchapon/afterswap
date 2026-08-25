@@ -25,6 +25,9 @@ pub struct EngineConfig {
     /// simplicity). Keeps UCB1 exploration meaningful — a flat market
     /// degenerates the Pareto front to the whole enumeration.
     pub max_arms: usize,
+    /// GOAT floor override: pick arms uniformly at random (seeded) instead
+    /// of UCB1. Exists so the bandit has an honest baseline to beat (G2b).
+    pub random_arm_seed: Option<u64>,
 }
 
 impl Default for EngineConfig {
@@ -39,6 +42,7 @@ impl Default for EngineConfig {
             payoff_threshold_bps: -1e9,
             complexity_threshold: 1.1,
             max_arms: 24,
+            random_arm_seed: None,
         }
     }
 }

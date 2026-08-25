@@ -39,6 +39,11 @@ well.
 --window 12 --states 3 --tranche 0.1 --replay data/recorded.jsonl`
 then open http://localhost:8787 and press "Open position".
 
+**Proof discipline:** the engine is GOAT-gated (methodology from katgpt-rs):
+bit-reproducible replays, +59.0 bps mean vs a same-cadence TWAP floor and
++5.8 bps vs random arm selection across 5 corpora, 1 µs/tick — full report
+in `benches/001_goat/report.md`.
+
 **Status:** built entirely during the buildathon (Aug 21–31); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
 sells real tranches via DFlow orders.

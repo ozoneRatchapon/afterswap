@@ -8,6 +8,9 @@ description = "Post-swap exit engine — ruliology FSM strategies compete as ban
 [dependencies]
 katgpt-ruliology = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 log = { workspace = true }
+# Seeded RNG for the random-arm GOAT floor (G2b) and synthetic corpora.
+fastrand = "2"
 
 [dev-dependencies]

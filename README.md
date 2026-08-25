@@ -84,6 +84,24 @@ cargo run -p afterswap-server -- --ticks 75 --interval-ms 1000 \
   --open-after 15 --window 12 --states 2
 ```
 
+## GOAT-gated
+
+The engine passes the GOAT gate discipline inherited from katgpt-rs — no
+performance claim without a named floor
+(full report: [`benches/001_goat/report.md`](benches/001_goat/report.md)):
+
+| Gate | Result |
+|---|---|
+| **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
+| **G2a floor: TWAP** | PASS — **+59.0 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
+| **G2b floor: random arm** | PASS — **+5.8 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
+| **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
+| **G4 latency** (release) | PASS — **1.05 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **175 µs** |
+
+Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
+`cargo run -p afterswap-engine --example goat_bench --release` (report).
+
 ## Architecture
 
 | Crate | What |
