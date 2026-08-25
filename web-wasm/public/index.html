@@ -114,6 +114,7 @@
       <input id="size" type="number" value="0.5" min="0.01" step="0.01" aria-label="size in SOL">
       <button id="open">Open position</button>
       <button id="close" class="ghost">Close</button>
+      <button id="share" class="ghost" style="display:none">Share this fight</button>
       <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
@@ -186,6 +187,14 @@ function activePos(s) {
   return s.position || (s.last_closed && s.last_closed.position) || null;
 }
 
+function shareText(s) {
+  const lc = s.last_closed;
+  const arm = s.arms.find((a) => a.index === s.last_arm);
+  const name = arm ? arm.name : "a robot";
+  const e = lc.edge_bps;
+  return `${name} just ${e >= 0 ? "beat" : "fought"} holding by ${e >= 0 ? "+" : ""}${e.toFixed(1)} bps on my SOL 🤖\n\n1,054 exit robots fight over your bag — live on @DFlowProtocol, runs in your browser, no wallet needed:\nhttps://afterswap.solana-thailand.workers.dev`;
+}
+
 function renderStats(s) {
   const e = bps(s);
   const hero = $("hero");
@@ -216,6 +225,13 @@ function renderStats(s) {
   $("vwind").textContent = `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`;
   $("open").disabled = !!s.position;
   $("explainer").style.display = (s.position || s.last_closed) ? "none" : "";
+  $("share").style.display = (!s.position && s.last_closed) ? "" : "none";
+  $("share").onclick = () => {
+    navigator.clipboard.writeText(shareText(s)).then(() => {
+      $("share").textContent = "copied — paste anywhere";
+      setTimeout(() => { $("share").textContent = "Share this fight"; }, 2500);
+    });
+  };
   $("close").disabled = !s.position;
 }
 
