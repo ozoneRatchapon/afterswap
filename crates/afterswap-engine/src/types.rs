@@ -28,6 +28,12 @@ pub struct EngineConfig {
     /// GOAT floor override: pick arms uniformly at random (seeded) instead
     /// of UCB1. Exists so the bandit has an honest baseline to beat (G2b).
     pub random_arm_seed: Option<u64>,
+    /// Run an evolution step every N completed live windows (0 = off).
+    /// Mutants of current arms (incl. 4-state growth beyond the enumerable
+    /// frontier) replace the worst arm when they win on replayed windows.
+    pub evolve_every_windows: usize,
+    /// Mutant candidates proposed per evolution step.
+    pub evolve_candidates: usize,
 }
 
 impl Default for EngineConfig {
@@ -43,6 +49,8 @@ impl Default for EngineConfig {
             complexity_threshold: 1.1,
             max_arms: 24,
             random_arm_seed: None,
+            evolve_every_windows: 1,
+            evolve_candidates: 12,
         }
     }
 }

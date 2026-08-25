@@ -28,7 +28,15 @@ lets data pick the winner:
    bandit picks a machine to drive; every window its realized reward
    (tranche-exit value vs what naive holding would have done) updates its arm.
    Underperformers lose the seat.
-4. **Gate** — a spectral irreducibility test on the win-matrix decides whether
+4. **Evolve** — every live window, mutants of the current arms (output
+   flips, edge reroutes, and **4-state growth past the enumerable
+   frontier** — `katgpt-ruliology`'s co-evolution operators) challenge the
+   worst arm on replayed windows; keep-if-better, Wolfram-style. Evolved
+   machines wear a ✦gen badge on the leaderboard.
+5. **Verify** — a renoise check (perturb the window → re-rank → measure
+   drift) scores how stable the live machine's selection is under noise;
+   the dashboard shows it as a per-decision confidence badge.
+6. **Gate** — a spectral irreducibility test on the win-matrix decides whether
    the next tournament can be **skipped, light, or full** — Wolfram's
    computational-irreducibility argument, used as a scheduler.
 
@@ -93,11 +101,12 @@ performance claim without a named floor
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+59.0 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
-| **G2b floor: random arm** | PASS — **+5.8 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2a floor: TWAP** | PASS — **+60.9 bps mean** vs same-cadence TWAP exit across 5 corpora (4 synthetic regimes + recorded DFlow segment) |
+| **G2b floor: random arm** | PASS — **+7.7 bps mean** vs seeded random arm selection (8 seeds) |
 | **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
-| **G4 latency** (release) | PASS — **1.05 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **175 µs** |
+| **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
+| **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance; on the bench it *adds* ~2 bps to both G2 floors |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
 `cargo run -p afterswap-engine --example goat_bench --release` (report).

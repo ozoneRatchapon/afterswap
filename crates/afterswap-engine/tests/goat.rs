@@ -134,6 +134,39 @@ fn g3_arm_cap_ablation() {
     }
 }
 
+/// G5 — evolution ablation: mutants must not degrade the TWAP edge by
+/// more than 5 bps mean across corpora (they should help or be neutral).
+#[test]
+fn g5_evolution_ablation() {
+    let (mut on_sum, mut off_sum, mut n) = (0.0, 0.0, 0.0);
+    for (name, prices) in corpora() {
+        let on = simulate(goat_cfg(), &prices, OPEN_AT, 1.0).final_value_norm;
+        let off = simulate(
+            EngineConfig {
+                evolve_every_windows: 0,
+                ..goat_cfg()
+            },
+            &prices,
+            OPEN_AT,
+            1.0,
+        )
+        .final_value_norm;
+        let twap = twap_value_norm(&prices, OPEN_AT, TWAP_SLICES, TWAP_STRIDE);
+        let (d_on, d_off) = (diff_bps(on, twap), diff_bps(off, twap));
+        println!("G5 {name}: evolve-on {d_on:+.1} bps vs TWAP, evolve-off {d_off:+.1} bps");
+        on_sum += d_on;
+        off_sum += d_off;
+        n += 1.0;
+    }
+    let (mean_on, mean_off) = (on_sum / n, off_sum / n);
+    println!("G5 mean: on {mean_on:+.2} / off {mean_off:+.2} bps");
+    assert!(
+        mean_on >= mean_off - 5.0,
+        "G5 FAIL: evolution costs {:.2} bps",
+        mean_off - mean_on
+    );
+}
+
 /// G4 — latency (debug-lenient): mean on_tick under 5 ms, worst tick
 /// (bootstrap tournament) under 5 s. Real numbers in the release bench.
 #[test]

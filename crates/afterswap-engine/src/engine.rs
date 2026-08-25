@@ -10,14 +10,14 @@
 use std::collections::HashMap;
 
 use katgpt_ruliology::{
-    FsmEnumerator, FsmStrategy, RuliologyArm, RuliologyPruner, SimpleProgram, SimulationGate,
-    SimulationStrategy, WinMatrix,
+    FsmEnumerator, FsmStrategy, FsmTemplateProposer, MAX_STATES, RuliologyArm, RuliologyPruner,
+    SimpleProgram, SimulationGate, SimulationStrategy, WinMatrix,
 };
 use log::info;
 use serde::Serialize;
 
 use crate::bandit::{ArmSnapshot, ExitBandit};
-use crate::sim::evaluate_matrix;
+use crate::sim::{evaluate_matrix, replay_exit};
 use crate::types::{EngineConfig, Position};
 use crate::windows::WindowStore;
 
@@ -45,6 +45,7 @@ pub enum EngineEvent {
     },
     /// A new arm took over the live position.
     ArmSelected { arm: usize, fsm_id: u64 },
+    Evolved { parent_id: u64, child_id: u64, generation: u32, sim_edge_bps: f64 },
     /// A (re-)tournament ran and the arm set was rebuilt.
     Tournament {
         route: String,
@@ -99,6 +100,9 @@ pub struct EngineSnapshot {
     pub arms: Vec<ArmSnapshot>,
     pub live_arm: Option<usize>,
     pub live_fsm_state: Option<u8>,
+    /// Renoise confidence: fraction of perturbed replays where the live
+    /// arm stays top-3. None when no live arm.
+    pub live_confidence: Option<f64>,
     pub gate: Option<GateSummary>,
     pub last_closed: Option<ClosedSummary>,
     /// Newest-first recent events for the activity feed.
@@ -135,6 +139,10 @@ pub struct ExitEngine {
     last_arm: Option<usize>,
     /// Seeded RNG for the random-arm floor (config.random_arm_seed).
     floor_rng: Option<fastrand::Rng>,
+    /// Mutants admitted by evolution (persist across re-tournaments).
+    evolved: Vec<FsmStrategy>,
+    /// FSM id → generation (0 = enumerated, absent = 0).
+    generations: std::collections::HashMap<u64, u32>,
     live: Option<LiveArm>,
     completed_windows: usize,
     windows_since_refresh: usize,
@@ -168,6 +176,8 @@ impl ExitEngine {
             recent_events: std::collections::VecDeque::new(),
             last_arm: None,
             floor_rng: seed.map(fastrand::Rng::with_seed),
+            evolved: Vec::new(),
+            generations: std::collections::HashMap::new(),
             live: None,
             completed_windows: 0,
             windows_since_refresh: 0,
@@ -206,6 +216,18 @@ impl ExitEngine {
         }
 
         let tick = self.store.last_tick().unwrap_or(0);
+        let window_closed = events
+            .iter()
+            .any(|e| matches!(e, EngineEvent::WindowClosed { .. }));
+        if window_closed
+            && self.config.evolve_every_windows > 0
+            && self
+                .completed_windows
+                .is_multiple_of(self.config.evolve_every_windows)
+            && let Some(ev) = self.evolve_step(tick)
+        {
+            events.push(ev);
+        }
         for ev in &events {
             self.recent_events.push_front(TickEvent {
                 tick,
@@ -272,11 +294,12 @@ impl ExitEngine {
             position_value_norm,
             hold_value_norm,
             arms: match &self.bandit {
-                Some(b) => b.snapshots(&self.sim_edges),
+                Some(b) => b.snapshots(&self.sim_edges, &self.generations),
                 None => Vec::new(),
             },
             live_arm: self.live.as_ref().map(|l| l.arm),
             live_fsm_state: self.live.as_ref().map(|l| l.fsm.state()),
+            live_confidence: self.live_confidence(),
             gate: self.last_gate.clone(),
             last_closed: self.last_closed.clone(),
             recent_events: self.recent_events.iter().cloned().collect(),
@@ -288,6 +311,116 @@ impl ExitEngine {
     }
 
     /// Run (or gate-skip) a tournament and rebuild the bandit arms.
+    /// One evolution step: mutate current arms (incl. 4-state growth past
+    /// the enumerable frontier), replay candidates on stored windows, and
+    /// replace the worst arm when the best mutant beats it. Deterministic
+    /// for a given tick (seeded RNG) — GOAT G1 holds.
+    fn evolve_step(&mut self, tick: u64) -> Option<EngineEvent> {
+        let windows = self.store.windows();
+        if windows.len() < MIN_TOURNAMENT_WINDOWS || self.sim_edges.is_empty() {
+            return None;
+        }
+        let bandit = self.bandit.as_mut()?;
+        let mut rng = fastrand::Rng::with_seed(0xAF7E_25EE ^ tick);
+
+        let mut candidates: Vec<(u64, FsmStrategy)> = Vec::new();
+        for _ in 0..self.config.evolve_candidates {
+            let parent = bandit.strategy(rng.usize(..bandit.num_arms())).clone();
+            let grow = (parent.n_states() as usize) < MAX_STATES && rng.f32() < 0.35;
+            let child = match grow {
+                true => grow_state(&parent, &mut rng),
+                false => FsmTemplateProposer::default_for(parent.n_states())
+                    .propose(&parent, &mut rng),
+            };
+            let known = (0..bandit.num_arms()).any(|i| bandit.strategy(i).id() == child.id())
+                || candidates.iter().any(|(_, c)| c.id() == child.id());
+            if !known {
+                candidates.push((parent.id(), child));
+            }
+        }
+        if candidates.is_empty() {
+            return None;
+        }
+
+        let pool: Vec<FsmStrategy> = candidates.iter().map(|(_, c)| c.clone()).collect();
+        let (matrix, _) = evaluate_matrix(&pool, &windows, self.config.tranche_frac);
+        let best = (0..pool.len()).max_by(|&a, &b| {
+            matrix.avg_payoff(a).total_cmp(&matrix.avg_payoff(b))
+        })?;
+        let best_edge = matrix.avg_payoff(best);
+
+        let worst = (0..self.sim_edges.len())
+            .min_by(|&a, &b| self.sim_edges[a].total_cmp(&self.sim_edges[b]))?;
+        if best_edge <= self.sim_edges[worst] {
+            return None;
+        }
+
+        let (parent_id, child) = candidates.swap_remove(best);
+        let generation = self.generations.get(&parent_id).copied().unwrap_or(0) + 1;
+        self.generations.insert(child.id(), generation);
+        bandit.replace_arm(worst, child.clone());
+        self.sim_edges[worst] = best_edge;
+        self.evolved.push(child.clone());
+        if self.evolved.len() > MAX_EVOLVED {
+            self.evolved.remove(0);
+        }
+        // The replaced arm may be driving — force reselection next tick.
+        if self.live.as_ref().is_some_and(|l| l.arm == worst) {
+            self.live = None;
+        }
+        info!(
+            "evolved gen{generation}: {parent_id:x} → {:x} ({best_edge:+.1} bps sim)",
+            child.id()
+        );
+        Some(EngineEvent::Evolved {
+            parent_id,
+            child_id: child.id(),
+            generation,
+            sim_edge_bps: best_edge,
+        })
+    }
+
+    /// Renoise confidence (perturb → re-resolve → measure drift): the live
+    /// arm's replay rank is computed on the clean trailing window, then on
+    /// P noise-perturbed copies (noise scaled to observed tick volatility).
+    /// Confidence = fraction of perturbations where the rank drifts ≤ 3
+    /// places — "would this decision survive a slightly different market?"
+    fn live_confidence(&self) -> Option<f64> {
+        const PERTURBATIONS: usize = 8;
+        const MAX_DRIFT: usize = 3;
+        let live = self.live.as_ref()?;
+        let bandit = self.bandit.as_ref()?;
+        let window = self.store.recent(self.config.window_len);
+        if window.len() < self.config.window_len.min(8) {
+            return None;
+        }
+        let rank_of = |prices: &[f64]| -> usize {
+            let edges: Vec<f64> = (0..bandit.num_arms())
+                .map(|i| replay_exit(bandit.strategy(i), prices, self.config.tranche_frac))
+                .collect();
+            let live_edge = edges[live.arm];
+            edges.iter().filter(|&&e| e > live_edge).count()
+        };
+        let clean_rank = rank_of(&window);
+        let mean_abs_delta = window
+            .windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .sum::<f64>()
+            / (window.len() - 1) as f64;
+        let tick = self.store.last_tick().unwrap_or(0);
+        let mut rng = fastrand::Rng::with_seed(0x00C0_F1DE ^ tick);
+        let hits = (0..PERTURBATIONS)
+            .filter(|_| {
+                let perturbed: Vec<f64> = window
+                    .iter()
+                    .map(|&p| p + (rng.f64() - 0.5) * 2.0 * mean_abs_delta)
+                    .collect();
+                rank_of(&perturbed).abs_diff(clean_rank) <= MAX_DRIFT
+            })
+            .count();
+        Some(hits as f64 / PERTURBATIONS as f64)
+    }
+
     fn run_tournament(&mut self) -> Option<EngineEvent> {
         let all_windows = self.store.windows();
         if all_windows.len() < MIN_TOURNAMENT_WINDOWS {
@@ -342,8 +475,15 @@ impl ExitEngine {
             false => all_windows,
         };
 
+        // Pool = the exhaustive enumeration plus every admitted mutant.
+        let pool: Vec<FsmStrategy> = self
+            .strategies
+            .iter()
+            .chain(self.evolved.iter())
+            .cloned()
+            .collect();
         let (matrix, complexities) =
-            evaluate_matrix(&self.strategies, &windows, self.config.tranche_frac);
+            evaluate_matrix(&pool, &windows, self.config.tranche_frac);
         let pruner = RuliologyPruner::new(
             self.config.payoff_threshold_bps,
             self.config.complexity_threshold,
@@ -362,7 +502,7 @@ impl ExitEngine {
 
         let arms: Vec<RuliologyArm> = survivors
             .iter()
-            .map(|&i| RuliologyArm::new(self.strategies[i].clone()))
+            .map(|&i| RuliologyArm::new(pool[i].clone()))
             .collect();
         let mut bandit = ExitBandit::from_arms(arms);
 
@@ -513,4 +653,22 @@ impl ExitEngine {
             self.live = None;
         }
     }
+}
+
+/// Pool cap for admitted mutants (bounds tournament cost).
+const MAX_EVOLVED: usize = 64;
+
+/// Grow a parent FSM by one state: copy tables, give the new state random
+/// transitions/output, and reroute one existing edge into it.
+fn grow_state(parent: &FsmStrategy, rng: &mut fastrand::Rng) -> FsmStrategy {
+    let n = parent.n_states();
+    debug_assert!((n as usize) < MAX_STATES);
+    let mut transitions = *parent.transitions();
+    let mut outputs = *parent.outputs();
+    let new = n as usize;
+    transitions[new] = [rng.u8(..n + 1), rng.u8(..n + 1)];
+    outputs[new] = rng.u8(..2);
+    let (st, input) = (rng.usize(..new), rng.usize(..2));
+    transitions[st][input] = new as u8;
+    FsmStrategy::new(transitions, outputs, n + 1, 0)
 }

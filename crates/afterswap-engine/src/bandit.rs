@@ -28,6 +28,8 @@ pub struct ArmSnapshot {
     pub ucb1: f64,
     /// Mean simulated edge (bps) from the latest tournament.
     pub sim_edge_bps: f64,
+    /// 0 = exhaustively enumerated; n>0 = nth-generation mutant.
+    pub generation: u32,
 }
 
 impl ExitBandit {
@@ -64,6 +66,11 @@ impl ExitBandit {
         &self.arms[arm].strategy
     }
 
+    /// Replace `arm`'s strategy (evolution): resets its pulls/payoff.
+    pub fn replace_arm(&mut self, arm: usize, strategy: FsmStrategy) {
+        self.arms[arm] = RuliologyArm::new(strategy);
+    }
+
     /// Number of arms.
     pub fn num_arms(&self) -> usize {
         self.arms.len()
@@ -75,7 +82,11 @@ impl ExitBandit {
     }
 
     /// UI snapshots; `sim_edges[i]` is aligned with arm order (`&[]` to skip).
-    pub fn snapshots(&self, sim_edges: &[f64]) -> Vec<ArmSnapshot> {
+    pub fn snapshots(
+        &self,
+        sim_edges: &[f64],
+        generations: &std::collections::HashMap<u64, u32>,
+    ) -> Vec<ArmSnapshot> {
         self.arms
             .iter()
             .enumerate()
@@ -93,6 +104,7 @@ impl ExitBandit {
                     pulls: arm.pulls(),
                     ucb1: arm.ucb1_score(self.total_pulls),
                     sim_edge_bps: sim_edges.get(i).copied().unwrap_or(0.0),
+                    generation: generations.get(&s.id()).copied().unwrap_or(0),
                 }
             })
             .collect()
