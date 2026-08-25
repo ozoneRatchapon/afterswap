@@ -141,6 +141,13 @@ Every window the position is open emits an honest score:
 dashboard's hero number is that same measure over the whole position — if the
 machines can't beat doing nothing, the number is red and we say so.
 
+## Roadmap
+
+Parked ideas with their evidence — input-alphabet v2 (the trailing-stop
+gap), closed-form latents, ELO ratings, on-chain policy program, shared
+Durable-Object world, prediction-market outcome tokens:
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Status & limits
 
 - Paper mode is the demo: **quotes are real, fills are simulated** at quote
