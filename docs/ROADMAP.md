@@ -42,7 +42,18 @@ triggers. Keeps every property that matters: full enumeration,
 auditability, bit-determinism. Learned embeddings are explicitly out —
 they would break the product's core honesty claim.
 
-## 3. ELO / Plackett–Luce arm ratings
+## 3. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench 006)
+
+**Outcome:** implemented (`rating.rs`, Hunter-MM PL, unit-tested,
+deterministic) and wired into survivor ranking — **every floor got worse**
+(G2a +87.4→+84.3, G2b +3.8→+0.5, trailing +2.0→−1.1). Mechanism: PL
+rewards rank *consistency*, but the objective is bps *magnitude* — big
+wins in trend windows matter more than consistently edging flat windows.
+Reverted to mean-payoff ranking; the module stays available for contexts
+where consistency is the objective (e.g. future marketplace reputation).
+A negative result, measured and kept.
+
+### (original rationale, for the record)
 
 **Evidence:** G2b margin is thin (+5.0 bps vs random) because most arms
 get 0–2 pulls — raw mean reward is a weak ranker at low sample counts.
