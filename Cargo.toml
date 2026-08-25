@@ -5,6 +5,7 @@ members = [
     "crates/afterswap-dflow",
     "crates/afterswap-server",
     "crates/afterswap-wasm",
+    "crates/afterswap-policy",
 ]
 
 [workspace.package]

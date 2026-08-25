@@ -1,0 +1,20 @@
+[package]
+name = "afterswap-policy"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+description = "On-chain exit-policy registry (roadmap #4 Phase A): commit a machine's fingerprint to a PDA before the first fill follows it"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "2"
+
+[dev-dependencies]
+litesvm = "0.6"
+solana-sdk = "2"
+
+[features]
+default = []
+no-entrypoint = []
