@@ -61,16 +61,19 @@ well.
 then open http://localhost:8787 and press "Open position".
 
 **Ecosystem benchmark:** measured against the exits Solana traders
-actually use — beats TP-ladders (+95.4 bps) and TP/SL brackets
-(+53.3 bps) on 5-corpus mean; loses to trailing stops in up-trends
-(−24.5 bps) for a structural reason we disclose and that defines the
-roadmap (input-alphabet v2, docs/ROADMAP.md). Same engine generalizes to
-DFlow prediction-market outcome tokens — exits after the *bet*.
+actually use — on 5-corpus mean the engine beats **every** standard exit:
+TWAP/DCA +87.4 bps, TP-ladders +122.8, TP/SL brackets +80.7, and
+Jupiter-style trailing stops +2.0. The trailing-stop result is the story:
+bench 004 measured a −24.5 bps *loss* (machines couldn't see distance-
+from-peak); we added that one input bit and bench 005 closed the gap —
+measured weakness → targeted fix → weakness gone, all reproducible.
+Same engine generalizes to DFlow prediction-market outcome tokens —
+exits after the *bet*.
 
 **Proof discipline:** the engine is GOAT-gated (methodology from katgpt-rs):
 bit-reproducible replays, +59.0 bps mean vs a same-cadence TWAP floor and
 +5.8 bps vs random arm selection across 5 corpora, 1 µs/tick — full report
-in `benches/001_goat/report.md`.
+in `benches/007_goat/report.md`.
 
 **Status:** built entirely during the buildathon (Aug 21–31); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
@@ -106,7 +109,7 @@ losers benched, mutants challenge → hero number = your edge.
 **Built Aug 21–31:** everything, empty dir → v1.4: engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise
 confidence), DFlow client, axum+SSE dashboard (named machines,
-plain-language feed), record/replay, GOAT harness (7 gates PASS: +60.9 bps
+plain-language feed), record/replay, GOAT harness (7 gates PASS: +87.4 bps
 vs TWAP, +7.7 vs random, bit-reproducible, 1.2 µs/tick).
 
 **Existed before?** No. Disclosure: depends on `katgpt-ruliology`, a
