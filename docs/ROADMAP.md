@@ -73,6 +73,17 @@ program PDA once (bounded amount); a permissionless crank triggers sells
 that the program validates against the committed policy. Kills the
 per-tranche wallet popup without custody. Phase B is real security
 surface — audit before mainnet.
+**Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
+the endgame of the trust ladder. Delegate the position/policy PDA into an
+ephemeral rollup session (1ms blocks, zero fees, <50ms e2e) and run the
+FSM itself as on-chain state — every input bit and transition verifiable,
+settled back to L1 with fraud proofs. Uniquely feasible for us: an FSM
+step is a 16-byte table lookup, likely the cheapest "strategy on-chain"
+workload that exists. Their TEE (Intel TDX) additionally enables selling
+machine decisions without revealing the genome — the privacy primitive
+the marketplace (#7) needs. Trust ladder: Memo commitment (shipped) →
+PDA-enforced policy (Phase A/B) → machine-runs-on-chain (this).
+
 **Cheap precursor:** ✅ SHIPPED (v2.1) — before a position's first live
 fill, the dashboard publishes a Memo tx: `afterswap:policy fp=<blake3-64>
 machine="<name>" gen=<n> states=<n> tranche=10%`, signed by the user's
