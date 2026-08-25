@@ -95,6 +95,24 @@ for exit machines than spot. Yield framing: deposit outcome tokens,
 machines ladder out as probability drifts, edge measured vs
 hold-to-resolution.
 
+## 6b. Perps exits + maker-side exits (Phoenix / CLOB venues)
+
+Phoenix (Ellipsis Labs) pivoted to perpetuals — crankless atomic
+settlement, ~0.035% fees, sub-1 bps impact to $8M, $500M OI (Aug 2026).
+Two extensions it motivates:
+- **Perps exit machines:** leveraged positions add funding rates and a
+  liquidation line — both quantize into closed-form input bits (same
+  pattern that closed the trailing-stop gap in bench 005: "funding
+  expensive" bit, "near liquidation" bit). Bigger pain, bigger
+  willingness-to-pay than spot exits.
+- **Maker-side exits (output-alphabet v2):** on an orderbook the sell
+  action can be {market-sell, rest-a-limit-above} — capture spread
+  instead of paying it. Output expansion stays enumerable, mirroring the
+  input expansion already shipped.
+- **Partnership note:** Ellipsis' MM-protection ethos = DFlow's
+  conditional-liquidity thesis; our on-chain-committed policies are
+  *provably benign flow* — one story, two teams.
+
 ## 7. Machine marketplace / copy-trading
 
 Machines are ~16-byte genomes with stable fingerprints and public track
