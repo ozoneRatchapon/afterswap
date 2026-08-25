@@ -40,9 +40,12 @@ lets data pick the winner:
    the next tournament can be **skipped, light, or full** — Wolfram's
    computational-irreducibility argument, used as a scheduler.
 
-The engine is extracted from [`katgpt-ruliology`](https://github.com/katopz/katgpt-rs)
-(Plan 188: "simple program strategies as bandit arms"), rebuilt standalone for
-this buildathon on top of real market data.
+The FSM enumeration/mutation primitives come from
+[`katgpt-ruliology`](https://github.com/katopz/katgpt-rs) by
+[@katopz](https://github.com/katopz) (MIT, third-party — credit where due).
+Everything trading-shaped — the exit engine, tournament economics, bandit
+rewards, evolution loop, DFlow integration, server, dashboard, and GOAT
+proofs — was built for this buildathon on top of real market data.
 
 ## How DFlow integrates
 
