@@ -71,6 +71,8 @@
   tr.live td { color: var(--ink); background: var(--surface-2); }
   tr.live td:first-child { box-shadow: inset 3px 0 0 var(--series-1); }
   .chip { font-size: 10px; font-weight: 700; color: var(--series-1); letter-spacing: 0.05em; }
+  .chip.ev { color: var(--series-2); }
+  .conf { font-size: 11px; font-weight: 600; margin-left: 8px; }
   .meter { height: 8px; border-radius: 4px; background: var(--seq-600); overflow: hidden; margin-top: 6px; }
   .meter > div { height: 100%; background: var(--seq-400); border-radius: 4px; }
   #tooltip {
@@ -125,7 +127,7 @@
   </div>
   <div style="display:grid; gap:14px">
     <div class="panel">
-      <h2>Live machine <span class="chip" id="livechip"></span></h2>
+      <h2>Live machine <span class="chip" id="livechip"></span><span class="conf" id="conf"></span></h2>
       <svg id="fsm" width="100%" height="190" role="img" aria-label="FSM state diagram"></svg>
       <div class="sub" style="color:var(--muted); font-size:12px" id="fsmhint">↑ = price up-tick, ↓ = down-tick · orange badge = sell state</div>
     </div>
@@ -261,7 +263,7 @@ function renderBoard(s) {
       ? `<span class="${a.mean_reward_bps >= 0 ? "up" : "down"}">${a.mean_reward_bps >= 0 ? "+" : ""}${a.mean_reward_bps.toFixed(1)}</span>`
       : "·";
     return `<tr class="${live ? "live" : ""}">
-      <td>#${a.id.toString(16).slice(0, 6)} ${live ? '<span class="chip">LIVE</span>' : ""}</td>
+      <td>#${a.id.toString(16).slice(0, 6)}${a.generation > 0 ? ` <span class="chip ev">✦g${a.generation}</span>` : ""} ${live ? '<span class="chip">LIVE</span>' : ""}</td>
       <td>${a.n_states}</td>
       <td>${a.complexity.toFixed(2)}</td>
       <td>${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)}</td>
@@ -278,6 +280,14 @@ function renderBoard(s) {
 function renderFsm(s) {
   const svg = $("fsm"), W = svg.clientWidth, H = 190;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const conf = $("conf");
+  if (s.live_confidence != null) {
+    const c = s.live_confidence;
+    conf.textContent = `conf ${(c * 100).toFixed(0)}%`;
+    conf.style.color = c >= 0.7 ? "var(--delta-good)" : c >= 0.4 ? "var(--status-warn)" : "var(--delta-bad)";
+  } else {
+    conf.textContent = "";
+  }
   const armIdx = s.live_arm ?? s.last_arm;
   const arm = s.arms.find(a => a.index === armIdx);
   $("livechip").textContent = arm
@@ -346,6 +356,8 @@ function feedLine(te, s) {
     }
     case "tranche_filled":
       return `${armId(e.arm)} sold ${(e.frac * 100).toFixed(0)}% @ ${e.price.toFixed(3)}`;
+    case "evolved":
+      return `✦ evolved gen${e.generation}: #${e.parent_id.toString(16).slice(0, 6)} → #${e.child_id.toString(16).slice(0, 6)} (${e.sim_edge_bps >= 0 ? "+" : ""}${e.sim_edge_bps.toFixed(1)} bps sim)`;
     case "position_closed":
       return `position fully exited @ ${e.final_value_norm.toFixed(4)}×`;
     default:

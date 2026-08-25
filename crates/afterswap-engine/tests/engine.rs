@@ -115,6 +115,7 @@ fn engine_end_to_end_crash_path() {
                 EngineEvent::ArmSelected { .. } => selections += 1,
                 EngineEvent::TrancheFilled { .. } => fills += 1,
                 EngineEvent::WindowClosed { .. } => windows_closed += 1,
+                EngineEvent::Evolved { .. } => {}
                 EngineEvent::PositionClosed {
                     final_value_norm, ..
                 } => final_value = Some(*final_value_norm),
