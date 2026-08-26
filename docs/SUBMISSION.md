@@ -111,8 +111,9 @@ policy-registry program (Pinocchio, deployed on devnet, first policy
 committed and verified) → engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise
 confidence), DFlow client, axum+SSE dashboard (named machines,
-plain-language feed), record/replay, GOAT harness (7 gates PASS: +87.4 bps
-vs TWAP, +7.7 vs random, bit-reproducible, 1.2 µs/tick).
+plain-language feed), record/replay, GOAT harness (G1–G6 PASS: +71.9 bps
+vs TWAP across 6 corpora, +3.2 vs random, wasm/native byte-parity,
+bit-reproducible, ~1.2 µs/tick).
 
 **Existed before?** No. Disclosure: depends on `katgpt-ruliology`, a
 pre-existing third-party MIT open-source crate by @katopz (FSM enumeration
