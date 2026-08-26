@@ -163,6 +163,12 @@ Every window the position is open emits an honest score:
 dashboard's hero number is that same measure over the whole position — if the
 machines can't beat doing nothing, the number is red and we say so.
 
+## Live soak
+
+Beyond backtests: a continuous live-quote soak with auto-reopened paper
+positions — cycle-by-cycle edges, win rate, and a measured
+negative-to-positive learning curve: [`docs/SOAK.md`](docs/SOAK.md).
+
 ## Roadmap
 
 Parked ideas with their evidence — input-alphabet v2 (the trailing-stop
