@@ -119,15 +119,30 @@ pub async fn run_shared(
 
     let mut ticks = 0u64;
     let mut opened = false;
+    // Median-of-3 spike filter — a lone bad quote must not reach the
+    // engine (corrupts fills and machine rewards). Sustained moves pass.
+    let mut raw_tail: Vec<f64> = Vec::with_capacity(3);
 
     loop {
         interval.tick().await;
-        let price = match feed.next().await {
+        let raw = match feed.next().await {
             Ok(p) => p,
             Err(e) => {
                 warn!("quote poll failed (skipping tick): {e}");
                 continue;
             }
+        };
+        raw_tail.push(raw);
+        if raw_tail.len() > 3 {
+            raw_tail.remove(0);
+        }
+        let price = match raw_tail.len() {
+            3 => {
+                let mut sorted = raw_tail.clone();
+                sorted.sort_by(f64::total_cmp);
+                sorted[1]
+            }
+            _ => raw,
         };
         if let Some(f) = recorder.as_mut() {
             let _ = writeln!(f, "{}", serde_json::json!({"price": price}));

@@ -118,8 +118,8 @@
       <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
-      <label style="font-size:12px; color:var(--ink-2); display:inline-flex; gap:5px; align-items:center; cursor:pointer">
-        <input type="checkbox" id="autoreopen"> auto-reopen (paper) — learn forever
+      <label style="font-size:12px; color:var(--ink-2); display:inline-flex; gap:5px; align-items:center; cursor:pointer; white-space:nowrap">
+        <input type="checkbox" id="autoreopen"> auto-reopen (paper)
       </label>
     </div>
   </div>
@@ -391,7 +391,9 @@ function feedLine(te, s) {
   };
   switch (e.type) {
     case "tournament":
-      return `tournament (${e.route}): ${e.strategies} machines fought → ${e.arms} got seats`;
+      return e.route === "skip"
+        ? `gate: dynamics unchanged → tournament skipped, ${e.arms} seats kept`
+        : `tournament (${e.route}): ${e.strategies} machines fought → ${e.arms} got seats`;
     case "arm_selected":
       return `<b>${e.name}</b> takes the seat`;
     case "window_closed": {
@@ -664,6 +666,17 @@ function scheduleTick() {
 }
 
 let engine = null, replay = null, replayIdx = 0, failures = 0;
+// Median-of-3 spike filter: a single-tick quote glitch (seen live:
+// 98.68 amid a 96.4 market) must never reach the engine — it corrupts
+// fills AND machine rewards. Median delays each price by one tick and
+// kills any lone spike; sustained moves pass through unchanged.
+const rawTail = [];
+function medianFiltered(p) {
+  rawTail.push(p);
+  if (rawTail.length > 3) rawTail.shift();
+  if (rawTail.length < 3) return p;
+  return [...rawTail].sort((a, b) => a - b)[1];
+}
 const QUOTE_URL = "https://dev-quote-api.dflow.net/quote"
   + "?inputMint=So11111111111111111111111111111111111111112"
   + "&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -699,7 +712,7 @@ async function tick() {
     price = replay[replayIdx++ % replay.length];
   } else {
     try {
-      price = await fetchPrice();
+      price = medianFiltered(await fetchPrice());
       failures = 0;
       setConn(true, "live");
     } catch {
