@@ -73,7 +73,7 @@ exits after the *bet*.
 **Proof discipline:** the engine is GOAT-gated (methodology from katgpt-rs):
 bit-reproducible replays, +59.0 bps mean vs a same-cadence TWAP floor and
 +5.8 bps vs random arm selection across 5 corpora, 1 µs/tick — full report
-in `benches/007_goat/report.md`.
+in `benches/010_goat/report.md`.
 
 **Status:** built entirely during the buildathon (Aug 21–31); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
@@ -106,7 +106,9 @@ position → machine reads DFlow tick direction → sell-state fills tranche
 at DFlow quote (live: signed /order tx) → windows score machine vs hold →
 losers benched, mutants challenge → hero number = your edge.
 
-**Built Aug 21–31:** everything, empty dir → v1.4: engine (enumeration,
+**Built Aug 21–31:** everything, empty dir → v2.4 — incl. an on-chain
+policy-registry program (Pinocchio, deployed on devnet, first policy
+committed and verified) → engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise
 confidence), DFlow client, axum+SSE dashboard (named machines,
 plain-language feed), record/replay, GOAT harness (7 gates PASS: +87.4 bps
@@ -117,5 +119,9 @@ pre-existing third-party MIT open-source crate by @katopz (FSM enumeration
 primitives, pinned public git rev) — used as a library dependency, same as
 any crates.io dep; all product code built during the sprint.
 
-**Explorer evidence:** blank in paper mode; fund throwaway keypair (~0.2
-SOL) → run one live tranche → paste Solscan tx link. Recommended.
+**Explorer evidence (have now, no mainnet needed):**
+- Policy program live on devnet:
+  https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet
+- First committed exit policy (PDA, decoded+verified):
+  https://explorer.solana.com/tx/2WHpDfMD3K5DNMheEdHKGm8djxKZPGeRLiYHyMmrVkzQKoykjz9iAQUBFEPquk8F3fdSRwow4BeDVqKgXqp4RLA5?cluster=devnet
+- Optional extra: one mainnet live fill via wallet (Solscan link).
