@@ -8,13 +8,17 @@ description = "On-chain exit-policy registry (roadmap #4 Phase A): commit a mach
 [lib]
 crate-type = ["cdylib", "lib"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
 [dependencies]
-solana-program = "2"
+# Pinocchio (Anza): zero-dependency no_std framework — ~10-20x smaller
+# binary than solana-program, near-zero CU overhead.
+pinocchio = "0.9"
+pinocchio-system = "0.3"
 
 [dev-dependencies]
 litesvm = "0.6"
 solana-sdk = "2"
-
-[features]
-default = []
-no-entrypoint = []
+base64 = "0.22"
+bincode = "1"
