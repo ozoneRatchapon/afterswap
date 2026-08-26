@@ -41,7 +41,8 @@ honestly on live DFlow prices."
 
 **1:45–2:00 — DFlow + close.**
 "DFlow is the sensor and the actuator — quotes in, and in live mode every
-sell tranche is a signed DFlow order. Post-swap execution, running
+sell tranche is a signed DFlow order, with the machine's exit policy
+committed on-chain before the first sale (program live on devnet). Post-swap execution, running
 strategies nobody designed. AfterSwap."
 
 ## Deterministic mode (recommended for recording)
