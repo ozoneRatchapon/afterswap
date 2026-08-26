@@ -39,6 +39,11 @@ pub struct EngineConfig {
     /// (Bench 004 showed the binary alphabet loses to trailing stops in
     /// up-trends precisely for lack of this signal).
     pub peak_drop_bps: f64,
+    /// Temporal-derivative surprise trigger (roadmap #2): force a full
+    /// re-tournament when |fast-EMA − slow-EMA| of signed returns exceeds
+    /// this multiple of volatility — "the market changed its mind, re-audition
+    /// everyone now" instead of waiting out the refresh cadence. 0 = off.
+    pub surprise_ratio: f64,
 }
 
 impl Default for EngineConfig {
@@ -57,6 +62,7 @@ impl Default for EngineConfig {
             evolve_every_windows: 1,
             evolve_candidates: 12,
             peak_drop_bps: 30.0,
+            surprise_ratio: 1.2,
         }
     }
 }
