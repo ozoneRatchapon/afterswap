@@ -73,6 +73,7 @@ pure Rust."
   fast exits still teach the bandit, renoise rank-stability as per-decision
   confidence, spectral irreducibility as a re-tournament scheduler.
 - Provenance: FSM enumeration/mutation primitives from @katopz's open-source katgpt-ruliology crate (MIT, pinned git rev); all trading logic, integration, and proofs built during the sprint.
+- **The modelless thesis (credit @katopz):** many decisions don't need an LLM at all — rules + shallow reasoning + ruliology gets you $0 marginal cost, ~µs latency, determinism, and self-evolution. AfterSwap is that thesis applied to exits: the LLM was the *compiler* (built the system once, held accountable by GOAT gates that reverted two of its confident ideas); the *engine* never makes an API call. In an agent economy, the modelless decision layer undercuts every LLM-per-decision competitor on unit economics — that's the business, not just the aesthetics.
 
 ## 5. Community / social (Superteam TH) — the meme
 
