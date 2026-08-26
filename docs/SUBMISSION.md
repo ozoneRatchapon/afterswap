@@ -62,8 +62,8 @@ then open http://localhost:8787 and press "Open position".
 
 **Ecosystem benchmark:** measured against the exits Solana traders
 actually use — on 5-corpus mean the engine beats **every** standard exit:
-TWAP/DCA +87.4 bps, TP-ladders +122.8, TP/SL brackets +80.7, and
-Jupiter-style trailing stops +2.0. The trailing-stop result is the story:
+TWAP/DCA +71.9 bps, TP-ladders +109.9, TP/SL brackets +76.1, and
+Jupiter-style trailing stops +6.5 (6 corpora incl. 2 recorded segments). The trailing-stop result is the story:
 bench 004 measured a −24.5 bps *loss* (machines couldn't see distance-
 from-peak); we added that one input bit and bench 005 closed the gap —
 measured weakness → targeted fix → weakness gone, all reproducible.

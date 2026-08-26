@@ -104,7 +104,7 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - Policy program REWRITTEN in Pinocchio (74KB→18KB) and DEPLOYED devnet:
   GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8; first policy PDA committed
   + decoded/verified on-chain (user funded 5 devnet SOL).
-- 2nd recorded corpus (792 ticks) in GOAT; bench 010 (6 corpora): TWAP
-  +71.9, trailing +6.5, ladder +110.2, bracket +76.1 — all floors beaten.
+- 2nd recorded corpus (792 ticks) in GOAT; bench 011 (6 corpora, final 884-tick corpus2): TWAP
+  +71.9, trailing +6.5, ladder +109.9, bracket +76.1 — all floors beaten.
 - Gate suite 25x faster (enumerate cache). Live soak monitor: 165+ cycles,
   mean +0.20 bps, learning trend positive. Docs synced to bench 010.
