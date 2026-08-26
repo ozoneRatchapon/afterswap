@@ -168,6 +168,12 @@ pub struct ExitEngine {
     /// FSM id → generation (0 = enumerated, absent = 0).
     generations: std::collections::HashMap<u64, u32>,
     live: Option<LiveArm>,
+    /// Temporal-derivative surprise state: fast/slow EMAs of signed
+    /// per-tick returns (bps) and slow EMA of |returns| (vol proxy).
+    surprise_fast: f64,
+    surprise_slow: f64,
+    surprise_vol: f64,
+    surprise_cooldown: u32,
     completed_windows: usize,
     windows_since_refresh: usize,
     /// Realized reward stats per FSM id, carried across arm rebuilds.
@@ -203,6 +209,10 @@ impl ExitEngine {
             evolved: Vec::new(),
             generations: std::collections::HashMap::new(),
             live: None,
+            surprise_fast: 0.0,
+            surprise_slow: 0.0,
+            surprise_vol: 0.0,
+            surprise_cooldown: 0,
             completed_windows: 0,
             windows_since_refresh: 0,
             realized: HashMap::new(),
@@ -218,16 +228,42 @@ impl ExitEngine {
         let tick = self.store.last_tick().unwrap_or(0);
         let mut events = Vec::new();
 
+        // Temporal-derivative surprise: fast vs slow EMA of signed returns,
+        // normalized by volatility. A spike means the market's drift flipped
+        // faster than the refresh cadence notices.
+        const FAST_ALPHA: f64 = 0.3;
+        const SLOW_ALPHA: f64 = 0.05;
+        let mut surprised = false;
+        if let Some(p) = prev {
+            let ret_bps = (price - p) / p * 10_000.0;
+            self.surprise_fast += FAST_ALPHA * (ret_bps - self.surprise_fast);
+            self.surprise_slow += SLOW_ALPHA * (ret_bps - self.surprise_slow);
+            self.surprise_vol += SLOW_ALPHA * (ret_bps.abs() - self.surprise_vol);
+            self.surprise_cooldown = self.surprise_cooldown.saturating_sub(1);
+            if self.config.surprise_ratio > 0.0 && self.surprise_cooldown == 0 {
+                let deviation = (self.surprise_fast - self.surprise_slow).abs();
+                surprised = deviation / self.surprise_vol.max(0.1) >= self.config.surprise_ratio;
+            }
+        }
+
         // Bootstrap or refresh the arm set.
         let window_count = self.store.windows().len();
         let need_bootstrap = self.bandit.is_none() && window_count >= MIN_TOURNAMENT_WINDOWS;
         let need_refresh = self.bandit.is_some()
             && self.windows_since_refresh >= self.config.refresh_every_windows;
-        if need_bootstrap || need_refresh {
-            if let Some(ev) = self.run_tournament() {
+        let need_surprise =
+            surprised && self.bandit.is_some() && window_count >= MIN_TOURNAMENT_WINDOWS;
+        if need_bootstrap || need_refresh || need_surprise {
+            // Surprise overrides the gate's skip: fresh evidence of regime
+            // change is exactly when "dynamics unchanged" stops being true.
+            if let Some(ev) = self.run_tournament(need_surprise && !need_refresh) {
                 events.push(ev);
             }
             self.windows_since_refresh = 0;
+            if need_surprise {
+                self.surprise_cooldown = self.config.window_len as u32;
+                self.surprise_fast = self.surprise_slow;
+            }
         }
 
         // Drive the live position.
@@ -494,7 +530,7 @@ impl ExitEngine {
         }
     }
 
-    fn run_tournament(&mut self) -> Option<EngineEvent> {
+    fn run_tournament(&mut self, forced_by_surprise: bool) -> Option<EngineEvent> {
         let all_windows = self.store.windows();
         if all_windows.len() < MIN_TOURNAMENT_WINDOWS {
             return None;
@@ -502,8 +538,10 @@ impl ExitEngine {
 
         // Route on the PREVIOUS matrix: reducible dynamics → keep arms.
         // First run has no matrix — that's a bootstrap, always full.
-        let (route, route_name) = match &self.last_matrix {
-            Some(m) => {
+        let (route, route_name) = match (&self.last_matrix, forced_by_surprise) {
+            (_, true) => (None, "surprise"),
+            (m, false) => match m {
+                Some(m) => {
                 let r = self.gate.route(m);
                 let name = match r.strategy {
                     SimulationStrategy::AnalyticalShortcut => "skip",
@@ -512,7 +550,8 @@ impl ExitEngine {
                 };
                 (Some(r), name)
             }
-            None => (None, "bootstrap"),
+                None => (None, "bootstrap"),
+            },
         };
         let (compression_ratio, is_irreducible) = match &route {
             Some(r) => (r.compression_ratio, r.is_irreducible),

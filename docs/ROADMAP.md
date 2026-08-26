@@ -39,7 +39,15 @@ multi-symbol FSM type with the same fingerprint/dedup discipline.
 **Gate:** re-run ecosystem floors; target = parity or better vs trailing
 on trend-up while keeping the other wins.
 
-## 2. Closed-form latents (the honest "latent-first")
+## 2. Closed-form latents (the honest "latent-first") — ✅ both halves resolved
+
+**Surprise trigger ✅ SHIPPED (v2.5, bench 012):** dual fast/slow EMA of
+signed returns, vol-normalized; a spike forces a full re-tournament and
+overrides the gate's "skip" (fresh regime evidence beats "dynamics
+unchanged"). All external floors improved (TWAP +71.9→+72.3, trailing
++6.5→+7.0); the vs-random gap narrowed because the random floor shares
+the smarter cadence — absolute performance is what shipped.
+(Input-bit half: off-peak ✅ v2.0; magnitude ❌ reverted, bench 008.)
 
 Derived signals that need **no training** — temporal-derivative surprise
 (dual fast/slow EMA, katgpt-rs Plan-style), volatility ratio, time-in-

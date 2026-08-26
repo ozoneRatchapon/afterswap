@@ -116,13 +116,13 @@ performance claim without a named floor
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+71.9 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
-| **G2b floor: random arm** | PASS — **+3.2 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2a floor: TWAP** | PASS — **+72.3 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
+| **G2b floor: random arm** | PASS — **+1.8 bps mean** vs seeded random arm selection (8 seeds) |
 | **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
 | **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+109.9 bps vs TP-ladder**, **+76.1 bps vs TP/SL bracket**, **+6.5 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
+| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+110.3 bps vs TP-ladder**, **+76.5 bps vs TP/SL bracket**, **+7.0 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
@@ -162,6 +162,12 @@ Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The
 dashboard's hero number is that same measure over the whole position — if the
 machines can't beat doing nothing, the number is red and we say so.
+
+## Live soak
+
+Beyond backtests: a continuous live-quote soak with auto-reopened paper
+positions — cycle-by-cycle edges, win rate, and a measured
+negative-to-positive learning curve: [`docs/SOAK.md`](docs/SOAK.md).
 
 ## Roadmap
 
