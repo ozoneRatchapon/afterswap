@@ -35,9 +35,21 @@ fn main() {
         .iter()
         .map(|&r| (r.name().to_string(), synthetic_corpus(r, 300, 42)))
         .collect();
-    if let Ok(real) = load_corpus("data/recorded.jsonl") {
-        if real.len() >= 100 {
-            corpora.push(("recorded_dflow".to_string(), real));
+    let mut recs: Vec<String> = std::fs::read_dir("data")
+        .map(|d| {
+            d.filter_map(Result::ok)
+                .map(|e| e.path().to_string_lossy().to_string())
+                .filter(|p| p.ends_with(".jsonl"))
+                .collect()
+        })
+        .unwrap_or_default();
+    recs.sort();
+    for path in recs {
+        if let Ok(real) = load_corpus(&path) {
+            if real.len() >= 100 {
+                let name = path.rsplit('/').next().unwrap_or("rec").trim_end_matches(".jsonl");
+                corpora.push((format!("dflow_{name}"), real));
+            }
         }
     }
 

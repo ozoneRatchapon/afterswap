@@ -79,6 +79,17 @@ program PDA once (bounded amount); a permissionless crank triggers sells
 that the program validates against the committed policy. Kills the
 per-tranche wallet popup without custody. Phase B is real security
 surface — audit before mainnet.
+**Phase A status: ✅ DEPLOYED ON DEVNET (v2.4).** Rewritten in Pinocchio
+(Anza) after evaluating Quasar (beta, unaudited — parked) and Anchor
+(Phase B candidate): binary 74 KB → **18 KB**, autofixer 0 issues, same
+LiteSVM tests byte-for-byte. Live artifacts:
+- Program: `GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`
+  (https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet)
+- First committed policy PDA `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA`
+  (fingerprint 0x165ef4aabbcc, 3 states, 10% tranches — decoded and
+  verified on-chain), tx `2WHpDfMD3K5DNMheEdHKGm8djxKZPGeRLiYHyMmrVkzQKoykjz9iAQUBFEPquk8F3fdSRwow4BeDVqKgXqp4RLA5`
+- Mainnet deploy ≈ 0.13 SOL rent at this size — post-audit.
+
 **Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
 the endgame of the trust ladder. Delegate the position/policy PDA into an
 ephemeral rollup session (1ms blocks, zero fees, <50ms e2e) and run the
