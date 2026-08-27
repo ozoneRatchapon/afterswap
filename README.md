@@ -183,7 +183,7 @@ block-bootstrapped **de-meaned** price paths (≈ random walk), it shows **no
 significant edge at any horizon** — it does not manufacture alpha from
 noise. On the same paths with structure preserved, its advantage over other
 exit strategies grows with horizon (+469 ± 87 bps vs TWAP at ~80 min).
-Full sweep: [`benches/016_horizon/report.md`](benches/016_horizon/report.md).
+Full sweep: [`benches/014_horizon/report.md`](benches/014_horizon/report.md).
 
 ## Roadmap
 
