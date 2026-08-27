@@ -730,23 +730,20 @@ edge on those specific series, rather than invalidating findings on assets
 where low PBO is robustly maintained". For reporting, J1's answer is to quote
 sub-floor PBO "alongside stationary bootstrap confidence intervals".
 
-We built that (`benches/031_pbo_interval`) — and it does not support the
-partition the document tells us to retain. At 166 windows the intervals are
-0.29 to 0.72 wide; **zero of eleven assets** have an interval clearing the
-envelope of the four clean generalisers. FLOKI at 0.623 and SHIB at 0.075 are
-not distinguishable by this data.
+We built that (`benches/031_pbo_interval`), and it partly supports the
+partition the document tells us to retain — but not as bench 024 drew it. Of
+the three dissenters, only **JTO** (0.417–0.647) clears the envelope of the
+four clean generalisers. FLOKI overlaps by 0.036, borderline. PYTH overlaps
+properly. **One dissents measurably, one is borderline, one does not.**
 
-Both can be true — the document argues from the mechanism, our bench measures
-the precision — but the honest reading is that "three assets dissent" is a
-claim this sample cannot carry, however well-motivated the mechanism is.
-
-One further caveat is ours, not the document's: a stationary bootstrap over
-windows reintroduces duplicate rows, which can land on both sides of a CSCV
-split. That is the block-exchangeability violation the same document forbids
-for overlapping windows, arriving through the resampler. PEPE's point estimate
-falls outside its own interval, which is the bias showing. The widths are
-informative; the endpoints should not be quoted until a design without
-replacement is tried.
+Getting there required rejecting our own first attempt. A stationary bootstrap
+over windows reintroduces duplicate rows, which can land on both sides of a
+CSCV split — the block-exchangeability violation the same document forbids for
+overlapping windows, arriving through the resampler. It gave intervals 0.29–0.72
+wide and separated nothing. Block permutation instead (contiguous blocks
+shuffled, every window used exactly once) halved the widths and changed the
+answer. The first result was not conservative, it was wrong — worth recording
+because "wider interval" reads as "safer" and here it was not.
 
 ## L1 — CUPED brings the CLMM margin inside reach
 
@@ -805,10 +802,36 @@ Three documents, three numbers, and the net margin (+0.10 to +0.35) is
 identical in two of them — so at least one column does not add up. Unresolved,
 and a live instance of J2, which is still unanswered.
 
-## What is now actionable without further research
+## K1 and K2 — closed the same day, one with nothing to do
 
-- delete the `DPM >= 0.95` gate from the manifest spec (K1)
-- measure the eigenvalue concentration of the trial-statistic correlation
-  matrix (K2), which decides which I1 mechanism applies
-- implement CUPED and re-derive the sample requirement (L1)
-- redo bench 031 with subsampling without replacement, then quote endpoints
+**K1 needed no code change.** `prereg.rs` never had a DPM field; our manifest
+gates on effect size, power and alpha only. There was no `DPM >= 0.95` gate to
+prune. The question resolves as "already correct, now for a stated reason".
+
+**K2 was measured** — `benches/032_policy_degeneracy` — and it answers more
+than it was asked.
+
+It does *not* explain the dissent. λ₁/Σλ is 0.87–0.91 and `N_eff ≈ 1.2` on
+**every asset**; the dissenting group averages 0.9030 against the clean group's
+0.8957. Cross-sectional policy degeneracy is uniform across the corpus, so it
+cannot be what distinguishes FLOKI, JTO and PYTH. That leaves round three's
+other two mechanisms, and bench 031's permutation diagnostic has since produced
+the first evidence for one of them (regime non-stationarity: shuffling block
+order lowers PBO, more so on longer series).
+
+What it does establish is about the search itself: **1,054 enumerated machines
+have an effective count of 1.2.** `N_eff / N ≈ 0.0012`, everywhere. This is the
+condition round three invoked when ruling out DSR and DPM — dense
+cross-correlation collapsing the effective trial count — now measured rather
+than assumed. Romano-Wolf remains valid (it resamples the joint dependence
+structure and never assumed independent trials), so the multiplicity result is
+untouched. What does not survive is the description: "all 1,054 enumerated
+machines" reads as breadth, and the breadth is not there.
+
+## What is still actionable without further research
+
+- implement CUPED and re-derive the sample requirement (L1) — the one
+  outstanding item with a clear path and a decision attached to it
+- test the martingale signal-to-noise mechanism on the three assets (I1),
+  now that policy degeneracy is ruled out
+- decide whether "1,054 machines" should keep being written that way (K2)
