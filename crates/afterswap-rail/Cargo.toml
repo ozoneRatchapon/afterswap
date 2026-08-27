@@ -1,0 +1,17 @@
+[package]
+name = "afterswap-rail"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Verifiable execution rail: canonical audit records, hash chain, Merkle segments, attestation (R0 of docs/RAIL.md)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+# Attestation. No `rand` feature anywhere: keys come from seed bytes, so the
+# crate carries no entropy dependency and compiles for wasm32 unchanged.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# Only for re-checking externally-defined sha-256 digests (RFC 9421 bodies).
+sha2 = "0.10"

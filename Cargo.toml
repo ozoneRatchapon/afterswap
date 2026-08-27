@@ -6,6 +6,7 @@ members = [
     "crates/afterswap-server",
     "crates/afterswap-wasm",
     "crates/afterswap-policy",
+    "crates/afterswap-rail",
 ]
 
 [workspace.package]
