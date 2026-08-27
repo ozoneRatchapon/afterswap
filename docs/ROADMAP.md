@@ -3,6 +3,15 @@
 Everything here was considered during the buildathon and parked on purpose.
 Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 
+> **Status, 2026-08-27.** Not clear. Twelve items are closed with evidence
+> (shipped, measured, or refuted); six remain open. Two of those six — #7 and
+> #7b, both monetisations of decision quality — are now **contradicted by our
+> own benches** and are marked below rather than silently left standing.
+> `benches/035_asset_vs_machine` measures the tournament's out-of-sample
+> selection differential at 1 of 11 assets above its own detection floor, which
+> is the thing both items propose to sell. See "What the evidence did to this
+> roadmap" at the end.
+
 ## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench 005)
 
 **Outcome:** implemented via input unrolling (two binary steps per tick:
@@ -187,7 +196,20 @@ Two extensions it motivates:
   conditional-liquidity thesis; our on-chain-committed policies are
   *provably benign flow* — one story, two teams.
 
-## 7. Machine marketplace / copy-trading
+## 7. Machine marketplace / copy-trading ⚠️ PREMISE CONTRADICTED (bench 035)
+
+**Blocked on evidence, not effort.** The product is a machine's public track
+record, hired by others for a royalty. `benches/035_asset_vs_machine` measures
+what a machine's selection actually contributes out of sample — Δ over the
+population median, drift removed — and finds it exceeds its own detection floor
+on **1 of 11 assets**. `benches/025_multiplicity` reached the same conclusion by
+a different route: zero machines survive Romano-Wolf correction.
+
+Publishing "Eager Puffin has exited 4,120 positions at +31 bps mean" would be
+publishing a number the project's own statistics say is indistinguishable from
+the population median. Do not build this until Δ is shown non-zero on a corpus
+that could detect it.
+
 
 Machines are ~16-byte genomes with stable fingerprints and public track
 records (realized bps, pulls). Publish → others' positions can hire your
@@ -195,7 +217,20 @@ machine → royalty per fill. Requires #4 Phase A for verifiable
 provenance. Social loop: "Eager Puffin has exited 4,120 positions at
 +31 bps mean."
 
-## 7b. Monetization rail — exit-decisions-as-an-API via pay.sh (HTTP 402)
+## 7b. Monetization rail — exit-decisions-as-an-API via pay.sh (HTTP 402) ⚠️ RE-SCOPE
+
+**The rail is sound; the thing sold over it is not.** Everything below about
+pay.sh, 402 and the deployment remains accurate. What has changed is the pitch:
+selling a *decision* prices the machine's edge, and bench 035 cannot show that
+edge is non-zero on ten of eleven assets. Round three states the same
+conclusion from the cost side — "positioning an execution engine primarily as
+an alpha-generating trading system is commercially fragile".
+
+The surviving version sells **verifiability, not alpha**: the signed quote →
+on-chain policy commitment → verified fill chain (#7h, shipped) as a MiCA
+Article 78 best-execution compliance artifact. That product does not depend on
+the machine being good — only on the record being provable, which it is.
+
 
 **Preview ✅ built (v2.2), gated on plan:** `POST /decide` deployed —
 same wasm binary server-side, roster + full simulated exit, verified
@@ -438,3 +473,34 @@ the size of the space. That is what the engine already did.
 - **Custody vault without the policy program** — hot-wallet mode exists
   for demos (`--features live --keypair`) but is custody software the
   moment real users appear; #4 is the correct path.
+
+
+## What the evidence did to this roadmap
+
+Late benches changed the standing of items that were written before them. Kept
+here rather than edited into the items above, so the ordering stays legible.
+
+| item | written assuming | measured since | status |
+| --- | --- | --- | --- |
+| #7 marketplace | a machine's track record is worth hiring | Δ detectable on 1 of 11 assets (bench 035); zero survive multiplicity (bench 025) | premise contradicted |
+| #7b decisions API | decision quality is the sellable good | same, plus round three on commercial fragility | re-scoped to verifiability |
+| #7e per-regime stats | regime split might be a lever | still unresolved, default off | unchanged |
+| #7j enumeration frontier | more states might help | 4 states costs 40,000x and scores worse (bench 028) | closed |
+| — | 1,054 machines is a broad search | effective count 1.2 (bench 032) | description corrected in README |
+
+Two items are blocked on data rather than effort, and no amount of building
+moves them:
+
+- **CUPED / sub-bps execution measurement** needs the depth-aware recorder that
+  stopped when Plan 001 closed — for the control variate *and* for the paired
+  execution outcome. Price-only data yields 1.9% variance reduction against a
+  prescribed 30–50% (bench 033).
+- **Deciding what makes a series generalise** needs assets with stronger
+  autocorrelation, or many more of them. At |ρ₁| ≤ 0.30 and n = 11, our test
+  had 4.8% power (bench 037) — it could not have detected the effect if it were
+  there.
+
+The honest summary is that the statistical work is well ahead of the product
+work, and it has spent the last several benches removing claims rather than
+adding them. That is the pipeline functioning as designed, and it is also why
+the roadmap is not clear.
