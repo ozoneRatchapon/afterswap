@@ -30,7 +30,27 @@ export class Scoreboard extends DurableObject {
     );
   }
 
+  /// Demo commitments are real devnet transactions paid from a throwaway
+  /// balance, so the slot table is also the budget.
+  static readonly MAX_DEMO_COMMITS = 380;
+
   async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname === "/slot") {
+      const rows = [...this.sql.exec("SELECT cycles FROM totals WHERE floor = 'slot'")] as Array<{ cycles: number }>;
+      const used = rows[0]?.cycles ?? 0;
+      if (used >= Scoreboard.MAX_DEMO_COMMITS) {
+        return new Response(JSON.stringify({ error: "demo commit budget spent" }), {
+          status: 429, headers: { "content-type": "application/json" },
+        });
+      }
+      this.sql.exec(
+        `INSERT INTO totals (floor, sum_bps, wins, cycles) VALUES ('slot', 0, 0, 1)
+         ON CONFLICT(floor) DO UPDATE SET cycles = cycles + 1`,
+      );
+      return new Response(JSON.stringify({ slot: used }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
     const cors = {
       "access-control-allow-origin": "*",
       "content-type": "application/json",
@@ -60,7 +80,7 @@ export class Scoreboard extends DurableObject {
       return new Response(JSON.stringify({ ok: true }), { headers: cors });
     }
 
-    const rows = [...this.sql.exec("SELECT floor, sum_bps, wins, cycles FROM totals")];
+    const rows = [...this.sql.exec("SELECT floor, sum_bps, wins, cycles FROM totals WHERE floor != 'slot'")];
     const out: Record<string, { mean_bps: number; wins: number; cycles: number }> = {};
     for (const r of rows as Array<{ floor: Floor; sum_bps: number; wins: number; cycles: number }>) {
       out[r.floor] = {
