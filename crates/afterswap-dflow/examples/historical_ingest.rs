@@ -531,7 +531,7 @@ though it is not the Whirlpool account address."
         }
         prev = Some(*executed);
     }
-    eprintln!("median price {median:.4f}, dropped {outliers} outliers beyond 20 MAD");
+    eprintln!("median price {median:.4}, dropped {outliers} outliers beyond 20 MAD");
     let mean_y = y.iter().sum::<f64>() / y.len() as f64;
     let sd_y = {
         let n = y.len() as f64;
