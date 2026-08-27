@@ -145,8 +145,9 @@
       <div id="board"><div class="empty">waiting for first tournament…</div></div>
     </div>
     <div class="panel">
-      <h2>Live scoreboard — this browser, this session</h2>
+      <h2>Live scoreboard — paired against every standard exit</h2>
       <div id="scoreboard" class="empty">first cycle in progress…</div>
+      <div id="globalscore" style="margin-top:10px"></div>
       <div style="font-size:11.5px; color:var(--muted); margin-top:8px">
         Every reference exit is driven by the same ticks from the same entry as
         the machines, so the price path cancels — the same paired method the
@@ -677,6 +678,7 @@ import("./pkg/afterswap_wasm.js").then(async (mod) => {
     if (saved?.learning) refresh();
   } catch { /* corrupt store — start fresh */ }
   renderScores(loadScores());
+  fetchGlobal();
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
   setConn(true, replay ? "replay" : "live");
   scheduleTick();
@@ -791,6 +793,13 @@ function recordCycle(engineValue, price) {
   }
   try { localStorage.setItem(SCORE_KEY, JSON.stringify(rec)); } catch {}
   renderScores(rec);
+  // Contribute this cycle to the global aggregate (Durable Object).
+  const vs = {};
+  for (const f of FLOORS) vs[f] = (engineValue - v[f]) / v[f] * 1e4;
+  fetch("/api/score", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ vs }),
+  }).then(fetchGlobal).catch(() => {});
 }
 
 function renderScores(rec) {
@@ -805,6 +814,25 @@ function renderScores(rec) {
       return `<tr><td>${label[f]}</td><td class="${m >= 0 ? "up" : "down"}">${m >= 0 ? "+" : ""}${m.toFixed(2)} bps</td><td>${rec.wins[f]}/${rec.n}</td></tr>`;
     }).join("")
   }</tbody></table>`;
+}
+
+async function fetchGlobal() {
+  try {
+    const g = await (await fetch("/api/score")).json();
+    const rows = FLOORS.filter((f) => g.floors?.[f]?.cycles > 0);
+    if (!rows.length) return;
+    const label = { hold: "doing nothing", twap: "TWAP / DCA", trailing: "trailing stop",
+                    ladder: "TP ladder", bracket: "TP+SL bracket" };
+    $("globalscore").innerHTML =
+      `<div style="font-size:12px; color:var(--ink-2); margin-bottom:4px"><b style="color:var(--ink)">Everyone's browsers, combined</b></div>` +
+      `<table><thead><tr><th>vs</th><th>mean edge</th><th>cycles won</th></tr></thead><tbody>${
+        rows.map((f) => {
+          const r = g.floors[f], m = r.mean_bps;
+          return `<tr><td>${label[f]}</td><td class="${m >= 0 ? "up" : "down"}">${m >= 0 ? "+" : ""}${m.toFixed(2)} bps</td><td>${r.wins}/${r.cycles}</td></tr>`;
+        }).join("")
+      }</tbody></table>` +
+      `<div style="font-size:11px; color:var(--muted); margin-top:5px">Self-reported paper cycles from visitors, unaudited — the reproducible claims are in <a style="color:var(--ink-2)" target="_blank" rel="noopener" href="https://github.com/ozoneRatchapon/afterswap/tree/main/benches">benches/</a>.</div>`;
+  } catch {}
 }
 
 let reopenCooldown = 0;
