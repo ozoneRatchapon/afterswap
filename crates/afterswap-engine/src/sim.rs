@@ -68,6 +68,46 @@ pub fn replay_exit_cost(
     (strategy_value - hold_value) / hold_value * 10_000.0
 }
 
+/// Replay with an arbitrary precomputed third input bit.
+///
+/// Bits per tick: direction, off-peak, then `bits[t]`. Any candidate signal
+/// (executable depth, route churn, hop count, …) can be tested by supplying
+/// it here rather than by writing another replay function — which keeps every
+/// candidate on exactly the same code path as the shipping protocol.
+pub fn replay_exit_with_bit(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    bits: &[u8],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+) -> f64 {
+    if window.len() < 2 || bits.len() != window.len() {
+        return 0.0;
+    }
+    let entry = window[0];
+    let mut m = fsm.clone();
+    m.reset();
+    let mut remaining = 1.0f64;
+    let mut cash = 0.0f64;
+    let mut peak = entry;
+
+    for t in 1..window.len() {
+        let dir: u8 = u8::from(window[t] > window[t - 1]);
+        peak = peak.max(window[t]);
+        let off_peak: u8 = u8::from((peak - window[t]) / peak * 10_000.0 >= peak_drop_bps);
+        m.next_action(&[dir]);
+        m.next_action(&[off_peak]);
+        let action = m.next_action(&[bits[t]]);
+        if action == 1 && remaining > 0.0 {
+            let frac = tranche_frac.min(remaining);
+            remaining -= frac;
+            cash += frac * (window[t] / entry);
+        }
+    }
+    let last = window[window.len() - 1] / entry;
+    (cash + remaining * last - last) / last * 10_000.0
+}
+
 /// Replay with a third input bit derived from DFlow's executable depth.
 ///
 /// Bits per tick: direction, off-peak, then **good depth** — 1 when the
@@ -118,11 +158,27 @@ pub fn replay_exit_depth(
     (cash + remaining * last - last) / last * 10_000.0
 }
 
-/// Load a `{"price": f, "depth_bps": f}` recording as parallel series.
-pub fn load_depth_corpus(path: &str) -> std::io::Result<(Vec<f64>, Vec<f64>)> {
+/// A DFlow quote recording: price plus the venue-level metadata that only an
+/// aggregator's quotes carry.
+pub struct QuoteCorpus {
+    pub prices: Vec<f64>,
+    /// Spread in bps between a small and a large clip (executable depth).
+    pub depths: Vec<f64>,
+    /// First venue in the route plan.
+    pub venues: Vec<String>,
+    /// Number of hops in the route plan.
+    pub hops: Vec<u8>,
+}
+
+/// Load a `{"price", "depth_bps", "venue"?, "hops"?}` recording.
+pub fn load_quote_corpus(path: &str) -> std::io::Result<QuoteCorpus> {
     let text = std::fs::read_to_string(path)?;
-    let mut prices = Vec::new();
-    let mut depths = Vec::new();
+    let mut c = QuoteCorpus {
+        prices: Vec::new(),
+        depths: Vec::new(),
+        venues: Vec::new(),
+        hops: Vec::new(),
+    };
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
@@ -134,11 +190,24 @@ pub fn load_depth_corpus(path: &str) -> std::io::Result<(Vec<f64>, Vec<f64>)> {
             continue;
         };
         if p > 0.0 && d.is_finite() {
-            prices.push(p);
-            depths.push(d);
+            c.prices.push(p);
+            c.depths.push(d);
+            c.venues.push(
+                v.get("venue")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("?")
+                    .to_string(),
+            );
+            c.hops.push(v.get("hops").and_then(|x| x.as_u64()).unwrap_or(0) as u8);
         }
     }
-    Ok((prices, depths))
+    Ok(c)
+}
+
+/// Load a `{"price": f, "depth_bps": f}` recording as parallel series.
+pub fn load_depth_corpus(path: &str) -> std::io::Result<(Vec<f64>, Vec<f64>)> {
+    let c = load_quote_corpus(path)?;
+    Ok((c.prices, c.depths))
 }
 
 /// Evaluate every strategy on every window.

@@ -36,6 +36,15 @@ volatile tokens, measured against trailing stops out-of-sample.
       4 test windows: 2-bit +42.2 ± 14.9 vs 3-bit-with-depth +28.7 ± 17.3.
       The depth bit does **not** help so far, but the sample cannot separate
       them; the harness now says so in its own report. Recorder still running.
+- [x] **Generalised the harness** (`examples/signal_bits.rs`): any candidate
+      third bit runs on the identical protocol and code path via
+      `sim::replay_exit_with_bit`, so depth, route-churn and hop-count are
+      compared like-for-like. Caught a protocol defect doing it — single-argmax
+      selection broke ties by index, so three different signals produced
+      identical numbers because the chosen machine ignored the third bit
+      entirely. Now averages the top-5 and reports the tie count.
+- [x] **Candidate signals implemented**: depth-below-median, route-changed-venue,
+      single-hop-route.
 - [ ] **Re-run** when the recording is several times longer, then decide
 - [ ] **Still gated on that re-run — only if the 3-bit protocol wins:** thread depth through
       `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
