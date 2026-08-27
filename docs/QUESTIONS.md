@@ -828,7 +828,33 @@ structure and never assumed independent trials), so the multiplicity result is
 untouched. What does not survive is the description: "all 1,054 enumerated
 machines" reads as breadth, and the breadth is not there.
 
-## L1 — CUPED is blocked on a feed, not on code
+## L1 — answered: the feed exists, and it delivers 34.6%
+
+**Superseded the section below.** `benches/038_depth_control` found that the
+depth data was never gone — the Plan 001 recorder stopped, but
+`data/incoming/bonk_depth.jsonl` kept 1,207 paired price/depth observations for
+BONK.
+
+On real depth, `ρ(depth_t, depth_{t+1}) = +0.588`, a **34.6% variance
+reduction** — inside round three's prescribed 30–50% band and roughly 18× what
+price-derived proxies managed. The binding constraint is freshness, not volume:
+the reduction halves by lag 5 and is gone by lag 30, so the control variate has
+to be a pre-trade quote taken within a tick or two of the fill. That is exactly
+what the signed quote in the verifiable exit chain (#7h) already is.
+
+Price cannot substitute: prior realised volatility explains **1.6%** of depth
+variation. Bench 033's 1.9% ceiling was a fact about that substitution, not
+about CUPED — and it follows that *simulating* depth from prices could never
+have reached the band, since a deterministic function of price carries no
+information price does not.
+
+Two limits stand. It is one asset over one period, and BONK is a long-tail
+CPMM — the margin worth chasing is on liquid CLMM majors, whose depth process
+is tick-concentrated rather than reserve-driven. And it bounds the control
+variate rather than the experiment: realised cost also carries routing and
+priority-tip variance no pre-trade depth reading predicts.
+
+## L1 — the original reading, superseded above
 
 Measured before building: `benches/033_cuped_headroom`. CUPED's reduction is
 exactly `1 − ρ²(Y, X)`, so the prescription is checkable without implementing

@@ -1,5 +1,7 @@
 # Does CUPED have anything to work with here?
 
+> **Superseded by [bench 038](../038_depth_control/report.md).** This bench concluded that 1.9% was CUPED's ceiling for us because the corpus is `{t, price}`. That is true of `data/reference/` but not of the repository — `data/incoming/bonk_depth.jsonl` holds 1,207 paired price/depth rows kept when the Plan 001 recorder stopped. On real depth, a one-tick-old reading delivers **34.6%**, inside the prescribed band. The measurements below stand as a bound on price-derived proxies; the conclusion drawn about CUPED does not.
+
 Correlation between the per-window paired edge differential and two pre-window control variates built from the 120 ticks preceding each window. CUPED compresses variance by `1 − ρ²`, so the reduction column is that identity, not a measurement of CUPED itself. Outcome is the best-in-sample machine's per-window edge against the population median, over 1054 enumerated machines.
 
 | asset | windows | ρ(Y, prior vol) | reduction | ρ(Y, prior drift) | reduction | best |

@@ -84,6 +84,14 @@ fn main() {
 
     let machines = FsmEnumerator::enumerate(3);
     let mut md = String::from("# Does CUPED have anything to work with here?\n\n");
+    md.push_str(
+        "> **Superseded by [bench 038](../038_depth_control/report.md).** This bench concluded that \
+1.9% was CUPED's ceiling for us because the corpus is `{t, price}`. That is true of `data/reference/` \
+but not of the repository — `data/incoming/bonk_depth.jsonl` holds 1,207 paired price/depth rows kept \
+when the Plan 001 recorder stopped. On real depth, a one-tick-old reading delivers **34.6%**, inside \
+the prescribed band. The measurements below stand as a bound on price-derived proxies; the conclusion \
+drawn about CUPED does not.\n\n",
+    );
     let _ = writeln!(
         md,
         "Correlation between the per-window paired edge differential and two pre-window control variates \
