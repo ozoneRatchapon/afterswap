@@ -6,25 +6,12 @@
   "assets": { "directory": "./web-wasm/public" },
   // SQLite-backed Durable Object — the only backend the Workers free plan
   // allows, and all a counter aggregate needs.
+  // The rail moved to its own pure-Rust Worker: crates/afterswap-worker
+  // (its DO migration was never deployed from here, so removing it is safe).
+  // rail.html stays on this origin and targets the rail worker cross-origin
+  // via ?rail=<base>.
   "durable_objects": {
-    "bindings": [
-      { "name": "SCOREBOARD", "class_name": "Scoreboard" },
-      { "name": "RAIL", "class_name": "RailSequencer" }
-    ]
+    "bindings": [{ "name": "SCOREBOARD", "class_name": "Scoreboard" }]
   },
-  // ⚠ Deploy caveat: the PUT-API fallback path rejects DO-binding changes
-  // (error 10021) while the versions-API 10013 bug stands. This migration
-  // must go through a working `wrangler deploy`, confirmed afterwards with
-  // `wrangler deployments list` — never assumed from a green push.
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["Scoreboard"] },
-    { "tag": "v2", "new_sqlite_classes": ["RailSequencer"] }
-  ],
-  // The *public* attestation key records are verified against at ingest —
-  // registered, not secret. Dev value = the exec_ab dev seed's pubkey; a
-  // production deploy overrides it.
-  "vars": { "RAIL_PUBKEY": "29e5833a915a6429a4e3a7948475c338ef436eb82be89c92f059704403db9d55" },
-  // Append-only archive for closed segments (5-year retention lives here).
-  // R2 needs the paid plan; locally wrangler dev simulates it.
-  "r2_buckets": [{ "binding": "RAIL_ARCHIVE", "bucket_name": "afterswap-rail-archive" }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Scoreboard"] }]
 }

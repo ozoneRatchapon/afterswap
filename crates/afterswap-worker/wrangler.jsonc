@@ -1,0 +1,23 @@
+// Pure-Rust rail Worker — a SECOND Worker, separate from the dashboard.
+// Free-tier invariant: Workers Free + SQLite DO (same plan the dashboard's
+// Scoreboard already runs on). No R2 binding by default — without it the
+// Sequencer retains closed segments in SQLite (free-tier mode); uncomment
+// the binding once the bucket exists (R2 has its own free tier: 10 GB,
+// 1M class-A / 10M class-B per month — enablement may ask for a payment
+// method on file even at $0 usage; verify at setup).
+{
+  "name": "afterswap-rail",
+  "compatibility_date": "2026-08-01",
+  "main": "build/worker/shim.mjs",
+  "build": { "command": "cargo install -q worker-build && worker-build --release" },
+  "durable_objects": {
+    "bindings": [{ "name": "RAIL", "class_name": "RailSequencer" }]
+  },
+  // ⚠ Same deploy caveat as the dashboard: DO migrations must go through a
+  // working `wrangler deploy`, confirmed with `wrangler deployments list`.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RailSequencer"] }],
+  // The registered *public* attestation key (dev seed's pubkey; override in
+  // production). Not a secret.
+  "vars": { "RAIL_PUBKEY": "29e5833a915a6429a4e3a7948475c338ef436eb82be89c92f059704403db9d55" }
+  // "r2_buckets": [{ "binding": "RAIL_ARCHIVE", "bucket_name": "afterswap-rail-archive" }]
+}

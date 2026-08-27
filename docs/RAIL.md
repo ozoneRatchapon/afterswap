@@ -213,8 +213,11 @@ forge or alter them.
   trust it, per §3.4).
 - **CPU budget**: blake3 over a 4 KB record is microseconds; ingest fits the
   free plan's 10 ms. The Workers-Paid blocker from #7b applied to full
-  enumeration, not to this. R2, however, needs the paid plan's bindings —
-  same $5/month unlock already priced into #7b.
+  enumeration, not to this. ~~R2 needs the paid plan~~ — **corrected
+  2026-08-28**: R2 has its own free tier (verified against Cloudflare's
+  pricing page: 10 GB-month storage, 1M class-A + 10M class-B operations per
+  month, Standard storage only); enablement may require a payment method on
+  file even at $0 usage — verify at setup.
 
 ## 5. Phasing
 
@@ -272,3 +275,29 @@ of it has been executed — the rail is verified locally only.
    --release -- --anchor --rail-base https://<host> --keypair <path> --rpc
    <url> --interval-secs 60`. Fees are ~5000 lamports per segment root.
    Verify the first memo on-chain by signature before trusting the loop.
+
+## 8. Free-tier topology (the zero-capital invariant)
+
+Adopted 2026-08-28 as an operating constraint: the rail runs **complete and
+free, out of the box** — no paid plan, no mainnet fees.
+
+| component | free-tier footing |
+| --- | --- |
+| Worker + Sequencer DO | Workers Free with SQLite Durable Objects — the same plan this repo's Scoreboard DO already runs on |
+| record retention | **R2 binding is optional.** Unbound, closed segments are retained in the DO's SQLite instead of trimmed: at ~4 KB/record, >1M records fit the free allowance — years at our volume |
+| archive (when enabled) | R2 free tier: 10 GB-month, 1M class-A / 10M class-B ops per month |
+| anchoring | Solana **devnet** (`--anchor … --rpc https://api.devnet.solana.com`), fees from airdrop. A mainnet anchor is an optional upgrade, ~0.007 SOL/day at 1 segment/min |
+| verifier page | static asset + the existing wasm bundle |
+
+The pure-Rust worker (`crates/afterswap-worker`, workers-rs) replaced the
+TypeScript sequencer: the DO links `afterswap-rail` as a plain dependency and
+calls `verify_record`/`record_hash`/`merkle_root` as typed functions — the
+JSON-string-into-wasm boundary where the u64 fingerprint bug lived does not
+exist in this design. `rail.html` targets it cross-origin via
+`?rail=<worker-base>`; every rail endpoint answers with
+`access-control-allow-origin: *`.
+
+Devnet caveat, stated rather than hidden: devnet history is periodically
+reset, so a devnet anchor proves existence to anyone who checked before a
+reset, not indefinitely. For the compliance product that durability gap is
+the one thing the mainnet upgrade buys.

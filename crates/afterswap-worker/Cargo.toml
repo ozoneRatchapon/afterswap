@@ -1,0 +1,20 @@
+[package]
+name = "afterswap-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure-Rust rail Worker: ingest, Sequencer DO (SQLite), R2 segments, public reads — free-tier only"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# The rail links here as a plain Rust dependency: the DO calls
+# `verify_record` and `record_hash` as typed functions. The JSON-string wasm
+# interface the TypeScript DO needed — and the u64-through-JavaScript bug it
+# bred — has no equivalent surface in this design.
+afterswap-rail = { path = "../afterswap-rail" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+worker = "0.8"
+console_error_panic_hook = "0.1"

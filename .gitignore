@@ -6,3 +6,5 @@
 .heal/
 node_modules/
 .devnet/
+.wrangler/
+crates/afterswap-worker/build/

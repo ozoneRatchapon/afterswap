@@ -45,3 +45,23 @@ numeric still parses.
 Remaining (owner actions, RAIL.md §7): production deploy (DO migration
 caveat), real attestation key, R2 bucket, external ≤30 s measurement, first
 funded anchor.
+
+## Pure-Rust worker + free-tier invariant (2026-08-28)
+
+Adopted as an operating constraint: zero-capital, free-tier only (RAIL.md §8).
+`crates/afterswap-worker` (workers-rs 0.8) replaced `worker/rail.ts` — the DO
+links `afterswap-rail` directly; the JSON-string wasm boundary is gone. R2
+binding optional: unbound, segments retain in DO SQLite (free 5 GB ≈ >1M
+records). Anchoring targets devnet.
+
+Verified locally: falsifier 81/81 (median 5.2 ms ingest→readable, fork 400,
+replay 409, retention mode confirmed, proof native-VERIFIED — segment root
+byte-identical to the TS implementation's root for the same records);
+cross-origin browser pass (dashboard origin → rail worker origin, 26 attests
++ 9 proofs in-tab, 0 failures); G6 parity PASS after the wasm-bindgen
+0.2.118→0.2.127 workspace bump (worker-build requirement).
+
+Debug trail worth keeping: the "Critical error" was `SqlCursor::one()` —
+Cloudflare's JS cursor.one() *throws* on zero rows and workers-rs surfaces it
+as an uncatchable critical, not an Err. First diagnosis (bound parameters)
+was wrong and was reverted; bindings work.

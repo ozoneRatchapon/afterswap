@@ -48,6 +48,10 @@ import init, {
   rail_verify_record, rail_record_hash, rail_merkle_verify,
 } from "./pkg/afterswap_wasm.js";
 
+// The rail lives on its own pure-Rust Worker; same-origin by default,
+// cross-origin via ?rail=https://afterswap-rail.<account>.workers.dev
+// (every rail endpoint sends access-control-allow-origin: *).
+const BASE = new URLSearchParams(location.search).get("rail") ?? "";
 const $ = (s) => document.querySelector(s);
 const el = (t, cls, text) => {
   const e = document.createElement(t);
@@ -57,7 +61,7 @@ const el = (t, cls, text) => {
 };
 
 await init();
-const stats = await (await fetch("/rail/stats")).json();
+const stats = await (await fetch(`${BASE}/rail/stats`)).json();
 const pubkey = stats.attest_pubkey;
 $("#stats").textContent =
   `tip seq ${stats.tip_seq}  ·  ${stats.total_accepted} records  ·  ` +
@@ -65,7 +69,7 @@ $("#stats").textContent =
   `${stats.segments_anchored} anchored  ·  attest key ${String(pubkey).slice(0, 16)}…`;
 
 const since = Math.max(-1, (stats.tip_seq ?? 0) - 25);
-const records = await (await fetch(`/rail/records?since=${since}&limit=25`)).json();
+const records = await (await fetch(`${BASE}/rail/records?since=${since}&limit=25`)).json();
 const tbody = $("#tbl tbody");
 $("#tbl").hidden = false;
 
@@ -95,7 +99,7 @@ for (const r of records) {
   // Inclusion proof — only exists once the record's segment closed.
   const proofCell = el("td", "muted", "…");
   row.append(proofCell);
-  fetch(`/rail/proof/${r.seq}`).then(async (resp) => {
+  fetch(`${BASE}/rail/proof/${r.seq}`).then(async (resp) => {
     if (resp.status === 409) { proofCell.textContent = "segment open"; return; }
     if (!resp.ok) { proofCell.textContent = `proof ${resp.status}`; proofCell.className = "bad"; return; }
     const p = await resp.json();
