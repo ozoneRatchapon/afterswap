@@ -15,6 +15,35 @@ compete for the right to scale you out.
 
 ![dashboard](docs/dashboard.png)
 
+## What makes this different, in five facts
+
+1. **Nobody designed these strategies.** We enumerate *every* deterministic
+   3-state exit machine that can exist — 1,054 after behavioral dedup — then
+   evolution breeds 4-state machines the enumeration cannot reach. No model,
+   no training, no prompt: a decision costs **$0 and ~1.2 microseconds**.
+2. **It beats every standard Solana exit, measured paired on the same price
+   paths**: TWAP/DCA **+76.0 bps**, Jupiter-style trailing stop **+10.5**,
+   TP-ladder **+114.0**, TP/SL bracket **+80.2** — across 6 corpora, all
+   reproducible with one command.
+3. **It passes a null control.** On de-meaned (random-walk) paths it shows
+   **no** significant edge at any horizon — it does not manufacture alpha from
+   noise. Most strategy searches never publish this test; ours is in the repo.
+4. **The exit policy is committed on-chain before any sale follows it** — an
+   18 KB Pinocchio program [live on
+   devnet](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet)
+   writes the machine's blake3 fingerprint to an immutable PDA, so every DFlow
+   fill can be audited against a pre-committed policy.
+5. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
+   that runs in the visitor's tab and polls DFlow directly — byte-identical to
+   the native build (gate G6), self-custodial, free to run, impossible to
+   rug-pull.
+
+And the part most projects leave out: **we publish what did not work.**
+Plackett–Luce ratings, a third input bit, horizon-scaled parameters and
+per-regime statistics were all built, measured, and reverted; an over-claimed
+"learning curve" was retracted when more data killed it. Every number here
+survived a gate that was allowed to say no.
+
 ## The idea (Wolfram ruliology, applied to trading)
 
 Instead of hand-designing one exit heuristic (trailing stop, TWAP, take-profit

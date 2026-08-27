@@ -119,7 +119,7 @@
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
       <label style="font-size:12px; color:var(--ink-2); display:inline-flex; gap:5px; align-items:center; cursor:pointer; white-space:nowrap">
-        <input type="checkbox" id="autoreopen"> auto-reopen (paper)
+        <input type="checkbox" id="autoreopen" checked> keep trading (paper)
       </label>
     </div>
   </div>
@@ -160,6 +160,25 @@
     <div class="panel">
       <h2>Fills tape</h2>
       <div id="tape" class="empty">no fills yet</div>
+    </div>
+    <div class="panel">
+      <h2>Proof (not marketing)</h2>
+      <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
+        <div><b style="color:var(--ink)">Beats every standard Solana exit</b> — paired on 6 corpora:
+          TWAP <span class="up">+76.0</span> · Jupiter-style trailing <span class="up">+10.5</span> ·
+          TP-ladder <span class="up">+114.0</span> · TP/SL bracket <span class="up">+80.2</span> bps</div>
+        <div><b style="color:var(--ink)">Null control passed</b> — on de-meaned (random-walk) paths it shows
+          <b>no</b> significant edge at any horizon: it does not manufacture alpha from noise</div>
+        <div><b style="color:var(--ink)">GOAT gates G1–G6 pass</b> — bit-reproducible, this WASM build is
+          byte-identical to the audited native engine, ~1.2 µs/tick</div>
+        <div><b style="color:var(--ink)">Exit policy committed on-chain</b> —
+          <a style="color:var(--series-1)" target="_blank" rel="noopener"
+             href="https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet">policy program on devnet ↗</a>
+          commits the machine's fingerprint before the first sale follows it</div>
+        <div style="color:var(--muted)">Live-soak edge is <i>not</i> yet statistically significant and we say so —
+          <a style="color:var(--ink-2)" target="_blank" rel="noopener"
+             href="https://github.com/ozoneRatchapon/afterswap/blob/main/docs/SOAK.md">the honest write-up ↗</a></div>
+      </div>
     </div>
     <div class="panel" id="onchainpanel" style="display:none">
       <h2>On-chain fills — real DFlow orders, approved in your wallet</h2>
@@ -704,6 +723,10 @@ function refresh() {
 }
 
 let reopenCooldown = 0;
+// A visitor should see machines working within seconds of landing, without
+// having to know what button to press. The first position opens itself as
+// soon as the tournament has seated arms; "Close" hands control back.
+let autoStarted = false;
 
 async function tick() {
   if (!engine) return;
@@ -729,6 +752,13 @@ async function tick() {
   const events = JSON.parse(engine.on_tick(price));
   // Continuous-learning mode: reopen a paper position a few ticks after
   // each full exit. Paper only — never combined with live wallet sells.
+  if (!autoStarted && $("autoreopen").checked && !$("livemode").checked) {
+    const snap = JSON.parse(engine.snapshot(0));
+    if (!snap.position && (snap.arms || []).length > 0) {
+      engine.open_position(parseFloat($("size").value) || 0.5);
+      autoStarted = true;
+    }
+  }
   if (events.some((e) => e.type === "position_closed")) { reopenCooldown = 5; policyCommitted = false; }
   if ($("autoreopen").checked && !$("livemode").checked && reopenCooldown > 0) {
     reopenCooldown -= 1;
