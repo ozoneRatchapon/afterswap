@@ -828,10 +828,30 @@ structure and never assumed independent trials), so the multiplicity result is
 untouched. What does not survive is the description: "all 1,054 enumerated
 machines" reads as breadth, and the breadth is not there.
 
+## L1 — CUPED is blocked on a feed, not on code
+
+Measured before building: `benches/033_cuped_headroom`. CUPED's reduction is
+exactly `1 − ρ²(Y, X)`, so the prescription is checkable without implementing
+it. Against price-derived control variates — pre-window realised volatility and
+pre-window drift, the only ones our `{t, price}` corpus supports — the mean
+achievable reduction is **1.9%**, against the 30–50% round three cites. PEPE's
+7.3% is the best on the board.
+
+The variates the document names are depth-book quantities: pre-trade pool
+volatility and order arrival imbalance. A price series cannot express order
+arrival imbalance at all, so this bounds the proxies rather than refuting the
+method — but it rules out the cheap version. CUPED on data we already hold does
+not bring the +0.10 to +0.35 bps CLMM margin inside reach.
+
+Answering L1 properly needs the depth-aware recorder back, twice over: once for
+the control variate, and once because the outcome is a paired execution A/B
+rather than the edge-vs-hold objective used here as a stand-in. That is a
+decision with a cost, and it belongs to whoever closed Plan 001 — not a task
+that can be coded around.
+
 ## What is still actionable without further research
 
-- implement CUPED and re-derive the sample requirement (L1) — the one
-  outstanding item with a clear path and a decision attached to it
 - test the martingale signal-to-noise mechanism on the three assets (I1),
-  now that policy degeneracy is ruled out
+  now that policy degeneracy is ruled out and regime non-stationarity has its
+  first supporting evidence
 - decide whether "1,054 machines" should keep being written that way (K2)
