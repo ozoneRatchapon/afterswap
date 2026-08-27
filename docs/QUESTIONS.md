@@ -130,9 +130,13 @@ synthetic noise at 0.48–0.51) and run over the full 1,054-machine population
 on 11 real assets ([`024_overfit`](../benches/024_overfit/report.md)). It
 answered the question it was built for, and the answer was not the expected
 one: **the selection generalises (PBO 0.05–0.20 on most assets) while the
-profit does not** (+2.5…+16.8 bps in-sample → −6…+2 out of sample). Deflated
-Sharpe and Romano-Wolf remain unbuilt; DSR in particular needs adapting,
-since our objective is a paired bps difference rather than a Sharpe ratio.
+profit does not** (+2.5…+16.8 bps in-sample → −6…+2 out of sample). ✅ **Romano–Wolf stepdown also implemented** (`src/stepdown.rs`,
+`tests/stepdown.rs` — calibrated: almost no rejections on noise, planted edges
+recovered) and run over all 1,054 machines on 11 assets
+([`025_multiplicity`](../benches/025_multiplicity/report.md)): **zero
+survivors** after familywise correction, best adjusted p = 0.122. Deflated
+Sharpe remains unbuilt and is now question E1, since our objective is a paired
+bps difference rather than a Sharpe ratio.
 
 **A2 — power.** ✅ **Implemented** (`src/power.rs`, `tests/power.rs`). The
 reference table is unambiguous about what our experiments could ever have
