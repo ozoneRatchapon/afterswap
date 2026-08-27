@@ -159,11 +159,17 @@ a bench artefact in the same paragraph, and tier-violating language
 cases on its first run — one a real gap, one a false positive from a negated
 sentence, which taught it about negations and quotations.
 
-**B1–B3 — self-audit.** Confirms the sensitivity sweep we already built, and
-adds three we have not: `@calibrated` provenance tags enforced by an AST
-literal parser, cryptographically committed **pre-registration manifests**
-(SHA-256 of hypothesis + analysis plan, recorded before data access), and
-**claim TTL decay** with distributional-drift (K-S) triggers.
+**B1–B3 — self-audit.** Confirms the sensitivity sweep we already built.
+✅ **Pre-registration implemented** (`src/prereg.rs`): hypothesis, benchmark,
+effect size, power target, split boundaries, null control and frozen corpus
+list, content-hashed — moving the goalposts changes the hash and the report
+stops verifying. Its power gate refuses an experiment that cannot answer and
+reports what it would take instead. ✅ **Claim–evidence binding implemented**
+(`tests/claim_ttl.rs`): every bench cited in the docs must exist, and it
+immediately caught a claim in the submission draft citing a bench directory
+deleted during cleanup — the exact rot the policy exists to prevent. Still
+unbuilt: `@calibrated` provenance tags via an AST literal parser, and
+distributional-drift (K-S) triggers for automatic re-benchmarking.
 
 **C1 — oversight.** The observation from this project is a documented pattern:
 Socratic interrogation has **maximal marginal ROI**, imperative tasking **low**,

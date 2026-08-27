@@ -70,10 +70,12 @@ measured weakness → targeted fix → weakness gone, all reproducible.
 Same engine generalizes to DFlow prediction-market outcome tokens —
 exits after the *bet*.
 
-**Proof discipline:** the engine is GOAT-gated (methodology from katgpt-rs):
-bit-reproducible replays, +59.0 bps mean vs a same-cadence TWAP floor and
-+5.8 bps vs random arm selection across 5 corpora, 1 µs/tick — full report
-in `benches/010_goat/report.md`.
+**Proof discipline:** GOAT-gated (methodology from katgpt-rs) — bit-reproducible
+replays, byte-identical browser/native parity, ~1 µs/tick, every constant swept
+for sensitivity (`benches/021_sensitivity`), pre-run power gating, an
+evidence-ladder linter that fails the build when a claim outruns its evidence,
+and four negative results recorded rather than deleted. Latest floors report:
+`benches/020_goat/report.md`.
 
 **Status:** built entirely during the buildathon (Aug 21–31); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
@@ -111,9 +113,11 @@ policy-registry program (Pinocchio, deployed on devnet, first policy
 committed and verified) → engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise
 confidence), DFlow client, axum+SSE dashboard (named machines,
-plain-language feed), record/replay, GOAT harness (G1–G6 PASS: +71.9 bps
-vs TWAP across 6 corpora, +3.2 vs random, wasm/native byte-parity,
-bit-reproducible, ~1.2 µs/tick).
+plain-language feed), record/replay, the GOAT harness (G1–G6), a power module,
+an overfitting test (CSCV/PBO), multiplicity correction (Romano–Wolf), a
+pre-registration manifest and an evidence-ladder linter — plus an on-chain
+policy program deployed to devnet and in-browser verification of every
+DFlow-signed quote.
 
 **Existed before?** No. Disclosure: depends on `katgpt-ruliology`, a
 pre-existing third-party MIT open-source crate by @katopz (FSM enumeration

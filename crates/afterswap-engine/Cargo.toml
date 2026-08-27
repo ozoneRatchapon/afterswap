@@ -12,5 +12,6 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # Seeded RNG for the random-arm GOAT floor (G2b) and synthetic corpora.
 fastrand = "2"
+blake3 = { workspace = true }
 
 [dev-dependencies]

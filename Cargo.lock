@@ -63,6 +63,7 @@ dependencies = [
 name = "afterswap-engine"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "fastrand",
  "katgpt-ruliology",
  "log",
