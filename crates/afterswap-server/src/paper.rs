@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use afterswap_dflow::{DflowClient, PricePoller};
+use afterswap_dflow::{DflowClient, PricePoller, QuoteSnapshot};
 #[cfg(feature = "live")]
 use afterswap_dflow::{LiveExecutor, QuoteRequest, mints};
 use afterswap_engine::{EngineConfig, EngineEvent, ExitEngine};
@@ -70,13 +70,20 @@ enum PriceFeed {
 }
 
 impl PriceFeed {
-    async fn next(&mut self) -> Result<f64, afterswap_dflow::DflowError> {
+    /// One tick as a full snapshot. Replay has no depth reading to offer, so it
+    /// yields `None` — a replayed row must never look like a captured one, or
+    /// the control-variate column would silently contain nothing on half the
+    /// corpus.
+    async fn next(&mut self, seq: u64) -> Result<(f64, Option<QuoteSnapshot>), afterswap_dflow::DflowError> {
         match self {
-            Self::Live(poller) => poller.poll().await,
+            Self::Live(poller) => {
+                let snap = poller.poll_snapshot(seq).await?;
+                Ok((snap.price, Some(snap)))
+            }
             Self::Replay { prices, idx } => {
                 let p = prices[*idx % prices.len()];
                 *idx += 1;
-                Ok(p)
+                Ok((p, None))
             }
         }
     }
@@ -144,7 +151,7 @@ pub async fn run_shared(
 
     loop {
         interval.tick().await;
-        let raw = match feed.next().await {
+        let (raw, snapshot) = match feed.next(ticks).await {
             Ok(p) => p,
             Err(e) => {
                 warn!("quote poll failed (skipping tick): {e}");
@@ -164,7 +171,19 @@ pub async fn run_shared(
             _ => raw,
         };
         if let Some(f) = recorder.as_mut() {
-            let _ = writeln!(f, "{}", serde_json::json!({"price": price}));
+            // Record the snapshot when we have one, so the depth reading lands
+            // in the same row as the price it shares a slot with. `price_used`
+            // is the post-filter value the engine consumed — it differs from
+            // `price` whenever the median-of-3 filter fires, and that
+            // difference is a one-tick lag the analysis has to know about
+            // rather than infer.
+            let line = match &snapshot {
+                Some(snap) => serde_json::to_string(&snap.clone().with_price_used(price)),
+                None => serde_json::to_string(&serde_json::json!({"price": price})),
+            };
+            if let Ok(line) = line {
+                let _ = writeln!(f, "{line}");
+            }
         }
 
         let mut engine = shared.lock().await;

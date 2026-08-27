@@ -168,9 +168,25 @@ pub struct QuoteCorpus {
     pub venues: Vec<String>,
     /// Number of hops in the route plan.
     pub hops: Vec<u8>,
+    /// Price impact reported by the same quote as the price, in bps.
+    ///
+    /// This is the lag-0 CUPED control variate: it shares `context_slot` with
+    /// its price by construction, which the two-quote `depths` probe cannot.
+    /// `None` on rows recorded before snapshot capture existed.
+    pub impact_bps: Vec<Option<f64>>,
+    /// Slot the quote was computed against — the freshness key. Wall clock is
+    /// not a substitute; poll interval and slot time drift apart.
+    pub slots: Vec<Option<u64>>,
 }
 
-/// Load a `{"price", "depth_bps", "venue"?, "hops"?}` recording.
+/// Load a quote recording.
+///
+/// Reads both shapes: the flat `{"price", "depth_bps", "venue"?, "hops"?}` rows
+/// the Plan 001 recorder wrote, and the `QuoteSnapshot` rows the live path
+/// writes now, where the depth spread sits under `probe` and the lag-0 impact
+/// figure sits at the top level. A row needs a price and at least one depth
+/// reading of either kind to be kept — a price-only row carries no control
+/// variate and would otherwise pad the series with silent gaps.
 pub fn load_quote_corpus(path: &str) -> std::io::Result<QuoteCorpus> {
     let text = std::fs::read_to_string(path)?;
     let mut c = QuoteCorpus {
@@ -178,15 +194,24 @@ pub fn load_quote_corpus(path: &str) -> std::io::Result<QuoteCorpus> {
         depths: Vec::new(),
         venues: Vec::new(),
         hops: Vec::new(),
+        impact_bps: Vec::new(),
+        slots: Vec::new(),
     };
     for line in text.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
-        let (Some(p), Some(d)) = (
-            v.get("price").and_then(|x| x.as_f64()),
-            v.get("depth_bps").and_then(|x| x.as_f64()),
-        ) else {
+        let Some(p) = v.get("price").and_then(|x| x.as_f64()) else {
+            continue;
+        };
+        let impact = v.get("impact_bps").and_then(|x| x.as_f64());
+        let depth = v
+            .get("depth_bps")
+            .and_then(|x| x.as_f64())
+            .or_else(|| v.pointer("/probe/depth_bps").and_then(|x| x.as_f64()));
+        // Fall back to the same-quote impact when no spread probe was taken:
+        // it measures the same thing more cheaply and with a better lag.
+        let Some(d) = depth.or(impact) else {
             continue;
         };
         if p > 0.0 && d.is_finite() {
@@ -199,6 +224,8 @@ pub fn load_quote_corpus(path: &str) -> std::io::Result<QuoteCorpus> {
                     .to_string(),
             );
             c.hops.push(v.get("hops").and_then(|x| x.as_u64()).unwrap_or(0) as u8);
+            c.impact_bps.push(impact);
+            c.slots.push(v.get("context_slot").and_then(|x| x.as_u64()));
         }
     }
     Ok(c)
