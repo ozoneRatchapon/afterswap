@@ -48,10 +48,12 @@ clear the 25-observations-per-slice floor an external source warns about. It is
 a property of those three series, not of how the data was sliced.
 
 A further caveat supersedes the reading above: `benches/031_pbo_interval` puts
-stationary-bootstrap intervals on every figure in this table, and they are
-0.29-0.72 wide. No asset's interval clears the envelope of the four clean
-generalisers. **The split this bench reports between three dissenters and eight
-generalisers is not supported at this sample size** — the point estimates
-differ, but not by more than their own uncertainty. Read the PBO column as
-ordering, not as separation.
+block-permutation intervals on every figure in this table. They are 0.09-0.33
+wide, and only **JTO** (0.417-0.647) clears the envelope of the four clean
+generalisers. FLOKI overlaps it by 0.036 — borderline. PYTH overlaps properly
+and is not distinguishable from clean generalisation at all.
+
+**Three dissenters is an overcount.** One dissents measurably, one is
+borderline, one does not. The point estimates in this table are correct; the
+partition drawn from them is not.
 

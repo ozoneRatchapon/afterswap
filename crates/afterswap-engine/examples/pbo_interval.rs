@@ -6,12 +6,19 @@
 //! noise — and at 166 windows over 252 splits, that is not a rhetorical
 //! question.
 //!
-//! The external round-three document prescribes exactly this: report sub-floor
-//! PBO alongside **stationary bootstrap** confidence intervals. Stationary, not
-//! i.i.d. — resampling individual windows would destroy the serial dependence
-//! CSCV's block structure exists to respect. Blocks are drawn with geometric
-//! lengths (Politis–Romano), so expected block length is preserved while block
-//! boundaries stay random.
+//! Round three prescribes reporting sub-floor PBO alongside stationary
+//! bootstrap intervals. A first pass did exactly that and the intervals came
+//! back visibly biased — one asset's point estimate fell outside its own
+//! interval — because resampling with replacement puts duplicate windows in the
+//! matrix, and a duplicate can land on both sides of a CSCV split. That is the
+//! block-exchangeability violation CSCV forbids, reintroduced by the resampler.
+//!
+//! This uses **block permutation** instead: the windows are cut into contiguous
+//! blocks and the block order is shuffled. Every window appears exactly once, so
+//! no row can straddle a split, while dependence inside each block is preserved.
+//! It is consistent with CSCV's own assumption — the test already requires slice
+//! exchangeability — and it is the weakest randomisation that answers the
+//! question without breaking the estimator being measured.
 //!
 //! Run: cargo run -p afterswap-engine --example pbo_interval --release
 
@@ -27,10 +34,10 @@ const PEAK_DROP_BPS: f64 = 30.0;
 const SLICES: usize = 10;
 /// Bootstrap resamples per asset.
 const RESAMPLES: usize = 200;
-/// Expected block length in windows. Each window is 120 ticks, so 5 windows is
-/// a 600-tick block — comfortably past the autocorrelation horizon a 1-minute
+/// Block length in windows. Each window is 120 ticks, so 5 windows is a
+/// 600-tick block — comfortably past the autocorrelation horizon a 1-minute
 /// exit signal could carry.
-const MEAN_BLOCK: f64 = 5.0;
+const BLOCK: usize = 5;
 
 /// Deterministic PCG-style generator: the whole project reproduces byte for
 /// byte, and a bootstrap seeded from the clock would break that.
@@ -44,28 +51,23 @@ impl Rng {
         ((x as u32) >> rot) | ((x as u32) << ((32 - rot) & 31))
     }
 
-    fn unit(&mut self) -> f64 {
-        f64::from(self.next_u32()) / f64::from(u32::MAX)
-    }
-
     fn below(&mut self, n: usize) -> usize {
         (self.next_u32() as usize) % n
     }
 }
 
-/// Politis–Romano stationary bootstrap over window indices.
-fn stationary_indices(n: usize, rng: &mut Rng) -> Vec<usize> {
-    let p = 1.0 / MEAN_BLOCK;
-    let mut out = Vec::with_capacity(n);
-    let mut cur = rng.below(n);
-    while out.len() < n {
-        out.push(cur);
-        cur = match rng.unit() < p {
-            true => rng.below(n),
-            false => (cur + 1) % n,
-        };
+/// Cut `n` windows into contiguous blocks and shuffle the block order. Every
+/// index appears exactly once — this is a permutation, not a resample.
+fn permuted_blocks(n: usize, rng: &mut Rng) -> Vec<usize> {
+    let mut blocks: Vec<Vec<usize>> = (0..n)
+        .collect::<Vec<_>>()
+        .chunks(BLOCK)
+        .map(<[usize]>::to_vec)
+        .collect();
+    for i in (1..blocks.len()).rev() {
+        blocks.swap(i, rng.below(i + 1));
     }
-    out
+    blocks.concat()
 }
 
 fn percentile(sorted: &[f64], q: f64) -> f64 {
@@ -94,9 +96,9 @@ fn main() {
     let _ = writeln!(
         md,
         "CSCV/PBO over all {} enumerated machines, {WINDOW}-tick windows, {SLICES} slices. \
-Interval is the 2.5th-97.5th percentile of {RESAMPLES} stationary-bootstrap resamples \
-(Politis-Romano, geometric blocks, expected length {MEAN_BLOCK:.0} windows), seeded deterministically. \
-Point estimate is bench 024's figure, recomputed here.\n",
+Interval is the 2.5th-97.5th percentile of {RESAMPLES} block permutations \
+(contiguous blocks of {BLOCK} windows, order shuffled, every window used exactly once), seeded \
+deterministically. Point estimate is bench 024's figure, recomputed here.\n",
         machines.len()
     );
     let _ = writeln!(
@@ -128,7 +130,7 @@ Point estimate is bench 024's figure, recomputed here.\n",
         let mut rng = Rng(0x5EED_0000 ^ seed as u64);
         let mut draws: Vec<f64> = Vec::with_capacity(RESAMPLES);
         for _ in 0..RESAMPLES {
-            let idx = stationary_indices(n, &mut rng);
+            let idx = permuted_blocks(n, &mut rng);
             let resampled: Vec<Vec<f64>> = perf
                 .iter()
                 .map(|row| idx.iter().map(|&i| row[i]).collect())
@@ -181,31 +183,41 @@ Point estimate is bench 024's figure, recomputed here.\n",
     let _ = writeln!(
         md,
         r#"
-## The dissent is not separable from the population
+## Partly separable — and the first design said otherwise
 
-The low group (JUP, ORCA, RAY, SHIB — same 166 windows) spans **{lo_min:.3} – {lo_max:.3}** across its own
-intervals. **{separable} of {} assets** have an interval that clears that envelope. Not one — including
-FLOKI at 0.623 and SHIB at 0.075, whose intervals overlap across most of the unit interval.
+The low group (JUP, ORCA, RAY, SHIB — same 166 windows) spans **{lo_min:.3} – {lo_max:.3}** across its
+own intervals. **{separable} of {} assets** clear that envelope: JTO, at 0.417–0.647, does not overlap
+it. FLOKI overlaps by 0.036 (0.333 against the envelope's 0.369) — technically inside, close enough to
+the edge that it should not be leaned on. PYTH, at 0.278–0.567, overlaps properly and is not
+distinguishable from clean generalisation.
 
-Bench 024 reads three assets as dissenting and eight as generalising cleanly. At 166 windows over 252
-splits, this data does not support that partition. The point estimates differ; the estimates are not
-precise enough for the difference to mean anything. Bench 030 asked whether the dissent survives
-repartitioning and found that it does — but a stable estimate is not the same as a distinguishable one.
+That is a weaker claim than bench 024's and a stronger one than this bench's first version made. Read
+literally: **one asset dissents measurably, one is borderline, one does not dissent at all.** Bench 024
+reports three. Bench 030 established the dissent is stable under repartitioning; stability is necessary
+for it to be real, and for two of the three it is still not sufficient.
 
-## Caveat: this bootstrap is not clean, and says so
+Worth stating plainly because it cuts against the previous entry in this bench's own history: with a
+stationary bootstrap the intervals came out 0.29–0.72 wide and nothing separated. Removing the
+duplicate rows halved the widths to 0.09–0.33 and changed the answer. The first result was not
+conservative — it was wrong.
 
-{outside} asset(s) have a point estimate falling **outside** their own bootstrap interval — PEPE at 0.198
-against 0.000–0.127. A percentile interval that excludes its own statistic is a bias signal, not a
-rounding artefact, and the mechanism is visible: resampling windows with replacement puts duplicate
-rows into the matrix, and a duplicated row can land in both the training and testing half of a CSCV
-split. That is precisely the block-exchangeability violation CSCV forbids — the same defect the source
-raises against overlapping rolling windows, reintroduced through the back door by the resampler.
+## Diagnostic: shuffling block order lowers PBO, and that is a finding
 
-So read the widths, not the endpoints. The conclusion that survives is the weaker and more robust one:
-PBO estimates at this sample size carry uncertainty of the same order as the entire range of values
-being compared. A design that avoids duplication — m-out-of-n block subsampling without replacement, or
-resampling at the level of splits rather than windows — is the next thing to try before any interval
-here is quoted as a number."#,
+{outside} asset(s) have a point estimate falling outside their own interval — PEPE, at 0.198 against
+0.000–0.099. It is not alone in direction: every asset with 250 or more windows has a permutation
+median well below its point estimate (BONK 0.131 vs 0.202, PEPE 0.028 vs 0.198, SOL_USDC 0.020 vs
+0.087, WIF 0.028 vs 0.048), while the 166-window assets sit close to theirs.
+
+If block order were uninformative the permutation median would centre on the point estimate. It does
+not, and the gap grows with series length. Some of the PBO we measure is produced by the temporal
+ordering of blocks rather than by overfitting — which is the signature of round three's third
+mechanism, regime non-stationarity: a strategy tuned on early blocks failing on later ones. That
+mechanism was listed as a candidate explanation for the dissent; this is the first evidence in our own
+data that it operates at all.
+
+Consequence for these intervals: on long series they are shifted low relative to the statistic, so the
+overlap test above is conservative there. It does not affect the three 166-window assets the test is
+actually about."#,
         rows.len()
     );
 
