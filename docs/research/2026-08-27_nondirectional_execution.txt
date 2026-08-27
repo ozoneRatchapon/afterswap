@@ -1,0 +1,436 @@
+Epistemic Governance, Statistical Validation Protocols, and Non-Directional Execution Mechanics in Decentralized Finance
+Statistical Protocol Adaptation for Non-Sharpe Paired Objectives
+When quantitative strategy optimization searches across discrete algorithmic parameterizations, evaluating candidates against a common reference on identical price paths requires statistical testing tailored to paired difference metrics rather than unconditional asset returns1.
+Adapting Deflated Sharpe Ratios to Paired Basis-Point Statistics
+The Deflated Sharpe Ratio (DSR) addresses multiple-testing inflation and non-normality by adjusting the significance threshold as a function of the number of trials and the variance across candidate estimators3. In execution benchmarking, the metric of interest is the paired basis-point differential per cycle:
+  
+
+For a sample of    cycles, the sample mean differential is   , the sample standard deviation is   , and the sample skewness and kurtosis are denoted by    and    respectively5. The standardized paired signal-to-noise ratio is defined as:
+  
+
+Under arbitrary non-normal difference distributions, the asymptotic variance of the estimator    follows the Mertens formulation6:
+  
+
+When selecting the maximum performer    across    evaluated machines, the expected maximum under the global null hypothesis of zero true edge (   for all   ) is governed by Extreme Value Theory (EVT) for the supremum of Gaussian limit processes6:
+  
+
+where    is the Euler–Mascheroni constant,    is the standard normal cumulative distribution function, and    is the cross-sectional variance of the trial statistics6.
+The Deflated Paired Metric (DPM) computes the probability that the observed maximum differential reflects a true positive rather than selection-induced noise:
+  
+
+While the EVT correction provides an efficient analytical filter during high-throughput strategy enumeration, its reliability degrades when candidate strategies exhibit dense cross-correlations6. For rigorous validation, Hansen's Superior Predictive Ability (SPA) test or the Romano-Wolf stepdown procedure is applied to the paired difference matrix1.
+Hansen's SPA standardizes the loss differentials and re-centers the bootstrap distribution exclusively over models with non-positive historical performance, ensuring that candidate pools saturated with sub-optimal strategies do not artificially diminish statistical test power2.
+
+Statistical Protocol
+	Test Statistic & Formula
+	Underlying Assumptions
+	Minimum Sample Requirement (T)
+	Computational Complexity
+	Primary Failure Mode in Large Sweeps
+	Deflated Paired Metric (DSR Adaptation)
+	Standardized mean differential    adjusted via EVT threshold3.
+	Asymptotic normality of estimators; Gumbel maximum domain; known trial count   7.
+	  
+ cycles; requires non-zero cross-sectional variance4.
+	  
+ analytical evaluation; microsecond latency4.
+	Underestimates false discovery when candidate correlations are clustered6.
+	Hansen Superior Predictive Ability (SPA)
+	Studentized maximum differential    with conditional recentering2.
+	Stationary, strongly mixing time series; finite moments2.
+	  
+ stationary windows for block bootstrap stability2.
+	  
+ where bootstrap replications   2.
+	Power loss if candidate pool has extreme dimensional scale (  )2.
+	Romano-Wolf Stepdown
+	Stepwise studentized max-test controlling Family-Wise Error Rate (FWER)1.
+	Joint stationarity; strong control under arbitrary correlation structures9.
+	  
+ cycles to calibrate joint bootstrap empirical quantiles9.
+	  
+ where    is the number of stepdown rejections9.
+	High conservatism; discards true weak alphas when candidate set is noisy5.
+	Combinatorially Symmetric Cross-Validation (CSCV / PBO)
+	Relative out-of-sample rank logits    across    combinations10.
+	Temporal independence across partition blocks; exchangeability of slice permutations10.
+	  
+ windows with split parameter   12.
+	  
+; high memory footprint10.
+	Information leakage across blocks if temporal dependency/autocorrelation is unpurged13.
+	Combinatorially Symmetric Cross-Validation Under Sample Constraints
+Combinatorially Symmetric Cross-Validation (CSCV) estimates the Probability of Backtest Overfitting (PBO) by partitioning    observations into    contiguous temporal blocks and constructing all combinations of training sets    and testing sets    of size   , yielding    splits10. The strategy    maximizing in-sample performance    is evaluated out-of-sample to compute its relative percentile rank   10. The logit of the rank generates the empirical distribution of relative performance:
+  
+
+When empirical window counts are constrained (  ), the parameterization of    directly influences test reliability10:
+* Partition Dimension Selection (  ): Configuring    produces    splits, providing    to    observations per slice. Configuring    yields    splits, but reduces slice size to    to    observations10. Slices with fewer than    observations suffer from severe within-slice sampling variance, which dominates the signal and drives PBO toward    regardless of true underlying structure10. For   ,    is the minimum stable configuration.
+* Inadmissibility of Overlapping Windows: Generating synthetic overlapping windows introduces an artificial moving-average error structure    where    equals the step overlap10. This violates the assumption of block exchangeability10. Overlapping slices leak state variables between training and test sets, causing spurious cross-slice covariance that artificially depresses PBO11. Temporal partitions must be strictly contiguous, non-overlapping, and separated by an embargo window exceeding the strategy's autocorrelation horizon13.
+Mechanics of Selection Generalization Under Level Collapse
+The empirical finding where selection ranks generalize (  ) while absolute returns collapse (   bps in-sample to    bps out-of-sample) reflects rank preservation under negative structural drift, also known as frictional dominance or capacity exhaustion10.
+This occurs when the strategy search isolates the parameterizations that most effectively capture relative microstructure dynamics, but the entire candidate distribution operates below the venue's fixed transactional friction10.
+Let the gross expected edge of candidate    on path    be    and execution friction be    (including base fees, tip overhead, and adverse selection)16. Observed net performance is:
+  
+
+If    with fixed relative hierarchy   , the relative ranking is preserved across all validation folds because    is invariant to uniform shifts in   10. However, if the maximum gross capacity satisfies   , the net return    across all candidates10.
+CSCV confirms that the search identifies true relative optima within the defined model space, but it does not guarantee that the strategy space itself possesses positive economic expectation net of real-world friction1.
+Statistical Power and Pre-Run Execution Gates
+Evaluating sub-basis-point effect sizes without prior power validation guarantees high rates of Type II errors (false negatives), resulting in wasted computational cycles and inconclusive trials5.
+Analytical Sample Size Derivations
+Let    represent the Minimum Detectable Effect (MDE) in basis points,    the Type I error rate, and    the statistical power18.
+For a paired experimental design with difference standard deviation   , the required sample size    is:
+  
+
+For an unpaired two-sample comparison with per-group standard deviation   , the required sample size per group    and total sample size    are:
+  
+
+For standard significance (  ) and power targets (  ;   ), the critical scaling factors are    and    respectively18.
+Analytical Sample Size and Achieved Power Trajectories
+Evaluating empirical parameters (   bps paired,    bps unpaired) illustrates the severe sample constraints of high-frequency cryptocurrency execution research18:
+  
+
+  
+
+Target Effect Size (δ)
+	Variance Regime (σ)
+	Required N (80% Power)
+	Required N (90% Power)
+	Required N (95% Power)
+	Achieved Power at N=534
+	  
+ bps
+	Paired (   bps)
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+ bps
+	Unpaired (   bps)
+	  
+ total
+	  
+ total
+	  
+ total
+	  
+ (  /group)
+	  
+ bps
+	Paired (   bps)
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+ bps
+	Unpaired (   bps)
+	  
+ total
+	  
+ total
+	  
+ total
+	  
+ (  /group)
+	  
+ bps
+	Paired (   bps)
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+ bps
+	Unpaired (   bps)
+	  
+ total
+	  
+ total
+	  
+ total
+	  
+ (  /group)
+	  
+ bps
+	Paired (   bps)
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+ bps
+	Unpaired (   bps)
+	  
+ total
+	  
+ total
+	  
+ total
+	  
+ (  /group)
+	  
+ bps
+	Paired (   bps)
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+ bps
+	Unpaired (   bps)
+	  
+ total
+	  
+ total
+	  
+ total
+	  
+ (  /group)
+	An unpaired soak test of    cycles achieves only    power at    bps, yielding a    probability of failing to detect a genuine effect18. The validation harness must compute the MDE before execution:
+  
+
+If the MDE exceeds the maximum economically plausible return, the harness must abort before allocating compute5.
+Non-Directional Execution Frameworks and Objective Redesign
+Directional alpha in liquid crypto pairs decays within    milliseconds, rendering minute-horizon price forecasting unprofitable after accounting for exchange and automated market maker (AMM) fees10. Strategy search must pivot from speculative directional bets to non-directional optimal execution and structural urgency extraction15.
+Microstructure-Grounded Implementation Shortfall Minimization
+The Almgren–Chriss framework provides a foundation for executing a total position size    over discrete steps    without directional forecasting22. The objective minimizes expected implementation shortfall (the difference between the initial arrival value and final executed value) subject to a variance penalty representing inventory risk15:
+  
+
+where    is the trade volume executed at step   , with   , and    parameterizes risk aversion22.
+When translated to Decentralized Exchanges operating Constant Function Market Makers (CFMMs,   ) and Concentrated Liquidity Market Makers (CLMMs), price impact dynamics are deterministic functions of pool reserves22:
+   * Permanent Price Impact: Selling    tokens into a CFMM alters the pool's marginal reserve ratio permanently:
+  
+   * Temporary Impact and Pool Replenishment: Temporary impact arises from transient local liquidity depletion, which decays at an empirical replenishment rate    as arbitrageurs rebalance pools against external centralized and decentralized venues21.
+   * Dynamic Clip Scheduling: For retail-to-mid-size exits, the optimal schedule balances the convex price impact of large single orders against the cumulative base transaction fees and priority tips of multi-clip executions15.
+The objective function replaces "edge versus hold" with Arrival Price Implementation Shortfall15:
+  
+
+where    is the effective execution price of clip   , and    encapsulates base network fees, pool LP swap fees, and validator priority tips19. The search space enumerates deterministic execution trajectories    across routing venues to minimize   , preserving the enumerate-and-verify harness without requiring directional forecasting15.
+Risk-Centric, Drawdown, and Viability Formulations
+When the operational objective is capital preservation and downside containment, optimization must prioritize tail-risk metrics3:
+      * Conditional Value-at-Risk (CVaR / Expected Shortfall): Evaluates the mean loss beyond the   -quantile of the execution shortfall distribution:
+  
+This penalizes strategies that achieve acceptable average fills but experience catastrophic execution drag during sudden pool illiquidity or sandwich extraction19.
+      * Minimax / Tropical Worst-Case Shortfall: Minimizes the maximum paired shortfall across all rolling historical sub-windows   :
+  
+      * Viability Sets: Computes the boundary of market states    from which the policy guarantees full liquidation within allowable slippage    without triggering collateral liquidation thresholds24.
+These formulations remain compatible with paired out-of-sample validation by benchmarking shortfall variance reduction and tail containment against standard Time-Weighted Average Price (TWAP) execution baselines10.
+Structural Alpha in Non-Discretionary Urgency Horizons
+While unconstrained spot pairs exhibit rapid informational decay, exploitable structure persists at horizons where market mechanisms force non-discretionary liquidity demand20:
+         * DeFi Lending Liquidation Boundaries: On lending protocols (e.g., Kamino, Solend), accounts approaching liquidation boundaries (Health Factor   ) experience deterministic liquidation cascades24. Algorithms that pre-emptively liquidate collateral before third-party liquidators trigger seize penalties save the protocol liquidation penalty of    bps24.
+         * Perpetual Funding Rate Snapshots: Perpetual funding settlements (e.g., Drift) occur at fixed hourly boundaries24. Substantial basis divergences between spot and perpetual indices generate deterministic, mean-reverting basis flows in a   -second window surrounding the funding timestamp20.
+         * Derivative Expiration and Binary Settlement: Options and prediction markets approaching settlement timestamps display localized volatility spikes and elevated Volume-Synchronized Probability of Toxicity (VPIN), creating predictable microstructure dynamics as market makers widen spreads20.
+Autonomous Research Integrity and Epistemic Governance
+Autonomous agent-driven quantitative research systems face systematic degradation modes when optimizing without strict procedural constraints1. Without formal boundaries, self-directed loops accumulate unvalidated assertions, suffer from context drift, and overfit validation simulators3.
+Degradation Dynamics in Autonomous Loops
+Autonomous research systems exhibit four distinct operational failure modes:
+            * Harness Overfitting (Goodhart Drift): The agent identifies simulator-specific artifacts (such as zero-slippage assumptions on small-cap tokens) and produces strategies that exploit the simulator rather than true market mechanics10.
+            * Context Entrapment: Large Language Model agents optimize within localized operational premises without re-evaluating foundational assumptions28. Socratic interrogation from external supervisors breaks this entrapment by questioning core hypotheses rather than micromanaging code implementation28.
+            * Epistemic Debt Accumulation: Hypotheses are merged into documentation, but subsequent refutations fail to deprecate dependent modules16.
+            * Metric Degradation: Performance criteria shift across runs to maintain positive reporting narratives3.
+To prevent these failure modes, the system must enforce strict hypothesis state transitions:
+            1. Proposed: The hypothesis is specified with its theoretical mechanism and parameter bounds.
+            2. Committed: The hypothesis, search grid, and validation plan are cryptographically committed before accessing data.
+            3. In-Sample Validated: The candidate space is trained and screened on initial partitions.
+            4. Confirmed or Refuted: Out-of-sample evaluation gates determine whether the hypothesis passes pre-registered statistical bars.
+            5. Superseded: Deprecated models and refuted claims are marked as inactive to prevent downstream reuse.
+Verification of External Literature via Citation Testing
+To eliminate implementation discrepancies and invalid assumptions when adopting external quantitative research, the codebase must enforce Citation Tests18. A Citation Test is an automated unit test that encodes published mathematical relationships and validates implementation correctness against analytical benchmarks before merging external findings18:
+            * Analytical Reproduction: Tests verify that power and sample size functions reproduce published analytical tables (e.g., confirming    achieves    power at    bps for    bps)18.
+            * Parameter Consistency Checks: Tests assert exact convention handling, distinguishing between one-tailed vs. two-tailed tests, pooled vs. unpooled variance, and per-group vs. total sample sizes (  )18.
+            * Synthetic Null Calibration: Continuous Integration (CI) runners execute synthetic Monte Carlo paths to verify that implemented statistical tests maintain nominal Type I error rates under null distributions2.
+Cryptographically Committed Pre-Registration Manifests
+To eliminate post-hoc storytelling, the autonomous loop must generate and commit a structured JSON manifest before exposing models to market data16:
+Manifest Field
+	Type / Format
+	Specification Description
+	manifest_version
+	String (Semantic Version)
+	Schema specification version (e.g., "1.0.0").
+	registration_timestamp_utc
+	ISO-8601 String
+	Deterministic timestamp of manifest generation before data ingestion.
+	hypothesis_identifier
+	String
+	Unique tracking code and underlying theoretical mechanism.
+	target_venue_and_asset
+	String
+	Target token pair, routing venue, and market type (e.g., "BONK/SOL Raydium CPMM").
+	sample_split_method
+	String
+	Validation protocol ("CombinatoriallySymmetricCrossValidation",   , 300s embargo).
+	candidate_space_size
+	Integer
+	Total parameter grid configurations (  , fixed RNG seed).
+	statistical_gates
+	Key-Value Object
+	Pre-committed decision boundaries:    bps, power   ,   ,   .
+	null_controls
+	Array of Strings
+	Baseline controls (e.g., ["RandomPermutationNull", "GeometricBrownianMotionNull"]).
+	manifest_sha256
+	64-character Hex String
+	Cryptographic SHA-256 hash committed to the repository log prior to test execution.
+	The CI pipeline parses the pre-registration manifest and asserts that the analysis code has not altered parameter bounds, modified split boundaries, or changed target metrics post-hoc16.
+Solana Microstructure Economics and Verifiable Execution
+Realizing fractional basis-point execution gains on Solana requires evaluating liquidity architectures, latency bottlenecks, and regulatory verification standards17.
+Economic Capturability of Fragmented Pool Spreads
+The    bps clip-size spread observed on long-tail tokens (e.g., BONK) is driven by the convex bonding curves of fragmented Constant Product Market Maker (CPMM) pools relative to concentrated tick distributions in CLMMs23. However, realizing this spread net of transaction costs is heavily constrained17:
+               * Base Pool Swap Fees: Standard CPMM pools (e.g., Raydium AMM v4) charge a fixed fee of    bps per swap24. Multi-hop routing across fragmented pools compounds this cost unless routed through dynamic fee tiers15.
+               * Priority Fees and Tip Auctions: Landing transactions ahead of competing arbitrageurs during volatility spikes requires bidding in Jito or Nozomi priority tip auctions, which consume    bps of trade notional17.
+               * Quote-to-Block Execution Gap: Latency between quote generation, client signing, and block commitment (   ms) exposes orders to price drift, inducing    bps of negative slippage on public mempool routes19.
+Net realizable margin is defined as:
+  
+
+Evaluating an empirical    bps gross spread on BONK:
+  
+
+Without private transaction tunnels, zero-fee aggregation routing, or just-in-time on-chain simulation, transactional friction exceeds the gross spread, resulting in negative net realization17.
+
+Parameter
+	CPMM Long-Tail (e.g., BONK)
+	CLMM Liquid Major (e.g., SOL/USDC)
+	Gross Clip-Size Spread
+	  
+ bps17
+	  
+ bps19
+	Base Venue Fee
+	  
+ bps24
+	  
+ bps24
+	Priority / Jito Tip Overhead
+	  
+ bps17
+	  
+ bps19
+	Quote-to-Block Drift Latency
+	  
+ ms (   bps drift)19
+	  
+ ms (   bps drift)19
+	Net Realizable Margin
+	Negative (   to    bps) on public routes17.
+	Neutral / Tight (   to    bps) with optimized routing19.
+	Competitive Landscape of Solana Execution Engines
+Solana DEX aggregation has transitioned from simple routing graphs into vertically integrated execution stacks19:
+                  * Jupiter Ultra v3: Combines the Metis graph-traversal routing engine with Predictive Execution (just-in-time on-chain quote verification) and ShadowLane/Beam private validator routing19. It achieves    ms landing latencies, provides positive slippage averaging    bps, and reduces sandwich attack exposure19.
+                  * Titan (Argos Engine): Meta-aggregates quotes from underlying DEXs and private RFQ market makers17. Titan Prime dynamically parameterizes slippage and routes through MEV-protected bundles with zero platform fees, claiming superior routing in    of swap comparisons17.
+                  * Carbium (CQ1): Implements binary-state local pool indexing and a Waterfill-Split algorithm with    ms P50 latency, calculating multi-pool fills directly from validator state without external API dependencies32.
+                  * DFlow: Uses Order Flow Auctions (OFAs) to segment trades and auction execution rights among market makers, redistributing price improvement back to users32.
+
+Aggregator / Protocol
+	Routing Algorithm & State Model
+	Latency Profile
+	MEV & Slippage Protection
+	Best-Execution Proof Model
+	Jupiter Ultra v3
+	Metis Engine (Bellman-Ford Graph Traversal)19.
+	  
+ ms19
+	ShadowLane / Beam private validator routing; JIT simulation19.
+	Post-hoc telemetry logs; asserted best execution19.
+	Titan
+	Argos Engine (Meta-Aggregation + Direct RFQ)17.
+	  
+ ms17
+	Prime Mode dynamic parameterization; Jito/Nozomi bundles17.
+	Internal comparative benchmark win-rate reporting (  )17.
+	Carbium
+	CQ1 (Binary-State Waterfill-Split Algorithm)32.
+	  
+ ms P5032
+	Direct local pool state indexing; parallel multi-pool split32.
+	Low-latency state derivation traces32.
+	DFlow
+	Order Flow Auction (OFA) Segmentation32.
+	  
+ ms32
+	Auction-based market maker internalization and bid filtering32.
+	Protocol auction settlement state32.
+	Verifiable Commitment Chain
+	Pre-trade signed quote + On-chain policy hash + Direct settlement.
+	Deterministic (Pipeline Bound)
+	On-chain Anchor program state enforcement; Program Derived Address (PDA) validation.
+	Cryptographically verifiable trade lifecycle under MiCA Article 7831.
+	Existing aggregators rely on asserted best execution, publishing post-hoc benchmark statistics rather than providing verifiable cryptographic proof of pre-trade market state17.
+MiCA Article 78 Compliance and Verifiable On-Chain Audit Trails
+Under the European Union's Markets in Crypto-Assets (MiCA) regulation, Article 78 mandates strict Best Execution standards for Crypto-Asset Service Providers (CASPs) executing orders on behalf of clients31:
+                     * Best Execution Mandate: CASPs must take all necessary steps to obtain the best possible result for clients, evaluating price, explicit and implicit costs, speed, likelihood of execution and settlement, size, and order characteristics31.
+                     * Regulatory Technical Standards (ESMA RTS): Regulatory standards mandate the maintenance of an immutable audit trail of all order and execution data for a minimum of five years31. Pre- and post-trade transparency data must be published within    seconds of execution (compared to    seconds under MiFID II)31.
+                     * Prohibition of Single-Broker Reliance: Routing client orders exclusively through a single internal market maker or unverified liquidity provider fails Article 78 compliance; CASPs must demonstrate multi-venue routing evaluation31.
+A verifiable trade lifecycle—composed of an off-chain signed quote, an on-chain policy commitment PDA hash committed prior to execution, and the final fill transaction—provides a machine-auditable record for regulatory compliance34.
+This architecture produces cryptographic proof that the routing algorithm selected the optimal execution path available across all accessible venues at timestamp   , directly fulfilling the regulatory requirements of Article 7831.
+Architectural Roadmap and Strategic Synthesis
+Transforming an autonomous quantitative research system into a resilient production platform requires aligning statistical validation, execution mechanics, epistemic safeguards, and regulatory utility1.
+Integrated Operational Protocol
+The research and execution pipeline operates through four discrete stages:
+                        1. Hypothesis Registration and Power Gating: The agent registers target effect sizes (  ) and measured variance (  ). The system calculates the required sample size (  ) and aborts execution if independent historical windows are insufficient (  )18.
+                        2. Cryptographic Pre-Registration: The system generates a deterministic JSON manifest specifying parameter grids (  ), split dimensions (  ), and evaluation metrics. The SHA-256 hash is committed to the repository before data ingestion30.
+                        3. Cross-Validation and Selection Screening: Candidate parameterizations are evaluated across non-overlapping, embargoed CSCV partitions. The top-performing machine must satisfy    and   4.
+                        4. Confirmatory Out-of-Sample Testing: The selected machine is evaluated on locked out-of-sample data using Romano-Wolf stepdown controls against paired synthetic and historical null benchmarks2.
+Execution and Commercial Re-Architecture
+                           1. Transition to Non-Directional Execution: Directional forecasting on sub-minute horizons is deprecated. The optimization objective shifts to Almgren–Chriss implementation shortfall minimization across fragmented CFMM and CLMM venues15.
+                           2. Targeting Structural Urgency: Strategy search is redirected toward non-discretionary liquidity flows, including lending protocol liquidation boundaries, perpetual funding rate rebalancing windows, and derivative settlement auctions20.
+                           3. Commercialization of Verifiable Execution: The signed quote    on-chain policy commitment    fill pipeline is packaged as a compliance-as-a-service primitive, enabling institutional CASPs to satisfy MiCA Article 78 best-execution audit requirements31.
+By enforcing pre-run power gating, adopting deflated paired metrics, and replacing directional speculation with verifiable execution infrastructure, the research system establishes a mathematically grounded and economically viable operating model1.
+Works cited
+                              1. The GT-Score: A Robust Objective Function for Reducing Overfitting, https://arxiv.org/pdf/2602.00080
+                              2. A Test for Superior Predictive Ability | Request PDF - ResearchGate, https://www.researchgate.net/publication/4724332_A_Test_for_Superior_Predictive_Ability
+                              3. Correcting for Selection Bias, Backtest Overfitting and Non-Normality, https://www.researchgate.net/publication/324663771_The_Deflated_Sharpe_Ratio_Correcting_for_Selection_Bias_Backtest_Overfitting_and_Non-Normality
+                              4. Deflated Sharpe Ratio: Formula, Intuition, and a Worked Example, https://quanterlab.com/articles/foundations-dsr
+                              5. Proper Use of the Sharpe Ratio - Scribd, https://www.scribd.com/document/941095458/How-to-Use-the-Sharpe-Ratio
+                              6. Deflating the Sharpe Ratio Explained | PDF | Normal Distribution, https://www.scribd.com/document/964069186/Deflating-the-Sharpe-Ratio
+                              7. The Effects of Reality on the Deflated Sharpe Ratio., http://www.sharperat.io/do-not-deflate-I.html
+                              8. Deflated Sharpe Ratio (how to avoid been fooled by randomness), https://quantdare.com/deflated-sharpe-ratio-how-to-avoid-been-fooled-by-randomness/
+                              9. Statistical Finance - quantpylib, https://quantpylib.hangukquant.com/learn/statistical_finance/
+                              10. The probability of backtest overfitting | Request PDF - ResearchGate, https://www.researchgate.net/publication/318600389_The_probability_of_backtest_overfitting
+                              11. Discussing the article: "Unified Validation Pipeline Against Backtest, https://www.mql5.com/en/forum/506840
+                              12. A Rigorous Walk-Forward Validation Framework for Market ... - arXiv, https://arxiv.org/html/2512.12924v1
+                              13. Combinatorial Purged Cross-Validation Insights | PDF - Scribd, https://www.scribd.com/document/725401650/SSRN-id4778909
+                              14. How to Interpret Backtest Overfitting Metrics | Viprasol, https://viprasol.com/blog/backtest-overfitting-metrics-guide/
+                              15. Reinforcement Learning for Execution under Dynamic Fees ... - arXiv, https://arxiv.org/html/2607.10960v1
+                              16. AlgoXpert Alpha Research Framework: A Rigorous IS–WFA–OOS, https://arxiv.org/html/2603.09219v1
+                              17. What Is Titan? The Meta DEX Aggregator Powering Solana DeFi, https://learn.backpack.exchange/articles/what-is-titan-aggregator-solana
+                              18. unknown_url
+                              19. Jupiter Ultra V3: A Technical and Strategic Analysis of the End-to, https://medium.com/@ayushkmrjha/jupiter-ultra-v3-a-technical-and-strategic-analysis-of-the-end-to-end-trading-engine-0a61e9f244df
+                              20. What am I missing? : r/algotrading - Reddit, https://www.reddit.com/r/algotrading/comments/1s0xduq/what_am_i_missing/
+                              21. Optimal Routing for Constant Function Market Makers - ResearchGate, https://www.researchgate.net/publication/361999279_Optimal_Routing_for_Constant_Function_Market_Makers
+                              22. Optimal execution on Uniswap v2/v3 under transient price impact, https://arxiv.org/pdf/2601.03799
+                              23. Building a Swapper That Quotes Faster Than the Market Moves, https://phantom.com/learn/blog/building-a-swapper-that-quotes-faster-than-the-market-moves
+                              24. What Are the Top 7 Solana DEXs to Trade in 2026? - BingX, https://bingx.com/en/learn/article/what-are-the-top-solana-decentralized-exchanges-dexs
+                              25. Crypto Market Microstructure with AI | AlphaLens AI, https://alphalensai.com/blog/crypto-market-microstructure
+                              26. What Are Informed Trading Models? - Cube Exchange, https://www.cube.exchange/what-is/informed-trading-models
+                              27. Informed Trading in Cryptocurrency Markets Текст научной статьи, https://cyberleninka.ru/article/n/informed-trading-in-cryptocurrency-markets
+                              28. Interactive Questioning Processes - Emergent Mind, https://www.emergentmind.com/topics/interactive-questioning-processes
+                              29. Human Oversight, Real Learning, and the Future of AI Tutors in, https://www.victoryxr.com/human-oversight-real-learning-and-the-future-of-ai-tutors-in-education/
+                              30. A Season-Structured Validation and Governance Architecture for, https://www.preprints.org/manuscript/202608.0004
+                              31. Decoding MiCA's Best Execution: Is a Single Broker Policy Still, https://www.wyden.io/intelligence/decoding-micas-best-execution-requirements-is-a-single-broker-policy-still-compliant/
+                              32. Solana DEX Aggregator Comparison 2026: Carbium vs Jupiter vs, https://carbium.io/blog/solana-dex-aggregator-comparison-2026-carbium-vs-jupiter-vs-titan-vs-okx-vs-dflow/
+                              33. What Institutions Will Need for MiCA's Best Execution Obligation, https://www.talos.com/insights/tools-of-the-trade-what-institutions-will-need-for-micas-best-execution-obligation
+                              34. MiCA Compliance | Reporting & Audit | Attestra, https://mica-compliance.guru/
+                              35. Best Execution Policy - Aplo, https://www.aplo.io/micar/best-execution-policy/
+                              36. MiCA regulation | Markets in crypto-assets - Springlex, https://www.springlex.eu/en/packages/mica/mica-regulation/
+                              37. MiCA - Elvinger Hoss, https://elvingerhoss.lu/sites/default/files/upload/media/document/2025-09/Brochure%20MiCA.September%202025.pdf

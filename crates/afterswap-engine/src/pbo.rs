@@ -28,7 +28,23 @@ pub struct PboResult {
 }
 
 /// `perf[strategy][window]`; `s` must be even and ≤ the window count.
+/// Embargo defaults to zero — prefer [`cscv_embargoed`], which is what the
+/// reviewed protocol actually requires.
 pub fn cscv(perf: &[Vec<f64>], s: usize) -> Option<PboResult> {
+    cscv_embargoed(perf, s, 0)
+}
+
+/// CSCV with an embargo between slices.
+///
+/// External review flagged a defect in our first implementation: contiguous
+/// slices still leak state across the train/test boundary whenever the series
+/// has autocorrelation longer than a single window, which depresses PBO
+/// artificially. The prescribed fix is an embargo — drop `embargo` windows at
+/// each slice edge so no test window sits adjacent to a training window.
+/// Overlapping windows were also considered and are **inadmissible**: they
+/// impose a moving-average error structure that violates block
+/// exchangeability outright.
+pub fn cscv_embargoed(perf: &[Vec<f64>], s: usize, embargo: usize) -> Option<PboResult> {
     let m = perf.len();
     if m < 2 || s < 4 || !s.is_multiple_of(2) {
         return None;
@@ -39,17 +55,22 @@ pub fn cscv(perf: &[Vec<f64>], s: usize) -> Option<PboResult> {
     }
 
     // Per-slice mean performance for every strategy: every split's score is a
-    // sum over slice means, so the combinatorics stay cheap.
+    // sum over slice means, so the combinatorics stay cheap. The embargo
+    // trims each slice's leading edge, so adjacent slices never share
+    // observations within the autocorrelation horizon.
     let slice_len = t / s;
+    if slice_len <= embargo + 1 {
+        return None; // embargo would consume the slice
+    }
     let slice_means: Vec<Vec<f64>> = perf
         .iter()
         .map(|row| {
             (0..s)
                 .map(|k| {
-                    let lo = k * slice_len;
+                    let lo = k * slice_len + embargo;
                     let hi = match k == s - 1 {
                         true => t,
-                        false => lo + slice_len,
+                        false => (k + 1) * slice_len,
                     };
                     row[lo..hi].iter().sum::<f64>() / (hi - lo) as f64
                 })

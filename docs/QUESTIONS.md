@@ -332,3 +332,107 @@ business or a rounding error, and we cannot tell from here.
 2. **E3** — because "selection generalises, profit does not" is our central
    finding and we do not know what it is called or what follows from it.
 3. **H1** — because it decides whether the verifiable chain is a product.
+
+
+---
+
+# Round 2 answers received (2026-08-27)
+
+[Full text](research/2026-08-27_nondirectional_execution.txt). Same-day
+consequences below; **one answer was tested and refuted**, which is the point
+of the citation-test rule.
+
+**E1 — DSR for a paired objective.** There is a defined adaptation: the
+**Deflated Paired Metric**, standardising the mean paired differential and
+deflating the threshold by an extreme-value estimate of the maximum under the
+global null. Its named failure mode is decisive for us: *it underestimates
+false discovery when candidates are densely cross-correlated* — and 1,054
+enumerated FSMs over the same price paths are about as correlated as a
+candidate set can be. DPM is therefore a fast screen, not a verdict, and the
+verdict tool is Romano–Wolf, which we already have and which already returned
+zero survivors. **No implementation needed; the tool we built was the right
+one.**
+
+**E2 — CSCV under sample constraints.** S = 10 is the minimum stable
+configuration at our window counts (S = 16 would starve the slices and push
+PBO toward 0.5 regardless of truth), so our choice was right. Overlapping
+windows — which we had considered as a cheap way to get more windows — are
+**inadmissible**: they impose a moving-average error structure that violates
+block exchangeability and artificially depresses PBO. And an embargo exceeding
+the autocorrelation horizon is required between slices, which our
+implementation **did not have**. ✅ Fixed (`cscv_embargoed`); PBO moves ≤ 0.09
+and no conclusion changes, so the earlier result stands on a now-correct
+implementation.
+
+**E3 — the name for "rank generalises, level collapses".** Offered as
+**frictional dominance / capacity exhaustion**: a positive gross edge common to
+all candidates, sunk by a friction term larger than the best of them, with
+ranking preserved because friction is a uniform shift.
+❌ **Tested and refuted** ([`026_diagnosis`](../benches/026_diagnosis/report.md)).
+Our simulator charges zero friction, and the selected machine's friction-free
+out-of-sample level is **−6.35 bps**. There is no positive gross edge for
+friction to consume, so no amount of cheaper routing would recover it.
+
+The test produced a better decomposition than the label it was checking. Split
+against the population median, the level separates into **a drift term**
+(median OOS swings −52 to +28 bps, tracking whether the asset rose or fell —
+identical for all 1,054 machines, pure arithmetic) and **a selection term**
+(+2.59 bps, the selected machine over the median, positive on 7 of 11 assets).
+The drift term dominates the variance, which is why "edge versus hold" was
+never resolvable and why benchmarks against exits that also liquidate always
+had smaller standard errors. **"Edge versus hold" is a badly-conditioned
+metric and we should stop using it as a headline.**
+
+**F1 — a non-directional objective.** Prescribed: **Almgren–Chriss
+implementation shortfall**, with arrival price as the reference and price
+impact modelled deterministically from CFMM/CLMM pool reserves. The sentence
+that matters: the search space becomes deterministic execution trajectories
+across venues, *preserving the enumerate-and-verify harness without requiring
+directional forecasting*. Our machinery survives the redirect; only the
+objective changes.
+
+**F2 — risk-centric objectives.** CVaR/expected shortfall on the shortfall
+distribution, minimax/tropical worst-case over rolling sub-windows, and
+viability sets. All stated to be compatible with paired out-of-sample
+validation against a TWAP baseline — i.e. with the harness we already own.
+
+**F3 — forced exits.** Confirmed as where structure survives: lending
+liquidation boundaries (health-factor cascades, where pre-empting a third-party
+liquidator saves the seize penalty), perpetual funding snapshots at fixed
+hourly boundaries, and derivative/prediction-market settlement. Non-
+discretionary liquidity demand is not an efficient-market phenomenon.
+
+**G1 — loop degradation.** Four named modes: **harness overfitting** (Goodhart
+drift — the example given is *exploiting zero-slippage assumptions on
+small-cap tokens*, which is precisely the corner our simulator occupies),
+**context entrapment**, **epistemic debt** (refutations that fail to deprecate
+what depended on them), and **metric degradation** (criteria drifting to keep
+the narrative positive). Prescribed fix: an explicit hypothesis state machine,
+Proposed → Committed → In-Sample Validated → Confirmed/Refuted → Superseded.
+
+**G2 — citation tests.** The practice is named and has three parts:
+analytical reproduction of published tables, parameter-convention assertions,
+and synthetic null calibration. ✅ We already do all three (power reproduces
+the reference table, the paired/unpaired convention mismatch was caught that
+way, and PBO and Romano–Wolf are both calibrated on synthetic nulls).
+
+**G3 — manifest schema.** A field list we can adopt directly; ours is missing
+`manifest_version`, `registration_timestamp_utc`, `target_venue_and_asset`,
+the embargo specification, and the candidate-space size with its RNG seed.
+
+**H1/H2 — MiCA and the market gap.** Article 78 requires best execution across
+price, cost, speed, likelihood and size; **a five-year immutable audit trail**;
+publication within **30 seconds**; and it **prohibits single-broker reliance**,
+so multi-venue evaluation must be demonstrated rather than asserted. The gap
+is stated plainly: *existing aggregators rely on asserted best execution,
+publishing post-hoc benchmark statistics rather than verifiable cryptographic
+proof of pre-trade market state.* Our signed-quote → committed-policy → fill
+chain is the missing artefact.
+
+**H3 — is the 27 bps capturable?** **No, not on public routes.** CPMM base
+swap fees, priority/Jito tips and quote-to-block drift together exceed the
+gross spread on long-tail tokens; net realisable margin is negative without
+private transaction tunnels, zero-fee routing and just-in-time on-chain
+simulation. Plan 001's depth hypothesis is therefore capped by economics, not
+by our measurement — which is consistent with its own preliminary result
+showing no benefit.
