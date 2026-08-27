@@ -325,6 +325,11 @@ pub fn bootstrap_bars(
     out
 }
 
+/// Number of behaviorally distinct machines at a given state count.
+pub fn enumerate_count(n_states: u8) -> usize {
+    katgpt_ruliology::FsmEnumerator::enumerate(n_states).len()
+}
+
 /// Load a `{"price": f}` jsonl recording.
 pub fn load_corpus(path: &str) -> std::io::Result<Vec<f64>> {
     let text = std::fs::read_to_string(path)?;

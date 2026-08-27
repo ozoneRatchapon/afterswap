@@ -35,6 +35,10 @@ fn main() {
         .iter()
         .map(|&r| (r.name().to_string(), synthetic_corpus(r, 300, 42)))
         .collect();
+    // Corpus set must stay frozen during an A/B: a recorder appending a new
+    // file into `data/` mid-experiment silently changed the comparison
+    // surface and invalidated three benches (016-018). In-progress
+    // recordings now live in `data/incoming/`, which this scan skips.
     let mut recs: Vec<String> = std::fs::read_dir("data")
         .map(|d| {
             d.filter_map(Result::ok)

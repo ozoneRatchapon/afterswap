@@ -267,6 +267,29 @@ corpora) caught it. Demo parameters stand unchanged.
 genuinely long *recorded* data. A 6-hour recorder at 4 s intervals is
 running to produce `data/recorded_long.jsonl`; the sweep re-runs on it.
 
+## 7e. Per-regime arm statistics ⚠️ BUILT, UNRESOLVED, DEFAULT OFF (v2.9)
+
+Machines' records are pooled across market regimes, so a downtrend
+specialist has its average diluted by rallies. Implemented regime-keyed
+statistics (closed-form chop / trend-up / trend-down label from the
+surprise EMAs) with shrinkage back to pooled when a bucket is thin.
+
+**Result: the bench cannot tell the difference — ON and OFF score
+bit-identically (bench 016_goat).** Regime keys only affect re-tournament
+*seeding*, and a 300-tick bench run rebuilds the arm set too few times for
+that to matter. The feature would bite across long sessions with
+persistence, which needs a long-soak A/B to settle. Default OFF: ship the
+simpler behavior until an instrument exists that can resolve it.
+
+**Process finding worth more than the feature.** The first three attempts
+at this A/B (the discarded runs) all showed a large regression that had
+nothing to do with the feature: a background recorder was appending a new
+corpus into `data/`, which the bench scans, so the comparison surface
+changed underneath the experiment. Corpus sets must be frozen during an
+A/B; in-progress recordings now live in `data/incoming/`. The tell was
+that disabling the feature did *not* restore the previous numbers — a
+control that only exists if you run it.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);
