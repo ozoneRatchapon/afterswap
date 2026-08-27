@@ -95,11 +95,36 @@ storing `{machine blake3 fingerprint, n_states, tranche_frac, size,
 opened_at}`. Committed before the first live fill → every DFlow order is
 auditable against a pre-committed policy. Turns "provably uninformed
 flow" from a pitch line into a verifiable on-chain fact.
-**Phase B — delegated execution:** user `approve`s an SPL delegate to the
-program PDA once (bounded amount); a permissionless crank triggers sells
-that the program validates against the committed policy. Kills the
-per-tranche wallet popup without custody. Phase B is real security
-surface — audit before mainnet.
+**Phase B — delegated execution.** Original plan: user `approve`s an SPL
+delegate to the program PDA once (bounded amount); a permissionless crank
+triggers sells that the program validates against the committed policy.
+Kills the per-tranche wallet popup without custody. Real security surface —
+audit before mainnet.
+
+**Phase B, revised (2026-08-27): most of it already exists, MIT, and on the
+same framework we chose.** MagicBlock published a leverage template
+(`magicblock-labs/leveraged-prediction`) whose supporting primitives map
+onto our missing pieces almost one-to-one:
+
+| Our gap | Their primitive | Verified from |
+|---|---|---|
+| "who presses the button without holding keys" | **`hydra`** — permissionless crank: scheduled instructions live in a crank PDA, *anyone* may trigger when due; **Pinocchio `no_std`**, same framework as our policy program | repo README |
+| non-custodial balances the program can move | **`ephemeral-spl-token`** — ephemeral ATAs + per-mint global vault, deposit/withdraw, delegation to data-layer programs (MIMD 0013) | repo README |
+| no wallet popup per tranche | **session keys** (Lever template) | project announcement |
+| affordable per-tick on-chain evaluation | `ephemeral-rollups-sdk` + `magicblock-validator` (see Phase C) | repo list |
+| prices inside the rollup | `real-time-pricing-oracle` | repo list |
+
+Sketch: user deposits into an ephemeral vault (withdrawable, non-custodial)
+→ our policy PDA commits the machine fingerprint → Hydra schedules the
+evaluation instruction → any cranker triggers it → the program executes only
+sells the committed policy authorises. No popup per tranche, no bot holding
+keys, no custody — the exact UX failure observed in live testing
+(a wallet prompt on every tranche, plus Phantom's new-domain heuristics
+blocking the request) dissolves.
+
+Status: design only. Nothing here is tested by us; the table records what
+those repos state they do. Integration is post-buildathon work and Phase B
+still needs an audit before mainnet.
 **Phase A status: ✅ DEPLOYED ON DEVNET (v2.4).** Rewritten in Pinocchio
 (Anza) after evaluating Quasar (beta, unaudited — parked) and Anchor
 (Phase B candidate): binary 74 KB → **18 KB**, autofixer 0 issues, same
