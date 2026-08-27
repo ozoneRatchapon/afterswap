@@ -56,7 +56,20 @@ triggers. Keeps every property that matters: full enumeration,
 auditability, bit-determinism. Learned embeddings are explicitly out —
 they would break the product's core honesty claim.
 
-## 3. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench 006)
+## 3a. Off-policy credit assignment ✅ SHIPPED (v2.6, bench 013)
+
+The sample-efficiency problem the PL experiment was aiming at, solved a
+different way: only the seated arm used to be rewarded per window (1 of
+24). Now every non-seated arm is replayed on the same realized window and
+credited with its counterfactual edge — the replay cost was already being
+paid by the tournament. Every floor improved: TWAP +72.3→**+76.0**,
+random-arm +1.8→**+5.4**, trailing +7.0→**+10.5**, ladder +110.3→+114.0,
+bracket +76.5→+80.2. Side effect worth noting: with all arms credited
+every window, UCB1's exploration bonus equalizes and selection tends
+toward follow-the-leader — appropriate, since this is now a
+full-information setting rather than a bandit one.
+
+## 3b. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench 006)
 
 **Outcome:** implemented (`rating.rs`, Hunter-MM PL, unit-tested,
 deterministic) and wired into survivor ranking — **every floor got worse**
@@ -179,6 +192,18 @@ policies, and the GOAT report as the sales page. The browser demo stays
 free (marketing); agents pay for the hosted endpoint + evolved-machine
 leaderboards + corpora. This is the most concrete revenue path on this
 list — pairs with #5 (the DO host becomes the paid endpoint).
+
+## 7c. Paired online evaluation ✅ SHIPPED (v2.6)
+
+The soak measured absolute edge vs hold — per-cycle SD ≈ 6.6 bps against
+a sub-1 bps effect, so 534 cycles still gave t = 0.37 (see SOAK.md).
+Fix: `afterswap-server/src/shadow.rs` drives TWAP, trailing stop,
+TP-ladder and TP/SL bracket from the *same* entry on the *same* ticks, so
+each cycle yields paired differences where the price path cancels — the
+online analogue of what the GOAT bench does offline. Run with
+`--paired <file>`; the soak monitor reports per-floor means with
+t-values hourly. This is the instrument that makes every future
+improvement measurable in hours instead of weeks.
 
 ## 8. Ops / trust hardening
 

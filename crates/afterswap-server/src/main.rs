@@ -8,6 +8,7 @@
 
 mod paper;
 mod server;
+mod shadow;
 
 use std::sync::Arc;
 
@@ -48,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
             None => None,
         },
         record: arg::<String>(&args, "--record").map(Into::into),
+        paired: arg::<String>(&args, "--paired").map(Into::into),
         #[cfg(feature = "live")]
         live: match arg::<String>(&args, "--keypair") {
             Some(path) => {

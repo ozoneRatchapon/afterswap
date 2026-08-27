@@ -33,15 +33,20 @@ lets data pick the winner:
    bandit picks a machine to drive; every window its realized reward
    (tranche-exit value vs what naive holding would have done) updates its arm.
    Underperformers lose the seat.
-4. **Evolve** — every live window, mutants of the current arms (output
+4. **Credit everyone** — at each window boundary the seated machine is
+   scored on what it actually did, and every other machine is replayed on
+   that same realized window and credited with its counterfactual edge.
+   ~24× more learning signal per unit time, reusing the tournament's own
+   replay machinery (bench 013: every floor improved).
+5. **Evolve** — every live window, mutants of the current arms (output
    flips, edge reroutes, and **4-state growth past the enumerable
    frontier** — `katgpt-ruliology`'s co-evolution operators) challenge the
    worst arm on replayed windows; keep-if-better, Wolfram-style. Evolved
    machines wear a ✦gen badge on the leaderboard.
-5. **Verify** — a renoise check (perturb the window → re-rank → measure
+6. **Verify** — a renoise check (perturb the window → re-rank → measure
    drift) scores how stable the live machine's selection is under noise;
    the dashboard shows it as a per-decision confidence badge.
-6. **Gate** — a spectral irreducibility test on the win-matrix decides whether
+7. **Gate** — a spectral irreducibility test on the win-matrix decides whether
    the next tournament can be **skipped, light, or full** — Wolfram's
    computational-irreducibility argument, used as a scheduler.
 
@@ -116,13 +121,13 @@ performance claim without a named floor
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+72.3 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
-| **G2b floor: random arm** | PASS — **+1.8 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2a floor: TWAP** | PASS — **+76.0 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
+| **G2b floor: random arm** | PASS — **+5.4 bps mean** vs seeded random arm selection (8 seeds) |
 | **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
 | **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+110.3 bps vs TP-ladder**, **+76.5 bps vs TP/SL bracket**, **+7.0 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
+| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+114.0 bps vs TP-ladder**, **+80.2 bps vs TP/SL bracket**, **+10.5 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and

@@ -54,6 +54,16 @@ cycles the same split reads +0.25 → +0.09.
 The original trend was noise interpreted as signal. It is retracted here
 rather than quietly edited away.
 
+## What changed after this run (v2.6)
+
+Two fixes went in because of these numbers: **off-policy credit**
+(every arm learns from every window, not just the seated one — bench 013
+improved all floors) and **paired online evaluation**
+(`--paired`): reference exits now run from the same entry on the same
+ticks, so live comparisons cancel path noise the way the bench does. The
+next soak reports per-floor means with t-values rather than a single
+noisy absolute edge.
+
 ## What this does NOT invalidate
 
 The GOAT bench claims (vs TWAP, trailing stop, TP-ladder, TP/SL bracket)

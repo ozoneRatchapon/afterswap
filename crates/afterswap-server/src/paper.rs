@@ -12,9 +12,9 @@ use std::time::Duration;
 use afterswap_dflow::{DflowClient, PricePoller};
 #[cfg(feature = "live")]
 use afterswap_dflow::{LiveExecutor, QuoteRequest, mints};
-#[cfg(feature = "live")]
-use afterswap_engine::EngineEvent;
-use afterswap_engine::{EngineConfig, ExitEngine};
+use afterswap_engine::{EngineConfig, EngineEvent, ExitEngine};
+
+use crate::shadow::Shadow;
 use log::{info, warn};
 use tokio::sync::{Mutex, broadcast};
 
@@ -36,6 +36,8 @@ pub struct PaperConfig {
     pub replay: Option<Vec<f64>>,
     /// Append each live tick as a jsonl line for later replay.
     pub record: Option<PathBuf>,
+    /// Append one paired-comparison line per completed position cycle.
+    pub paired: Option<PathBuf>,
     /// Live executor: mirror paper tranche fills into real DFlow orders.
     #[cfg(feature = "live")]
     pub live: Option<LiveExecutor>,
@@ -51,6 +53,7 @@ impl Default for PaperConfig {
             engine: EngineConfig::default(),
             replay: None,
             record: None,
+            paired: None,
             #[cfg(feature = "live")]
             live: None,
         }
@@ -114,6 +117,13 @@ pub async fn run_shared(
         .as_ref()
         .map(|p| std::fs::OpenOptions::new().create(true).append(true).open(p))
         .transpose()?;
+    let mut paired_writer = cfg
+        .paired
+        .as_ref()
+        .map(|p| std::fs::OpenOptions::new().create(true).append(true).open(p))
+        .transpose()?;
+    // Reference exits driven by the same ticks from the same entry.
+    let mut shadow: Option<Shadow> = None;
     let mut interval = tokio::time::interval(Duration::from_millis(cfg.interval_ms));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
@@ -149,7 +159,39 @@ pub async fn run_shared(
         }
 
         let mut engine = shared.lock().await;
+        // Shadow tracks the same ticks as the engine, from the same entry.
+        if shadow.is_none()
+            && let Some(pos) = engine.position()
+        {
+            shadow = Some(Shadow::new(pos.entry_price));
+        }
+        if let Some(sh) = shadow.as_mut() {
+            sh.on_tick(price);
+        }
         let events = engine.on_tick(price);
+        if let Some(EngineEvent::PositionClosed {
+            final_value_norm, ..
+        }) = events
+            .iter()
+            .find(|e| matches!(e, EngineEvent::PositionClosed { .. }))
+            && let Some(sh) = shadow.take()
+        {
+            {
+                let paired = sh.compare(*final_value_norm, price);
+                info!(
+                    "paired ({} ticks): vs hold {:+.2} | vs twap {:+.2} | vs trailing {:+.2} | vs ladder {:+.2} | vs bracket {:+.2} bps",
+                    paired.ticks,
+                    paired.vs_hold_bps,
+                    paired.vs_twap_bps,
+                    paired.vs_trailing_bps,
+                    paired.vs_ladder_bps,
+                    paired.vs_bracket_bps
+                );
+                if let Some(w) = paired_writer.as_mut() {
+                    let _ = writeln!(w, "{}", serde_json::to_string(&paired)?);
+                }
+            }
+        }
         ticks += 1;
         info!("tick {ticks}: SOL/USDC {price:.5}");
         for ev in &events {
