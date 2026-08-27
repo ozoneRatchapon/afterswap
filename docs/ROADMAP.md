@@ -313,10 +313,21 @@ they may flatter the engine; (b) the engine runs on second-scale DFlow
 ticks and minute bars are a different regime it was never tuned for;
 (c) TWAP is genuinely hard to beat in a month that trended down 30%.
 
-**Next experiment (now possible for the first time):** train/test split
-*across time* on the real series — tune on the first 20 days, validate on
-the last 11 — which is out-of-distribution validation of the kind that
-caught the bootstrap mistake.
+**Next experiment ✅ RUN (bench 018_train_test) — first significant
+positive result in the project.** Chronological train/test on four real
+1-minute series (SOL, BONK, WIF, PEPE): tune on the first 60%, score on the
+last 40%.
+- vs **trailing stops on memecoins**: BONK **+34 ± 10**, PEPE **+26 ± 11**
+  (3.4 and 2.4 SE) — significant, out-of-sample, on real bars.
+- vs **TWAP**: nothing anywhere (+0 ± 3 SOL, +7 ± 8 BONK, −8 ± 9 PEPE).
+- Tuning transferred adequately this time (real data, chronological split),
+  unlike the bootstrap tuning that reversed on real corpora.
+
+**Direction this sets:** the addressable market is volatile tokens, where a
+trailing stop is the incumbent and exits decide outcomes; on blue-chip pairs
+the honest pitch is discipline and auditability, not alpha. Memecoin exits
+also line up with the prediction-market and Phoenix-perps ideas below — all
+places where holding to zero is the default failure.
 
 ## 8. Ops / trust hardening
 
