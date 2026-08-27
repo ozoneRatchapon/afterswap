@@ -84,6 +84,7 @@ survived a gate that was allowed to say no.
 |---|---|
 | [`docs/PITCH.md`](docs/PITCH.md) | The same product explained five ways — for traders, judges, the DFlow team, engineers, and social — plus Q&A armor |
 | [`docs/SOAK.md`](docs/SOAK.md) | Live-quote soak results, including a retraction of an earlier over-claim |
+| [`docs/OPPORTUNITIES.md`](docs/OPPORTUNITIES.md) | The whole DFlow API surface mapped against what we use, the katgpt-rs primitives worth pulling now that alpha is off the table, and the research method this repo converged on |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Everything deliberately *not* built yet, each with its evidence — and the ideas that were tried and reverted |
 | [`docs/DEMO.md`](docs/DEMO.md) | The two-minute demo script, beat by beat |
 | [`docs/API.md`](docs/API.md) | Running the engine from your own agent, free, no API key |
