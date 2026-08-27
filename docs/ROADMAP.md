@@ -323,11 +323,19 @@ last 40%.
 - Tuning transferred adequately this time (real data, chronological split),
   unlike the bootstrap tuning that reversed on real corpora.
 
-**Direction this sets:** the addressable market is volatile tokens, where a
-trailing stop is the incumbent and exits decide outcomes; on blue-chip pairs
-the honest pitch is discipline and auditability, not alpha. Memecoin exits
-also line up with the prediction-market and Phoenix-perps ideas below — all
-places where holding to zero is the default failure.
+**Retracted the same day (bench 018 extended to 11 assets).** Adding seven
+more real series collapses it: across-asset means are **+5.3 ± 5.7 vs TWAP**
+and **+10.5 ± 7.9 vs trailing** — noise. BONK and PEPE really did clear
+significance, but two-of-four is what selection looks like when you stop at
+four. The lesson repeats a third time: *every increase in statistical power
+shrank the apparent edge.*
+
+**Direction this actually sets:** stop hunting alpha with this alphabet at
+these horizons — the null control already said the engine will not invent it,
+and now the real-data tests agree there is little to find. The defensible
+product is disciplined, auditable, zero-cost exit automation with honest
+benchmarking attached, and the open research direction is *execution* (DFlow
+depth, Plan 001) rather than direction prediction.
 
 ## 8. Ops / trust hardening
 

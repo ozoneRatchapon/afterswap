@@ -95,7 +95,7 @@
     <span style="position:relative">
       <select id="pair" title="quote pair" style="background:var(--surface-2); color:var(--ink-2); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font:inherit; font-size:12px">
       <option value="sol">SOL / USDC</option>
-      <option value="bonk">BONK / USDC — where our edge is measured</option>
+      <option value="bonk">BONK / USDC — a volatile pair</option>
     </select>
     <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
       <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
@@ -161,12 +161,11 @@
     <div class="panel">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
-        <div><b style="color:var(--ink)">Where it wins, out-of-sample on real bars</b> — tuned on
-          20 days, scored on the next 11, never overlapping: vs trailing stops on volatile tokens
-          <span class="up">+34 ± 10</span> (BONK) and <span class="up">+26 ± 11</span> (PEPE).
-          <b style="color:var(--ink)">Where it does not:</b> vs TWAP anywhere
-          (<span class="down">+0 ± 3</span> on SOL), and our synthetic regimes flatter it badly —
-          the benchmark now splits real from synthetic so that cannot hide.</div>
+        <div><b style="color:var(--ink)">No durable edge — our own harness says so.</b>
+          Out-of-sample across <b>11 real assets</b>: <span class="up">+5.3 ± 5.7</span> bps vs TWAP,
+          <span class="up">+10.5 ± 7.9</span> vs trailing stops — both inside the noise. Two assets
+          cleared significance; eleven say that was selection. Every time we added statistical
+          power the apparent edge shrank, and we publish that.</div>
         <div><b style="color:var(--ink)">Null control passed</b> — on de-meaned (random-walk) paths it shows
           <b>no</b> significant edge at any horizon: it does not manufacture alpha from noise</div>
         <div><b style="color:var(--ink)">GOAT gates G1–G6 pass</b> — bit-reproducible, this WASM build is

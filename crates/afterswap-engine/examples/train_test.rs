@@ -67,12 +67,26 @@ fn score(series: &[f64], window: usize, tranche: f64) -> (Vec<f64>, Vec<f64>, Ve
 }
 
 fn main() {
-    let assets = [
-        ("SOL/USDC", "data/reference/sol_usdc_1m.jsonl"),
-        ("BONK", "data/reference/bonk_1m.jsonl"),
-        ("WIF", "data/reference/wif_1m.jsonl"),
-        ("PEPE", "data/reference/pepe_1m.jsonl"),
-    ];
+    // Every reference series present, so adding an asset means dropping a
+    // file in — no cherry-picking a favourable subset.
+    let mut assets: Vec<(String, String)> = std::fs::read_dir("data/reference")
+        .map(|d| {
+            d.filter_map(Result::ok)
+                .map(|e| e.path().to_string_lossy().to_string())
+                .filter(|p| p.ends_with("_1m.jsonl"))
+                .map(|p| {
+                    let name = p
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or("?")
+                        .trim_end_matches("_1m.jsonl")
+                        .to_uppercase();
+                    (name, p)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    assets.sort();
 
     let mut md = String::from("# Train/test across time, on real bars\n\n");
     let _ = writeln!(
@@ -84,7 +98,9 @@ fn main() {
         "| asset | test windows | best on train | test vs TWAP | test vs trailing | test vs hold | baseline (24/10%) vs TWAP |\n|---|---|---|---|---|---|---|"
     );
 
-    for (name, path) in assets {
+    let mut agg_twap: Vec<f64> = Vec::new();
+    let mut agg_trail: Vec<f64> = Vec::new();
+    for (name, path) in &assets {
         let series = match load_corpus(path) {
             Ok(s) if s.len() > 5_000 => s,
             _ => continue,
@@ -108,12 +124,26 @@ fn main() {
         let (hm, hse) = stat(&hold_d);
         let (rm, rse) = stat(&trail_d);
         let (bm, bse) = stat(&base_twap);
+        agg_twap.push(tm);
+        agg_trail.push(rm);
         let _ = writeln!(
             md,
             "| {name} | {} | w{} / {:.0}% | {tm:+.0} ± {tse:.0} | {rm:+.0} ± {rse:.0} | {hm:+.0} ± {hse:.0} | {bm:+.0} ± {bse:.0} |",
             twap_d.len(),
             best.1,
             best.2 * 100.0
+        );
+    }
+
+    // Across-asset aggregate: the per-asset SEs describe window noise, this
+    // one asks whether the effect survives asset selection at all.
+    if agg_twap.len() >= 3 {
+        let (mt, set) = stat(&agg_twap);
+        let (mr, ser) = stat(&agg_trail);
+        let _ = writeln!(
+            md,
+            "\n## Across {} assets (SE over assets, not windows)\n\n- vs TWAP: **{mt:+.1} ± {set:.1} bps**\n- vs trailing stop: **{mr:+.1} ± {ser:.1} bps**\n\nEach asset contributes one number, so this asks whether the result survives\nasset selection rather than whether one asset's windows were lucky.\n",
+            agg_twap.len()
         );
     }
 
