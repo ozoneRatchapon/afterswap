@@ -12,6 +12,7 @@
 // derived here (on-curve check), so they are precomputed in pda_table.json.
 
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
+const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 const IX_COMMIT_POLICY = 0;
 
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -89,6 +90,10 @@ export interface CommitArgs {
   fingerprint: bigint;
   nStates: number;
   trancheBps: number;
+  /// Base64 SHA-256 digest of the DFlow-signed quote the caller verified.
+  /// Recorded in a memo instruction in the same transaction, so the policy
+  /// commitment is bound to a specific, signed price.
+  quoteDigest?: string | null;
 }
 
 /** Build and sign a CommitPolicy transaction; returns base64 for the
@@ -96,7 +101,12 @@ export interface CommitArgs {
 export async function commitPolicy(args: CommitArgs): Promise<string> {
   const blockhash = args.blockhash;
 
+  const memo =
+    args.quoteDigest && /^[A-Za-z0-9+/=]{20,64}$/.test(args.quoteDigest)
+      ? `afterswap:quote sha-256=${args.quoteDigest}`
+      : null;
   const keys = [args.owner, args.policyPda, SYSTEM_PROGRAM, args.programId];
+  if (memo) keys.push(MEMO_PROGRAM);
   const accountKeys = keys.map(b58decode);
 
   // instruction data: tag | position_id u64 | fingerprint u64 | n_states u8 | tranche u16
@@ -111,15 +121,22 @@ export async function commitPolicy(args: CommitArgs): Promise<string> {
   const message: number[] = [
     1, // numRequiredSignatures
     0, // numReadonlySigned
-    2, // numReadonlyUnsigned: system program + our program
+    // readonly-unsigned: system program, our program, and the memo program
+    memo ? 3 : 2,
     ...shortvec(accountKeys.length),
   ];
   for (const k of accountKeys) message.push(...k);
   message.push(...b58decode(blockhash));
-  message.push(...shortvec(1)); // one instruction
+  message.push(...shortvec(memo ? 2 : 1));
   message.push(3); // program id index (our program)
   message.push(...shortvec(3), 0, 1, 2); // account indexes: owner, policy, system
   message.push(...shortvec(data.length), ...data);
+  if (memo) {
+    const memoBytes = new TextEncoder().encode(memo);
+    message.push(4); // program id index (memo program)
+    message.push(...shortvec(0)); // memo takes no accounts
+    message.push(...shortvec(memoBytes.length), ...memoBytes);
+  }
   const messageBytes = Uint8Array.from(message);
 
   const key = await crypto.subtle.importKey(

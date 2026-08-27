@@ -72,6 +72,7 @@ export default {
         n_states?: unknown;
         tranche_bps?: unknown;
         blockhash?: unknown;
+        quote_digest?: unknown;
       };
       try {
         body = await request.json();
@@ -110,6 +111,8 @@ export default {
           fingerprint: BigInt("0x" + fpHex),
           nStates,
           trancheBps,
+          quoteDigest:
+            typeof body.quote_digest === "string" ? body.quote_digest : null,
         });
         return json({ signed_tx: signedTx, policy_pda: policyPda, cluster: "devnet" });
       } catch (e) {

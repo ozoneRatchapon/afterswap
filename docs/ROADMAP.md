@@ -350,6 +350,28 @@ times, a single-shot stop once) does not appear, because the engine often does
 not complete ten tranches in a window and the trailing stop often never fires.
 One more candidate explanation for the synthetic-vs-real gap, eliminated.
 
+## 7h. Verifiable exit chain ✅ SHIPPED (v4.2)
+
+Three cryptographic links, all live:
+
+1. **Signed quotes, verified client-side.** `x-sign-request: true` returns
+   RFC 9421 headers; the browser rebuilds the signature base, checks the
+   SHA-256 body digest and verifies ed25519 against DFlow's published key
+   (`EZKxYr7bb…`). Every quote, not a sample — measured at 0.055 ms, so the
+   sampling that an earlier version did bought 0.006% of a core in exchange
+   for the machines acting on unchecked prices. A quote that fails
+   verification is discarded.
+2. **Policy committed before the first sale** — the Pinocchio program on
+   devnet, unchanged.
+3. **Binding** — the commitment transaction carries
+   `afterswap:quote sha-256=<digest>` in a memo instruction beside the
+   commit, so the chain records *which signed quote* the policy was committed
+   against. Hand-rolled two-instruction transaction; no program change.
+
+What is still trust-me: the fill itself on mainnet carries no memo yet
+(needs the production API), and the demo's devnet commitments are signed by
+our throwaway key rather than the visitor's wallet.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);

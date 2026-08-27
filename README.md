@@ -53,12 +53,15 @@ compete for the right to scale you out.
    that takes your position commits its policy to devnet automatically, no
    wallet required — the signing key lives in the Worker, your browser only
    relays the transaction.
-5. **The price itself is verifiable, in your tab.** DFlow signs its API
-   responses (RFC 9421, ed25519); the demo checks the body digest *and* the
-   signature against DFlow's published key before the machines act on a quote.
-   Combined with the on-chain policy commitment, two of the three links in
-   "this fill followed a pre-committed policy at a price the venue really
-   offered" are now cryptographic rather than trust-me.
+5. **The whole chain is verifiable, and the last link closes on-chain.**
+   DFlow signs its API responses (RFC 9421, ed25519); **every** quote is
+   checked in your own tab — body digest *and* signature against DFlow's
+   published key — and a quote that fails verification is discarded rather
+   than traded on (measured cost: 0.055 ms, 0.006% of a core). The machine's
+   policy is then committed to Solana **bound to that exact signed quote**:
+   the commitment transaction carries `afterswap:quote sha-256=…` in a memo
+   beside it. So "this fill followed a policy committed in advance, at a price
+   the venue really offered" is three cryptographic facts, not a claim.
 6. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
