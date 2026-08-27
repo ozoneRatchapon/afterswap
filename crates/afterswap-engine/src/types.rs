@@ -44,6 +44,12 @@ pub struct EngineConfig {
     /// this multiple of volatility — "the market changed its mind, re-audition
     /// everyone now" instead of waiting out the refresh cadence. 0 = off.
     pub surprise_ratio: f64,
+    /// Off-policy credit assignment (roadmap: sample efficiency). At each
+    /// window boundary the seated arm gets its realized reward AND every
+    /// other arm is replayed on the same realized window and credited with
+    /// its counterfactual edge. ~24x more learning signal per unit time,
+    /// using replay machinery the tournament already pays for.
+    pub off_policy_credit: bool,
 }
 
 impl Default for EngineConfig {
@@ -63,6 +69,7 @@ impl Default for EngineConfig {
             evolve_candidates: 12,
             peak_drop_bps: 30.0,
             surprise_ratio: 1.2,
+            off_policy_credit: true,
         }
     }
 }

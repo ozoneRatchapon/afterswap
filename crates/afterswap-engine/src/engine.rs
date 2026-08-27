@@ -495,6 +495,12 @@ impl ExitEngine {
         Some(hits as f64 / PERTURBATIONS as f64)
     }
 
+    /// The open position, if any (cheap accessor — the shadow evaluator
+    /// needs the entry price without building a full snapshot).
+    pub fn position(&self) -> Option<&Position> {
+        self.position.as_ref()
+    }
+
     /// Export the learning artifacts (for localStorage / cross-session).
     pub fn export_learning(&self) -> LearningState {
         LearningState {
@@ -737,6 +743,34 @@ impl ExitEngine {
             let entry = self.realized.entry(bandit.strategy(arm).id()).or_insert((0.0, 0));
             entry.0 += reward_bps;
             entry.1 += 1;
+
+            // Off-policy credit: the realized window is equally informative
+            // about every arm that did NOT drive — replay each one on it and
+            // credit its counterfactual edge. Note the measures differ
+            // slightly (seated arm scores actual-vs-hold on the live
+            // position; others score a fresh replay), but both are
+            // "bps vs holding over this window", which is what UCB1 ranks.
+            if self.config.off_policy_credit {
+                let window = self.store.recent(self.config.window_len);
+                if window.len() >= 2 {
+                    for i in 0..bandit.num_arms() {
+                        if i == arm {
+                            continue;
+                        }
+                        let edge = replay_exit(
+                            bandit.strategy(i),
+                            &window,
+                            self.config.tranche_frac,
+                            self.config.peak_drop_bps,
+                        );
+                        let id = bandit.strategy(i).id();
+                        bandit.update(i, edge);
+                        let e = self.realized.entry(id).or_insert((0.0, 0));
+                        e.0 += edge;
+                        e.1 += 1;
+                    }
+                }
+            }
             self.completed_windows += 1;
             self.windows_since_refresh += 1;
             events.push(EngineEvent::WindowClosed {
