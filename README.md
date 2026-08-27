@@ -166,8 +166,10 @@ machines can't beat doing nothing, the number is red and we say so.
 ## Live soak
 
 Beyond backtests: a continuous live-quote soak with auto-reopened paper
-positions — cycle-by-cycle edges, win rate, and a measured
-negative-to-positive learning curve: [`docs/SOAK.md`](docs/SOAK.md).
+positions, 535 cycles. Result reported honestly — **no statistically
+significant live edge** (mean +0.10 bps, t = +0.36), a thin
+positive tilt in chop, a measurable weak spot in a fast rally, and an
+observable regime adaptation: [`docs/SOAK.md`](docs/SOAK.md).
 
 ## Roadmap
 
