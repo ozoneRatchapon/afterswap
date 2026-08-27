@@ -225,10 +225,22 @@ demo exit horizon is ~1 minute. Method: block-bootstrap bars from the
 - Caveat kept in the report: bootstrapping preserves only within-block
   autocorrelation, so it understates real longer-range structure.
 
-**Next from this:** parameters do not obviously transfer across horizons
-(window 24 / 10% tranches was tuned at demo scale) — scale window and
-tranche with bar duration, then re-run this sweep. That is the concrete
-performance lever this experiment exposed.
+**Follow-up ✅ RUN (v2.8, bench 015_params) — negative result, no change
+shipped.** Grid-searched window × tranche per horizon with an honest
+TRAIN/TEST seed split. On bootstrapped paths window 96 won everywhere with
+huge out-of-sample gains (+1917 bps at 2-min bars, >7 SE). On the **real**
+corpora it reversed: trend_down +38 → −103, v_shape +54 → −249. Shipping
+that tuning would have degraded the product.
+
+The lesson outranks the parameter: *a correct train/test split does not
+protect you when the data-generating process is wrong.* Block-bootstrapped
+paths have no structure above the block scale, so long windows are optimal
+there for the wrong reason. Out-of-**distribution** validation (real
+corpora) caught it. Demo parameters stand unchanged.
+
+**Real blocking dependency:** tuning for genuinely long horizons needs
+genuinely long *recorded* data. A 6-hour recorder at 4 s intervals is
+running to produce `data/recorded_long.jsonl`; the sweep re-runs on it.
 
 ## 8. Ops / trust hardening
 
