@@ -22,6 +22,7 @@
 //! audit procedure (§3.4) to it.
 
 pub mod attest;
+pub mod b64;
 pub mod canonical;
 pub mod chain;
 pub mod merkle;

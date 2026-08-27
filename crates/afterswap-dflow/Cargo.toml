@@ -6,6 +6,7 @@ license.workspace = true
 description = "DFlow Trading API client — quotes, orders, price polling; Solana signing behind the `live` feature"
 
 [dependencies]
+afterswap-rail = { path = "../afterswap-rail" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -21,3 +22,6 @@ base64 = { version = "0.22", optional = true }
 [features]
 default = []
 live = ["dep:solana-sdk", "dep:bincode", "dep:base64"]
+
+[dev-dependencies]
+sha2 = "0.10"

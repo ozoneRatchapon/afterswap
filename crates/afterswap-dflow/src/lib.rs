@@ -10,6 +10,7 @@ pub mod live;
 pub mod price;
 pub mod snapshot;
 pub mod types;
+pub mod venues;
 
 pub use client::{DEV_BASE, DflowClient, DflowError};
 pub use confirm::{ConfirmedFill, parse_confirmed};
@@ -18,3 +19,4 @@ pub use live::{LiveError, LiveExecutor};
 pub use price::{PricePoller, mints};
 pub use snapshot::{DepthProbe, Freshness, QuoteSnapshot};
 pub use types::{OrderResponse, QuoteRequest, QuoteResponse, RoutePlanStep};
+pub use venues::{CapturedQuote, capture_dflow, capture_jupiter, parse_jupiter};

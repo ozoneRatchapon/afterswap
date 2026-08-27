@@ -15,6 +15,12 @@ gap-reporting hash chain, RFC 6962-style Merkle (promote-odd, leaf/node
 domains), standalone `verify_record`. 22 tests; compiles native and
 wasm32-unknown-unknown, clippy-clean on both.
 
-Next action: R1 — shadow capture in `exec_ab`: N-venue arrival, `VenueQuote`
-conversion from `QuoteSnapshot`, decision rule + fingerprint on real cycles
-(paper mode, no capital).
+R1 ✅ SHIPPED 2026-08-28: `venues.rs` capture layer (DFlow raw+RFC 9421
+headers, Jupiter shadow with pinned live fixture), no-f64 boundary into
+`VenueQuote`, rule-v1 decision with the 2-slot desync guard, chain append with
+restart resume, `rail_verify` auditor tool. Dry run on live ticks: 21 records,
+chain verified, 21 provider-signed + 21 observed, slot gaps median 1 / max 1 —
+falsifier passed 21/21 within bound. Jupiter won the decision 11/21.
+
+Next action: R2 — Worker ingest + Sequencer DO + R2 segments + public reads
+(the 30 s publication path).

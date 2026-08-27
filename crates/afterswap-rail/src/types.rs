@@ -90,6 +90,28 @@ pub enum QuoteEvidence {
     },
 }
 
+impl QuoteEvidence {
+    /// Evidence for a venue that signs nothing: retain the body, digest it.
+    /// Encoding and digest live here so capture and verify cannot drift.
+    pub fn observed(body: &[u8]) -> Self {
+        use sha2::Digest as _;
+        Self::Observed {
+            body_b64: crate::b64::encode(body),
+            body_sha256: sha2::Sha256::digest(body).into(),
+        }
+    }
+
+    /// Evidence for an RFC 9421-signing venue: the signature headers plus the
+    /// digest of the body they cover.
+    pub fn provider_signed(sig_headers: String, body: &[u8]) -> Self {
+        use sha2::Digest as _;
+        Self::ProviderSigned {
+            sig_headers,
+            body_sha256: sha2::Sha256::digest(body).into(),
+        }
+    }
+}
+
 /// One venue's standing in the routing decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvaluatedVenue {

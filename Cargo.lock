@@ -48,12 +48,14 @@ dependencies = [
 name = "afterswap-dflow"
 version = "0.1.0"
 dependencies = [
+ "afterswap-rail",
  "base64 0.22.1",
  "bincode",
  "log",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "solana-sdk",
  "thiserror 2.0.20",
  "tokio",
@@ -101,11 +103,13 @@ version = "0.1.0"
 dependencies = [
  "afterswap-dflow",
  "afterswap-engine",
+ "afterswap-rail",
  "anyhow",
  "axum",
  "env_logger 0.11.11",
  "futures-core",
  "log",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",

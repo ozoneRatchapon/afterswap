@@ -62,6 +62,45 @@ impl DflowClient {
         }
     }
 
+    /// `GET /quote` with the raw body and response headers retained —
+    /// the capture path for audit evidence. Sends `x-sign-request: true`;
+    /// whether signature headers come back is the venue's choice and the
+    /// caller's evidence classification, not ours to assume.
+    pub async fn quote_raw(
+        &self,
+        req: &QuoteRequest,
+    ) -> Result<(Vec<(String, String)>, Vec<u8>), DflowError> {
+        let url = format!("{}/quote", self.base);
+        let mut r = self
+            .http
+            .get(url)
+            .header("x-sign-request", "true")
+            .query(&[
+                ("inputMint", req.input_mint.clone()),
+                ("outputMint", req.output_mint.clone()),
+                ("amount", req.amount.to_string()),
+                ("slippageBps", req.slippage_bps.to_string()),
+            ]);
+        if let Some(key) = &self.api_key {
+            r = r.header("x-api-key", key);
+        }
+        let resp = r.send().await?;
+        let status = resp.status();
+        let headers: Vec<(String, String)> = resp
+            .headers()
+            .iter()
+            .map(|(n, v)| (n.as_str().to_ascii_lowercase(), String::from_utf8_lossy(v.as_bytes()).into_owned()))
+            .collect();
+        let body = resp.bytes().await?.to_vec();
+        match status.is_success() {
+            true => Ok((headers, body)),
+            false => Err(DflowError::Api {
+                status: status.as_u16(),
+                body: String::from_utf8_lossy(&body).into_owned(),
+            }),
+        }
+    }
+
     /// `GET /quote` — imperative quote (no transaction).
     pub async fn quote(&self, req: &QuoteRequest) -> Result<QuoteResponse, DflowError> {
         self.get_json(

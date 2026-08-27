@@ -8,6 +8,8 @@ description = "AfterSwap dashboard server — axum + SSE over the exit engine"
 [dependencies]
 afterswap-engine = { path = "../afterswap-engine" }
 afterswap-dflow = { path = "../afterswap-dflow" }
+afterswap-rail = { path = "../afterswap-rail" }
+reqwest = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

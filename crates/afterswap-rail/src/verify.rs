@@ -36,29 +36,6 @@ fn rule_v1_choose(record: &AuditRecord) -> Result<&str, RailError> {
     best.map(|(v, _)| v).ok_or(RailError::Empty)
 }
 
-/// Base64 decode (standard alphabet, padded) without a dependency: the only
-/// use is re-hashing observed bodies, and pulling a crate in for one decoder
-/// would be the larger surface.
-fn b64_decode(s: &str) -> Option<Vec<u8>> {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = Vec::with_capacity(s.len() / 4 * 3);
-    let mut buf = 0u32;
-    let mut bits = 0u32;
-    for &c in s.as_bytes() {
-        if c == b'=' {
-            break;
-        }
-        let v = ALPHABET.iter().position(|&a| a == c)? as u32;
-        buf = (buf << 6) | v;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((buf >> bits) as u8);
-        }
-    }
-    Some(out)
-}
-
 /// Full standalone verification of one record.
 ///
 /// 1. attestation signature against `attest_public`
@@ -74,7 +51,7 @@ pub fn verify_record(record: &AuditRecord, attest_public: &[u8; 32]) -> Result<(
         parse_amount(&q.in_amount)?;
         parse_amount(&q.out_amount)?;
         if let QuoteEvidence::Observed { body_b64, body_sha256 } = &q.evidence {
-            let body = b64_decode(body_b64).ok_or_else(|| RailError::Evidence(q.venue.clone()))?;
+            let body = crate::b64::decode(body_b64).ok_or_else(|| RailError::Evidence(q.venue.clone()))?;
             let digest: [u8; 32] = Sha256::digest(&body).into();
             if digest != *body_sha256 {
                 return Err(RailError::Evidence(q.venue.clone()));

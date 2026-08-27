@@ -38,7 +38,16 @@ use std::time::Duration;
 
 use afterswap_dflow::{DflowClient, PricePoller, QuoteRequest, QuoteSnapshot};
 use afterswap_engine::execution::ExecutionCycle;
+use afterswap_rail::{
+    AttestKey, AuditRecord, EvaluatedVenue, RouteDecision, attest, link, rule_v1_fingerprint,
+};
 use log::{info, warn};
+
+/// Slot-gap bound for cross-venue comparison (spec §2.1). A shadow quote
+/// further than this from the primary is recorded as discovery evidence but
+/// excluded from the decision — desynchronised quotes must never be compared
+/// silently.
+const MAX_SHADOW_GAP_SLOTS: u64 = 2;
 
 /// Experiment settings. Everything here is fixed for the run.
 pub struct ExecConfig {
@@ -57,6 +66,12 @@ pub struct ExecConfig {
     pub notional: f64,
     /// Execution backend.
     pub executor: Executor,
+    /// When set, append an attested `AuditRecord` per cycle to this path —
+    /// the R1 rail: multi-venue arrival (DFlow primary + Jupiter shadow),
+    /// committed decision rule, hash chain.
+    pub rail_out: Option<PathBuf>,
+    /// Attestation key for rail records. Executor-held, never the Worker's.
+    pub attest_key: Option<AttestKey>,
     /// When set, take a second quote at this clip size to derive an executable
     /// depth spread.
     ///
@@ -150,6 +165,74 @@ impl Executor {
     }
 }
 
+/// Load the rail chain tip so a restarted run continues the chain instead of
+/// forking it. The whole record is needed — `link` hashes the predecessor as
+/// published, attestation included.
+fn load_rail_tip(path: &std::path::Path) -> Option<AuditRecord> {
+    let text = std::fs::read_to_string(path).ok()?;
+    text.lines().rev().find_map(|l| serde_json::from_str(l).ok())
+}
+
+/// Build this cycle's audit record from the captured venues.
+///
+/// The decision evaluates the shadow only when its slot sits within
+/// [`MAX_SHADOW_GAP_SLOTS`] of the primary — otherwise the shadow is present
+/// as discovery evidence and the decision degenerates to the primary alone,
+/// which still reproduces under rule v1. Paper fills never enter the record:
+/// a simulated fill in an audit trail would be the quote restated, the exact
+/// lie the rail exists to preclude.
+fn build_rail_record(
+    t_ms: u64,
+    instrument: &str,
+    primary: afterswap_rail::VenueQuote,
+    shadow: Option<afterswap_rail::VenueQuote>,
+) -> AuditRecord {
+    let mut quotes = vec![primary.clone()];
+    let mut evaluated = vec![EvaluatedVenue {
+        venue: primary.venue.clone(),
+        net_out: primary.out_amount.clone(),
+    }];
+    if let Some(sh) = shadow {
+        let in_bound = match (primary.context_slot, sh.context_slot) {
+            (Some(a), Some(b)) => a.abs_diff(b) <= MAX_SHADOW_GAP_SLOTS,
+            _ => false,
+        };
+        if in_bound {
+            evaluated.push(EvaluatedVenue {
+                venue: sh.venue.clone(),
+                net_out: sh.out_amount.clone(),
+            });
+        }
+        quotes.push(sh);
+    }
+    // Rule v1, computed exactly as `verify_record` recomputes it: strictly
+    // greater wins, ties to the first (the primary).
+    let mut chosen = &evaluated[0];
+    for e in &evaluated[1..] {
+        let (a, b) = (
+            e.net_out.parse::<u128>().unwrap_or(0),
+            chosen.net_out.parse::<u128>().unwrap_or(0),
+        );
+        if a > b {
+            chosen = e;
+        }
+    }
+    AuditRecord {
+        seq: 0,             // assigned by `link`
+        prev_hash: [0; 32], // assigned by `link`
+        t_ms,
+        instrument: instrument.to_string(),
+        quotes,
+        policy_fingerprint: rule_v1_fingerprint(),
+        decision: RouteDecision {
+            chosen_venue: chosen.venue.clone(),
+            evaluated: evaluated.clone(),
+        },
+        fill: None,
+        attestation: [0; 64],
+    }
+}
+
 /// Run the experiment, appending one `ExecutionCycle` per line.
 ///
 /// Returns the cycles recorded. Failures at any stage are logged and skipped —
@@ -157,7 +240,22 @@ impl Executor {
 /// failed one, and inventing a row for it would corrupt the sequence.
 pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
     let client = DflowClient::dev();
-    let poller = PricePoller::new(client, cfg.request.clone());
+    let poller = PricePoller::new(client.clone(), cfg.request.clone());
+    let jupiter_http = reqwest::Client::new();
+    let instrument = format!("{}/{}", &cfg.request.input_mint[..4], &cfg.request.output_mint[..4]);
+    let mut rail_writer = match &cfg.rail_out {
+        Some(p) => {
+            if let Some(d) = p.parent() {
+                std::fs::create_dir_all(d)?;
+            }
+            Some(std::fs::OpenOptions::new().create(true).append(true).open(p)?)
+        }
+        None => None,
+    };
+    let mut rail_tip: Option<AuditRecord> = cfg.rail_out.as_deref().and_then(load_rail_tip);
+    if let Some(t) = &rail_tip {
+        info!("rail: resuming chain at seq {}", t.seq);
+    }
     let mut out = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -195,6 +293,37 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
                 continue;
             }
         };
+
+        // Rail capture: primary with evidence headers + shadow, concurrent.
+        // Failures leave a seq gap in the chain — visible, per the spec.
+        if let (Some(w), Some(key)) = (rail_writer.as_mut(), cfg.attest_key.as_ref()) {
+            let captures = tokio::join!(
+                afterswap_dflow::capture_dflow(&client, &cfg.request),
+                afterswap_dflow::capture_jupiter(&jupiter_http, &cfg.request),
+            );
+            match captures {
+                (Ok(primary), shadow) => {
+                    let shadow_vq = match shadow {
+                        Ok(s) => Some(s.into_venue_quote(&cfg.request)),
+                        Err(e) => {
+                            warn!("cycle {cycle}: shadow quote failed (recording primary only): {e}");
+                            None
+                        }
+                    };
+                    let record = build_rail_record(
+                        now_ms(),
+                        &instrument,
+                        primary.into_venue_quote(&cfg.request),
+                        shadow_vq,
+                    );
+                    let record = attest(link(record, rail_tip.as_ref()), key);
+                    writeln!(w, "{}", serde_json::to_string(&record)?)?;
+                    w.flush()?;
+                    rail_tip = Some(record);
+                }
+                (Err(e), _) => warn!("cycle {cycle}: primary capture failed, no rail record: {e}"),
+            }
+        }
 
         let filled = cfg.executor.execute(&cfg.request, &submit).await;
         let record = ExecutionCycle {
@@ -323,8 +452,33 @@ pub async fn run_cli(args: &[String]) -> anyhow::Result<()> {
         sol_price: arg(args, "--sol-price").unwrap_or(100.0),
         notional: arg(args, "--notional").unwrap_or(1_000.0),
         executor,
+        rail_out: arg::<String>(args, "--rail-out").map(Into::into),
+        attest_key: match arg::<String>(args, "--attest-seed-hex") {
+            Some(hex) if hex.len() == 64 => {
+                let mut seed = [0u8; 32];
+                for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+                    seed[i] = u8::from_str_radix(std::str::from_utf8(chunk).unwrap_or("0"), 16)
+                        .unwrap_or(0);
+                }
+                Some(AttestKey::from_seed(seed))
+            }
+            Some(_) => anyhow::bail!("--attest-seed-hex must be 64 hex chars"),
+            // Dev seed: fine for a paper dry run, loudly not for production.
+            None => {
+                let key = AttestKey::from_seed([0xA5; 32]);
+                log::warn!(
+                    "rail: using the DEV attestation seed; records are attested by a public seed. \
+Pass --attest-seed-hex for anything that leaves this machine."
+                );
+                Some(key)
+            }
+        },
         probe_amount: arg(args, "--probe-amount"),
     };
+    if let Some(k) = &cfg.attest_key {
+        let hex: String = k.public().iter().map(|b| format!("{b:02x}")).collect();
+        log::info!("rail attestation pubkey: {hex}");
+    }
 
     let cycles = run(cfg).await?;
     let filled = cycles.iter().filter(|c| c.filled).count();
