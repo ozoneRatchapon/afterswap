@@ -684,3 +684,131 @@ If only three get researched: **I1** (what makes a series PBO-degenerate),
 **J1** (how to report a sub-floor PBO), **K1** (whether DPM is owed a build).
 The first two decide whether bench 024's headline holds; the third decides
 whether our pre-registration manifest is honest.
+
+# Round 3 answers received (2026-08-27)
+
+Third document, read the right way from the start: exported as `.docx`, all 116
+embedded images transcribed and substituted back into the prose before anything
+was acted on. It answers the round-3 questions by name — I1, I2, J1, K1, L1 —
+and it settles two of them against what we would have guessed.
+
+## K1 — do not build DPM. Prune the gate instead.
+
+Answered against building it. Our 1,054 machines are enumerated from one
+alphabet and evaluated on identical series, so their returns are densely
+cross-correlated (`ρ̄ → 1`), which "collapses the effective number of
+independent trials (`N_eff ≪ N`) and invalidates parametric EVT thresholds".
+DSR and DPM both rest on that EVT derivation. The directive is explicit:
+*standardise on Romano-Wolf stepdown for confirmatory FWER control; prune
+unused DPM gates from pre-registration manifests.*
+
+We already run Romano-Wolf (`stepdown.rs`). So the action is a deletion, not a
+build: **K3's worry resolves by removing the `DPM >= 0.95` gate from the
+manifest spec**, not by implementing it.
+
+## I1 — three named mechanisms for a degenerate PBO
+
+1. **Martingale / signal-to-noise deficit.** Where returns approximate a
+   martingale difference sequence, the true differential across all FSMs is
+   zero; in-sample optimisation selects realisation noise and out-of-sample
+   ranks centre on `ω_c = 0.50`.
+2. **Cross-sectional policy degeneracy.** Under jump-dominated price action or
+   coarse tick size, large subsets of machines execute identical trajectories.
+   The correlation eigenspectrum collapses onto one component
+   (`λ₁/Σλᵢ → 1`, `N_eff ≈ 1`) and rank assignment becomes unstable.
+3. **Regime non-stationarity.** Non-overlapping feature distributions across
+   blocks induce negative rank correlation between splits.
+
+Mechanism 2 is measurable from data we already hold — that was K2, and it is
+now the cheapest way to test which mechanism applies to FLOKI, JTO and PYTH.
+
+## I2 and J1 — and where our own bench disagrees
+
+The document says to **retain** the eight-asset finding: a degenerate PBO on a
+minority "indicates that the model alphabet contains no generalizable relative
+edge on those specific series, rather than invalidating findings on assets
+where low PBO is robustly maintained". For reporting, J1's answer is to quote
+sub-floor PBO "alongside stationary bootstrap confidence intervals".
+
+We built that (`benches/031_pbo_interval`) — and it does not support the
+partition the document tells us to retain. At 166 windows the intervals are
+0.29 to 0.72 wide; **zero of eleven assets** have an interval clearing the
+envelope of the four clean generalisers. FLOKI at 0.623 and SHIB at 0.075 are
+not distinguishable by this data.
+
+Both can be true — the document argues from the mechanism, our bench measures
+the precision — but the honest reading is that "three assets dissent" is a
+claim this sample cannot carry, however well-motivated the mechanism is.
+
+One further caveat is ours, not the document's: a stationary bootstrap over
+windows reintroduces duplicate rows, which can land on both sides of a CSCV
+split. That is the block-exchangeability violation the same document forbids
+for overlapping windows, arriving through the resampler. PEPE's point estimate
+falls outside its own interval, which is the bias showing. The widths are
+informative; the endpoints should not be quoted until a design without
+replacement is tried.
+
+## L1 — CUPED brings the CLMM margin inside reach
+
+Answered, and it changes the verdict. Using pre-trade pool volatility and order
+arrival imbalance as a control variate:
+
+```
+Y_CUPED = Y − θ(X − E[X]),   θ = Cov(Y, X) / Var(X)
+```
+
+compresses variance by `1 − ρ²_{Y,X}` — typically **30–50% in high-frequency
+crypto** — dropping the requirement for a +0.25 bps effect from 849 paired
+cycles to **N ≈ 420–590**. The CLMM net margin of +0.10 to +0.35 bps is
+therefore not permanently below our floor, which is what L1 asked.
+
+## E3 / F1 — "edge versus hold" was ill-conditioned, and here is the algebra
+
+New, and it supersedes our frictional-dominance reading. Decompose the selected
+candidate's out-of-sample return against the population median:
+
+```
+R_{i*,OOS} = D_t + Δ_{i*}
+             ↑     ↑ selection differential (+2.59 bps over median)
+             └ common drift, swings −52 → +28 bps
+```
+
+Every machine shares `D_t`, so the thing we were trying to measure sits inside
+a term two orders of magnitude noisier. Negative out-of-sample performance
+persisted even in zero-friction simulation (−6.35 bps), which the document
+reads as proof that this is **an ill-conditioned objective conflating market
+beta with execution efficiency**, not frictional dominance. Our own bench had
+already refuted the frictional-dominance diagnosis by test; this supplies the
+mechanism.
+
+## M2 — yes, commit the reconstructions
+
+Instructed directly: adoption requires "automated pre-ingestion visual asset
+audits, numeric continuity checks across table ranges, and committing
+reconstructed, lossless research documents directly into the repository's
+immutable research tree". Done — `docs/research/reconstructed/`.
+
+## Two corroborations and one conflict
+
+**The per-group convention, confirmed a third time.** This document states the
+unpaired column *per group*: 68,380 / 91,541 / 113,210 at δ = 0.10, exactly
+half of round one's 136,760 / 183,082 / 226,420 totals, and likewise at every
+other effect size. The reading `power.rs` was corrected to now has three
+independent sources agreeing.
+
+**The gross-spread range, confirmed.** `+20.0 to +27.0 bps` — the upper bound
+we reconstructed from prose after the table images truncated at the dash.
+
+**Conflict on the CLMM gross spread.** Round one says 0.3 bps on SOL/USDC;
+round two's table cell reads `0.2 –`; round three says `+0.8 to +1.2 bps`.
+Three documents, three numbers, and the net margin (+0.10 to +0.35) is
+identical in two of them — so at least one column does not add up. Unresolved,
+and a live instance of J2, which is still unanswered.
+
+## What is now actionable without further research
+
+- delete the `DPM >= 0.95` gate from the manifest spec (K1)
+- measure the eigenvalue concentration of the trial-statistic correlation
+  matrix (K2), which decides which I1 mechanism applies
+- implement CUPED and re-derive the sample requirement (L1)
+- redo bench 031 with subsampling without replacement, then quote endpoints

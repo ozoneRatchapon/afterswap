@@ -1,0 +1,167 @@
+P  Statistical Foundations, Epistemic Governance, and Execution Dynamics in Autonomous Quantitative Research Systems
+P  Inferential Protocols and Multiple Hypothesis Testing Under Strategy Enumeration
+P  When strategy search involves evaluating large candidate spaces—such as enumerating {N ~ 10^3} finite state machines across multiple historical partitions—standard per-comparison standard errors fail because the selection process itself inflates false discovery rates1. Evaluating multiple deterministic strategies over shared datasets requires inferential frameworks capable of distinguishing genuine market anomalies from selection-induced noise1.
+P  The historical evolution of multiple testing corrections in computational finance progresses from omnibus null hypothesis tests to stepwise familywise error rate (FWER) controls and non-parametric combinatorial resampling1. White’s Reality Check implements a stationary bootstrap to test whether the best performing strategy in a candidate pool outperforms a benchmark1. However, White’s test incorporates the entire candidate distribution into the composite null, allowing severely underperforming strategies to artificially inflate critical values and diminish statistical power6. Hansen’s Superior Predictive Ability (SPA) test resolves this conservative bias by studentizing the test statistics and selectively re-centering the bootstrap distribution exclusively around candidate models with non-negative sample means1.
+== TABLE START ==
+R | Inferential Framework | Primary Null Hypothesis (H0​) | Treatment of Candidate Dependencies | Operational Methodology | Sample Floor (T) | Primary Methodological Limitation
+R | White's Reality Check (2000) | {max_{k=1..N} E[f_k] <=} | Block bootstrap preserves empirical covariance6 | Omnibus bootstrap evaluation6 | {T >=} | Severe power loss when search space contains poor models6.
+R | Hansen's SPA (2005) | {max_{k=1..N} E[f_k] <=} | Studentized bootstrap with selective re-centering6 | Omnibus bootstrap evaluation6 | {T >=} | Identifies universe outperformance without isolating active strategies6.
+R | Romano–Wolf Stepdown (2005) | Stepwise testing for each strategy {k} | Preserves joint dependence structure via bootstrap resampling1 | Stepwise FWER controlling algorithm1 | {T >=} | High computational cost ({B *} resamples)7.
+R | Deflated Sharpe Ratio (2014) | {E[SR] <=} | Parameterized through trial variance {sigma^2_SR} [cite: 2, 8, 9] | Parametric Extreme Value Theory screen2 | {T >=} | Understates false discoveries when candidate paths correlate heavily ({rho_bar ->})10.
+R | CSCV / PBO (2014) | Out-of-sample relative rank is uniform on {[0,1]} [cite: 4, 5] | Preserves cross-sectional structure via combinatorial splits4 | Non-parametric selection audit4 | {T >=} ({S =}) | Degenerates to {PBO ~} under sample starvation or zero variance4.
+== TABLE END ==
+P  The Deflated Sharpe Ratio (DSR) computes the probability that an observed Sharpe ratio reflects genuine skill after adjusting for sample length {T}, return non-normality (skewness {gamma_3}, kurtosis {gamma_4}), and the variance of Sharpe ratios across {N} trials {sigma^2_SR}2. Under independent Gaussian trials, the expected maximum Sharpe ratio under the null hypothesis is approximated via Extreme Value Theory (EVT)8:
+P  {E[max_{n=1..N} SR_n] ~ sqrt(sigma^2_SR)((1-gamma)Phi^-1(1-1/N) + gamma*Phi^-1(1-1/(Ne)))}
+P  where {gamma ~ 0.57721566} is the Euler–Mascheroni constant and {Phi} is the standard normal cumulative distribution function8. Although DSR operates efficiently as an in-line parametric screening filter during search, its EVT derivation assumes independent or weakly dependent trials10. When the strategy space consists of finite state machines evaluated across identical market series, strategy returns exhibit high cross-correlation ({rho_bar ->}), which collapses the effective number of independent trials ({N_eff << N}) and invalidates parametric EVT thresholds4.
+P  Under dense cross-correlation, the Romano–Wolf stepdown procedure (StepM) provides an exact confirmatory standard1. By studentizing test statistics and constructing resampling-based joint null distributions that preserve empirical cross-dependencies, Romano–Wolf controls the familywise error rate without requiring parametric assumptions regarding trial independence1.
+P  Combinatorially Symmetric Cross-Validation and Microstructure Invariance
+P  Combinatorially Symmetric Cross-Validation (CSCV) evaluates the probability that an empirical selection mechanism selects an overfitted model4. Given a {T x N} matrix of performance observations across {N} candidate configurations and {T} time periods, the timeline is partitioned into an even number of continuous blocks {S}5. The framework generates all {C(S, S/2)} combinations of training and testing sets by assigning {S/2} blocks to in-sample evaluation and the remaining {S/2} blocks to out-of-sample evaluation5.
+P  For each split {c}, the candidate achieving the highest in-sample metric {n* = argmax_n Metric(IS_c)} is evaluated on the out-of-sample partition, yielding a relative rank {omega_c in (0,1)}5. The Probability of Backtest Overfitting (PBO) represents the proportion of combinatorial splits where the in-sample winner performs below the median out-of-sample alternative ({omega_c <= 0.5}, corresponding to logit {lambda_c <= 0})5:
+P  {PBO = (1/C(S,S/2)) sum_{c=1}^{C(S,S/2)} 1(lambda_c <= 0),  lambda_c = ln(omega_c/(1-omega_c))}
+P  Partition Sizing and Boundary Admissibility
+P  The partition parameter {S} governs the trade-off between combinatorial diversity and within-slice statistical power5. Selecting {S = 10} yields {C(10,5) = 252} combinations, whereas {S = 16} generates {C(16,8) = 12,870} combinations11. When historical observations are constrained ({T < 400}), configuring {S = 16} reduces individual slice lengths ({T/S < 25}), causing within-block estimation variance to dominate the signal5. This slice starvation forces in-sample selection to pick estimation noise, driving relative out-of-sample ranks toward a uniform distribution {U(0,1)} and inflating PBO toward 0.50 regardless of true underlying strategy quality4.
+P  Overlapping rolling windows are inadmissible within CSCV16. Overlapping observations introduce moving-average serial dependencies across adjacent matrix rows, violating block exchangeability and artificially depressing out-of-sample rank variance16. To maintain structural validity, CSCV requires disjoint partitions separated by an embargo period {h} that exceeds the serial autocorrelation horizon of the underlying trading signals16.
+P  Microstructure Properties Driving PBO Degeneracy
+P  When evaluating strategy populations across token series under identical parameters ({S = 10, N = 1,054, T = 166}), structural divergence frequently emerges: liquid ecosystem assets (e.g., JUP, ORCA, RAY) demonstrate low PBO ({0.05-0.28}), whereas specific volatile assets (e.g., FLOKI, JTO, PYTH) exhibit degenerate PBO values ({0.52-0.65}) invariant to {S in {6, 8, 10, 12, 16}}.
+P  This divergence reflects differences in the underlying data-generating processes across market microstructure regimes:
+P  Martingale Property and Signal-to-Noise Deficit: On series where return innovations approximate a martingale difference sequence with near-zero serial correlation, the true performance differential across all FSMs is zero19. Under a true global null, in-sample optimization selects positive realization noise, resulting in an out-of-sample rank distribution centered at {omega_c = 0.50} ({PBO ~})4.
+P  Cross-Sectional Policy Degeneracy: When price action is dominated by jump processes or extreme tick-size coarseness, large subsets of the candidate machines execute identical trade trajectories. The correlation matrix eigenvalue spectrum becomes dominated by a single principal component ({lambda_1 / sum lambda_i -> 1}), reducing the effective number of strategies to {N_eff ~ 1}4. Under near-zero cross-sectional variance, rank assignment across splits becomes unstable.
+P  Regime Non-Stationarity: Assets experiencing rapid structural transitions between hyper-volatility and illiquid regimes present non-overlapping feature distributions across CSCV blocks2. A strategy optimized on low-volatility blocks fails on high-volatility test blocks, inducing negative rank correlation across splits2.
+P  A degenerate PBO ({~ 0.50}) on a minority of assets indicates that the model alphabet contains no generalizable relative edge on those specific series, rather than invalidating findings on assets where low PBO is robustly maintained4.
+P  Signal-Drift Decomposition and Objective Function Conditioning
+P  Quantitative investigations frequently encounter scenarios where strategy rankings generalize across out-of-sample partitions while absolute profitability collapses4. When evaluating gross out-of-sample returns across disjoint test windows, selected strategies can display negative absolute performance despite maintaining top-decile relative ranking4.
+P  This dynamic is explained by decomposing the realized out-of-sample return {R_{i*,OOS}} for the selected candidate {i*} against the population median:
+P  {R_{i*,OOS} = [Median_{i in 1..N}(R_{i,OOS}) = common drift term D_t] + [(R_{i*,OOS} - Median_{i in 1..N}(R_{i,OOS})) = selection differential Delta_{i*}]}
+P  The common drift term {D_t} is an exogenous market artifact reflecting whether the underlying token appreciated or depreciated across the evaluation window22. In unhedged directional evaluations ("edge versus hold"), {D_t} exhibits extreme variance across windows (e.g., swinging from {-52} bps to {+28} bps). Because all candidate machines share this exposure, the selection differential {Delta_{i*}} (+2.59 bps over median) is masked by the variance of {D_t}.
+P  Evaluating directional FSMs against passive hold structures introduces an unhedged drift term that inflates standard errors23. The persistence of negative out-of-sample performance in zero-friction simulations (e.g., {-6.35} bps) demonstrates that this issue is not merely frictional dominance, but rather an ill-conditioned objective function that conflates market beta with execution efficiency23. Resolving this requires shifting from unhedged hold comparisons to benchmark-neutral and arrival-price execution objectives23.
+P  Pre-Flight Power Gating and Variance Reduction Frameworks
+P  Executing backtests or live evaluation soaks without pre-experimental power calculations introduces experimental fragility13. An experiment that lacks statistical power cannot reject the null hypothesis, converting negative outcomes into uninformative computational expenditure13.
+P  The standard error structure for paired versus unpaired experimental designs dictates sample size requirements. For a two-tailed paired difference test with significance level {alpha = 0.05} ({z_{1-a/2} = 1.96}) and target power {1-beta = 0.80} ({z_{1-beta} = 0.8416}), the required number of paired execution cycles {N_paired} to detect a true effect size {Delta} at standard deviation {sigma_d} is:
+P  {N_paired = (z_{1-a/2}+z_{1-b})^2 sigma_d^2 / Delta^2 ~ 7.8488 sigma_d^2 / Delta^2}
+P  For an unpaired two-sample comparison assuming equal sample sizes and variance {sigma^2} per group, the required sample size per group {N_group} (total sample {N_total = 2 * N_group}) is:
+P  {N_group = 2(z_{1-a/2}+z_{1-b})^2 sigma^2 / Delta^2 ~ 15.6976 sigma^2 / Delta^2}
+== TABLE START ==
+R | Target Effect Size (Δ) | Design Architecture | Standard Deviation (σ) | N (80% Power) | N (90% Power) | N (95% Power) | Achieved Power (N=534)
+R | 0.10 bps | Paired | {sigma_d = 2.6 bps} | 5,306 cycles | 7,104 cycles | 8,785 cycles | 14.20%
+R | 0.10 bps | Unpaired | {sigma = 6.6 bps} | 68,380 / group | 91,541 / group | 113,210 / group | 4.34%
+R | 0.25 bps | Paired | {sigma_d = 2.6 bps} | 849 cycles | 1,137 cycles | 1,406 cycles | 60.33%
+R | 0.25 bps | Unpaired | {sigma = 6.6 bps} | 10,941 / group | 14,647 / group | 18,114 / group | 9.00%
+R | 0.50 bps | Paired | {sigma_d = 2.6 bps} | 213 cycles | 285 cycles | 352 cycles | 99.35%
+R | 0.50 bps | Unpaired | {sigma = 6.6 bps} | 2,736 / group | 3,662 / group | 4,529 / group | 23.51%
+R | 1.00 bps | Paired | {sigma_d = 2.6 bps} | 54 cycles | 72 cycles | 88 cycles | 100.00%
+R | 1.00 bps | Unpaired | {sigma = 6.6 bps} | 684 / group | 916 / group | 1,133 / group | 69.70%
+R | 2.00 bps | Paired | {sigma_d = 2.6 bps} | 14 cycles | 18 cycles | 22 cycles | 100.00%
+R | 2.00 bps | Unpaired | {sigma = 6.6 bps} | 171 / group | 229 / group | 284 / group | 99.86%
+== TABLE END ==
+P  At {Delta = 0.25} bps, an unpaired trial with {N = 534} cycles achieves only 9.00% statistical power24. A research pipeline must enforce a strict pre-flight power gate: if the available sample size cannot achieve {1-beta >= 0.80} for the target Minimum Detectable Effect (MDE), the execution harness must refuse execution.
+P  To detect sub-basis-point margins ({+0.10 to +0.35} bps) without requiring prohibitive sample sizes ({N > 5,000}), Controlled-experiment Using Pre-Experiment Data (CUPED) utilizes pre-trade pool volatility and order arrival imbalance {X} as a control variate24:
+P  {Y_CUPED = Y - theta(X - E[X]),  theta = Cov(Y,X)/Var(X)}
+P  This transformation compresses metric variance {sigma^2_d} by a factor of {1 - rho^2_{Y,X}} (typically achieving a {30%-50%} reduction in high-frequency crypto environments), reducing required sample cycles to {N ~ 420-590} for a {+0.25} bps effect25.
+P  Optimal Execution Theory and Decentralized Microstructure Realities
+P  High-frequency order flow analyses show that directional lead-lag predictability in liquid cryptocurrency pairs decays within {50-500} milliseconds27. Consequently, technical indicators or FSM logic operating across 1-minute aggregations capture noise rather than directional predictive alpha28. Minute-horizon exit timing strategies fail to generate positive returns because gross edges cannot overcome structural execution frictions4.
+P  Reformulating the Execution Objective
+P  Rather than predicting directional price path movement, optimal execution theory minimizes Implementation Shortfall ({IS}) under explicit price impact and volatility risk constraints30. In an Almgren–Chriss framework adapted for Constant Function Market Makers (CFMM) and Concentrated Liquidity Market Makers (CLMM), the objective minimizes the expectation and variance of execution costs30:
+P  {min_pi E[IS(pi)] + lambda Var[IS(pi)]}
+P  {IS(pi) = sum_{k=1}^K n_k (P_0 - P_tilde_k) = sum n_k (P_0 - P_k) + sum n_k g(n_k/tau_k) + Fees}
+P  where {P_0} represents the pre-trade arrival price, {n_k} denotes the sub-order clip size executed at step {k}, and {g(.)} models temporary liquidity displacement parameterized by pool reserves30. When evaluated against arrival price, heuristic FSMs that claim variance reduction often do so merely by liquidating positions faster; when compared against a speed-matched Time-Weighted Average Price (TWAP) baseline, their apparent advantage vanishes (standard deviation ratio 1.12, significant on 0 of 11 assets).
+P  Economics of Solana Aggregation and Route Feasibility
+P  The viability of routing algorithms depends on whether gross structural disparities between pool configurations exceed total execution frictions27. On fragmented constant-product pools (CPMM), depth probing reveals gross clip-size pricing variations of up to {27.0} bps. However, the net margin identity reveals that this gross edge is negative on public routes:
+P  {Margin_net = Spread_gross - (Fee_pool + Tip_priority + Drift_latency + Fee_L1)}
+== TABLE START ==
+R | Execution Component | Long-Tail CPMM Routes (e.g., BONK) | Liquid CLMM Majors (e.g., SOL/USDC)
+R | Gross Spread ({Spread_gross}) | {+20.0 to +27.0 bps} | {+0.8 to +1.2 bps}
+R | Liquidity Pool Fee ({Fee_pool}) | {-25.0 to -30.0 bps} | {-0.05 to -0.10 bps}
+R | Validator Priority Tip ({Tip_priority}) | {-10.0 to -15.0 bps} | {-0.20 to -0.40 bps}
+R | Latency Drift ({Drift_latency}) | {-5.0 to -8.0 bps} | {-0.10 to -0.30 bps}
+R | Layer 1 Base Fee ({Fee_L1}) | {-0.2 to -0.5 bps} | {-0.01 to -0.05 bps}
+R | Net Realized Margin | {-13.2 to -26.5 bps} | {+0.10 to +0.35 bps}
+== TABLE END ==
+P  On CPMM pools, the pool fee alone ({25.0} bps) consumes the gross spread34. On liquid CLMM pools, net margins are positive ({+0.10 to +0.35} bps), but fall below the detection floor of small-sample live experiments24.
+P  Epistemic Governance and Provenance Architecture
+P  Autonomous research agents operating continuous experimental loops are susceptible to systemic failure modes that produce an illusion of progress while fitting noise2. Establishing rigorous governance requires formal architectural controls over code execution, statistical gating, and vocabulary standards2.
+P  Systematic Degradation Modes in Autonomous Loops
+P  Continuous research systems exhibit four primary degradation patterns:
+P  Harness Overfitting (Goodhart Drift): Optimization logic exploits simulator simplifications—such as zero-slippage assumptions, missing transaction serialization delays, or unmodeled fee tiers—generating strategies that maximize backtest metrics by exploiting environment bugs2.
+P  Localized Context Entrapment: The agent attempts to optimize sub-parameters within a flawed premise without checking the validity of the premise itself35. In human oversight, Socratic questioning targeting high-level assumptions delivers higher marginal return on investment than imperative task assignment or line-by-line diff reviews35.
+P  Epistemic Debt Accumulation: As negative findings accumulate, downstream logic continues to build upon components whose foundational assumptions have been refuted, due to the absence of automated dependency deprecation2.
+P  Metric Drift: Success criteria are relaxed across successive benches to maintain positive reporting, converting confirmatory benchmarks into exploratory exercises2.
+P  Evidence Ladder and Lexical Governance
+P  To ensure empirical claims correspond directly to verification rigor, documentation must be gated by AST-level lexical linters that enforce an Evidence Ladder2.
+== TABLE START ==
+R | Evidence Tier | Minimum Statistical Requirement | Prohibited Terminology | Permitted Terminology
+R | Tier 1: Observational | Single-window correlation; unvalidated backtest3 | "Proven", "Alpha", "Superior", "Edge", "Robust" | "Observed", "Correlated", "Sample association"
+R | Tier 2: In-Sample Significant | {t >=}, {p <=} (Uncorrected, paired)3 | "Generalizable", "Deployed", "Immune", "Causal" | "In-sample significant", "Uncorrected separation"
+R | Tier 3: Multiplicity-Corrected | Romano–Wolf adjusted {p <=} AND {PBO <=} ({S =})4 | "Guaranteed", "Invariant across regimes", "Zero-risk" | "Multiplicity-robust", "Out-of-sample stable"
+R | Tier 4: Out-of-Sample Causal | Forward walk-forward soak ({N >=}) with null control3 | "Permanently solved", "Risk-free arbitrage" | "Verified execution edge", "Causal outperformance"
+== TABLE END ==
+P  Pre-Registration Manifests and Ingestion Audits
+P  To prevent post-hoc rationalization, experiments must be committed via content-addressed SHA-256 pre-registration manifests prior to data ingestion2. These manifests specify target venues, candidate space dimensions, RNG seeds, primary evaluation metrics, minimum sample power gates, embargo horizons, and split boundaries3.
+P  When ingesting external research, systems must guard against silent data loss caused by unparsed embedded assets (e.g., formulas or numeric table cells rendered as images)24. A rigorous adoption protocol requires automated pre-ingestion visual asset audits, numeric continuity checks across table ranges, and committing reconstructed, lossless research documents directly into the repository's immutable research tree.
+P  Furthermore, constraints encountered during infrastructure engineering fall into two categories:
+P  Design Gifts: Architectural constraints that enforce domain alignment—such as offloading heavy compute to client environments or enforcing trust-minimized verification—improve product scalability and security.
+P  Engineering Taxes: Workarounds that reimplement standard runtime primitives (such as hand-rolled cryptographic signing or manual account derivation) consume engineering time without adding product differentiation; these should be replaced with robust infrastructure dependencies.
+P  Regulatory Compliance and Commercial Strategy Under MiCA Article 78
+P  The European Union’s Markets in Crypto-Assets Regulation (MiCA), specifically Article 78, imposes institutional best execution standards on Crypto-Asset Service Providers (CASPs)38. These requirements transform trade verification from an internal diagnostic into a regulatory necessity38.
+P  Article 78 obliges CASPs executing orders to take all necessary steps to obtain the best possible result for their clients, accounting for price, costs, speed, likelihood of execution, and size38. The regulatory technical standards mandate three primary operational capabilities:
+P  Prohibition of Single-Broker Reliance: CASPs cannot rely on a single execution venue or broker without continuous multi-venue price discovery38.
+P  High-Frequency Publication: Pre- and post-trade execution data must be published within 30 seconds of execution, compared to the 60-second standard under MiFID II40.
+P  Immutable 5-Year Record-Keeping: CASPs must maintain complete, tamper-proof audit trails verifying all order parameters, routing logic, fees, and latency profiles40.
+P  Because gross execution margins on long-tail retail DEX routes are negative ({-13.2 to -26.5} bps) and liquid CLMM margins are razor-thin ({+0.10 to +0.35} bps), positioning an execution engine primarily as an "alpha-generating trading system" is commercially fragile27. Instead, the commercial value lies in delivering a Verifiable Best Execution Compliance Primitive38. By packaging a cryptographically verifiable execution pipeline (signed quote {->} on-chain policy commitment {->} verified settlement fill), the platform provides regulated CASPs, institutional allocators, and ETF market makers with provable compliance artifacts that confirm trades were executed optimally without broker internalization conflicts38.
+P  Synthesis of Epistemic Directives and Operational Protocols
+P  The methodological, empirical, and architectural findings across the research program establish a set of operational protocols:
+== TABLE START ==
+R | Strategic Area | Core Finding / Incident | Operational Directive
+R | Multiple Testing (A1, K1) | High candidate cross-correlation ({rho_bar ->}) causes DSR/DPM to underestimate false discovery10. | Standardize on Romano–Wolf stepdown for confirmatory FWER control; prune unused DPM gates from pre-registration manifests1.
+R | Power Rules (A2, L1) | Unpaired designs impose a 25-fold sample size penalty; sub-bps effects require large sample sizes24. | Enforce mandatory pre-flight power gates ({1-beta >=}); deploy CUPED variance reduction to lower required cycles by {30%-50%}24.
+R | PBO Evaluation (I1, I2, J1) | Volatile assets return {PBO ~} due to martingale return dynamics and policy degeneracy4. | Retain the 8-asset generalization finding; report sub-floor PBO estimates ({T <}) alongside stationary bootstrap confidence intervals4.
+R | Objective Design (E3, F1) | "Edge versus hold" is ill-conditioned due to unhedged market drift {D_t}23. | Abandon directional exit timing; formulate execution as Almgren–Chriss implementation shortfall relative to arrival price23.
+R | Microstructure Focus (F3, L2) | Minute-horizon lead-lag alpha is fully decayed within {50-500} ms27. | Shift strategy search to non-discretionary liquidity horizons: lending liquidation cascades ({500-1,000} bps penalty) and perpetual funding snapshot imbalances27.
+R | Governance & Provenance (B1–C3) | Data-hygiene errors and silent document parsing failures invalidate downstream benches2. | Run benchmarks from pinned binaries; enforce multi-tier Evidence Ladder linters; commit lossless reconstructed research records2.
+R | Commercial Strategy (D3, H1, L3) | Public retail DEX routing yields negative net margins ({-13.2} bps on BONK)34. | Commercialize the signed quote {->} policy commitment {->} fill chain as an institutional MiCA Article 78 best execution compliance primitive38.
+== TABLE END ==
+P  Works cited
+P  The GT-Score: A Robust Objective Function for Reducing Overfitting, https://arxiv.org/pdf/2602.00080
+P  Correcting for Selection Bias, Backtest Overfitting and Non-Normality, https://www.researchgate.net/publication/324663771_The_Deflated_Sharpe_Ratio_Correcting_for_Selection_Bias_Backtest_Overfitting_and_Non-Normality
+P  AlgoXpert Alpha Research Framework: A Rigorous IS–WFA–OOS, https://arxiv.org/html/2603.09219v1
+P  The probability of backtest overfitting | Request PDF - ResearchGate, https://www.researchgate.net/publication/318600389_The_probability_of_backtest_overfitting
+P  Probability of Backtest Overfitting - LuxAlgo, https://www.luxalgo.com/library/concept/probability-of-backtest-overfitting/
+P  A Test for Superior Predictive Ability | Request PDF - ResearchGate, https://www.researchgate.net/publication/4724332_A_Test_for_Superior_Predictive_Ability
+P  Statistical Finance - quantpylib, https://quantpylib.hangukquant.com/learn/statistical_finance/
+P  Deflating the Sharpe Ratio Explained | PDF | Normal Distribution, https://www.scribd.com/document/964069186/Deflating-the-Sharpe-Ratio
+P  Deflated Sharpe Ratio: Formula, Intuition, and a Worked Example, https://quanterlab.com/articles/foundations-dsr
+P  The Effects of Reality on the Deflated Sharpe Ratio., http://www.sharperat.io/do-not-deflate-I.html
+P  The Probability of Backtest Overfitting (PBO) | by Liana Ling - Medium, https://medium.com/balaena-quant-insights/the-probability-of-backtest-overfitting-pbo-9ba0ac7fb456
+P  Deflated Sharpe Ratio (how to avoid been fooled by randomness), https://quantdare.com/deflated-sharpe-ratio-how-to-avoid-been-fooled-by-randomness/
+P  Proper Use of the Sharpe Ratio - Scribd, https://www.scribd.com/document/941095458/How-to-Use-the-Sharpe-Ratio
+P  Luck or Edge? The MinervaScore as a Statistical Robustness Grade, https://arxiv.org/pdf/2608.23808
+P  GitHub - mrbcuda/pbo: Probability of Backtest Overfitting, https://github.com/mrbcuda/pbo
+P  How to Interpret Backtest Overfitting Metrics | Viprasol, https://viprasol.com/blog/backtest-overfitting-metrics-guide/
+P  Discussing the article: "Unified Validation Pipeline Against Backtest, https://www.mql5.com/en/forum/506840
+P  A Season-Structured Validation and Governance Architecture for, https://www.preprints.org/manuscript/202608.0004
+P  (PDF) Stock Return Predictability and the Adaptive Markets Hypothesis, https://www.researchgate.net/publication/257377729_Stock_Return_Predictability_and_the_Adaptive_Markets_Hypothesis_Evidence_from_Century_Long_US_Data
+P  Adjusting multiple testing in multilocus analyses using the, https://www.researchgate.net/publication/7681588_Adjusting_multiple_testing_in_multilocus_analyses_using_the_eigenvalues_of_a_correlation_matrix
+P  A Rigorous Walk-Forward Validation Framework for Market ... - arXiv, https://arxiv.org/html/2512.12924v1
+P  Fixed Deep Residual Networks with Multi-Objective Proximal Policy, https://www.researchgate.net/publication/411906536_Fixed_Deep_Residual_Networks_with_Multi-Objective_Proximal_Policy_Optimization_for_Adaptive_Trading
+P  (PDF) Forecast-to-Fill: Benchmark-Neutral Alpha and Billion-Dollar, https://www.researchgate.net/publication/397522459_Forecast-to-Fill_Benchmark-Neutral_Alpha_and_Billion-Dollar_Capacity_in_Gold_Futures_2015-2025
+P  unknown_url
+P  A/B Testing in Data Science: A 2026 Practitioner's Guide - Stellar, https://gostellar.app/blog/ab-testing-in-data-science-a-2026-practitioners-guide
+P  What Is A/B Testing? A Complete Guide for Product and Engineering, https://www.growthbook.io/blog/what-is-a-b-testing
+P  Jupiter Ultra V3: A Technical and Strategic Analysis of the End-to, https://medium.com/@ayushkmrjha/jupiter-ultra-v3-a-technical-and-strategic-analysis-of-the-end-to-end-trading-engine-0a61e9f244df
+P  What am I missing? : r/algotrading - Reddit, https://www.reddit.com/r/algotrading/comments/1s0xduq/what_am_i_missing/
+P  Informed Trading in Cryptocurrency Markets Текст научной статьи, https://cyberleninka.ru/article/n/informed-trading-in-cryptocurrency-markets
+P  Building a Swapper That Quotes Faster Than the Market Moves, https://phantom.com/learn/blog/building-a-swapper-that-quotes-faster-than-the-market-moves
+P  Optimal Routing for Constant Function Market Makers - ResearchGate, https://www.researchgate.net/publication/361999279_Optimal_Routing_for_Constant_Function_Market_Makers
+P  Optimal execution on Uniswap v2/v3 under transient price impact, https://arxiv.org/pdf/2601.03799
+P  Reinforcement Learning for Execution under Dynamic Fees ... - arXiv, https://arxiv.org/html/2607.10960v1
+P  What Is Titan? The Meta DEX Aggregator Powering Solana DeFi, https://learn.backpack.exchange/articles/what-is-titan-aggregator-solana
+P  Interactive Questioning Processes - Emergent Mind, https://www.emergentmind.com/topics/interactive-questioning-processes
+P  Human Oversight, Real Learning, and the Future of AI Tutors in, https://www.victoryxr.com/human-oversight-real-learning-and-the-future-of-ai-tutors-in-education/
+P  The Dangers of Backtesting | RiskLab AI, https://www.risklab.ai/research/backtesting/backtesting
+P  What Institutions Will Need for MiCA's Best Execution Obligation, https://www.talos.com/insights/tools-of-the-trade-what-institutions-will-need-for-micas-best-execution-obligation
+P  Best Execution Policy - Aplo, https://www.aplo.io/micar/best-execution-policy/
+P  Decoding MiCA's Best Execution: Is a Single Broker Policy Still, https://www.wyden.io/intelligence/decoding-micas-best-execution-requirements-is-a-single-broker-policy-still-compliant/
+P  MiCA regulation | Markets in crypto-assets - Springlex, https://www.springlex.eu/en/packages/mica/mica-regulation/
+P  MiCA Compliance | Reporting & Audit | Attestra, https://mica-compliance.guru/
+P  MiCA - Elvinger Hoss, https://elvingerhoss.lu/sites/default/files/upload/media/document/2025-09/Brochure%20MiCA.September%202025.pdf
+P  Towards Autonomous Formulaic Alpha Discovery: An Evolutionary, https://www.researchgate.net/publication/411180786_Towards_Autonomous_Formulaic_Alpha_Discovery_An_Evolutionary_Computation_Perspective
+P  What Are the Top 7 Solana DEXs to Trade in 2026? - BingX, https://bingx.com/en/learn/article/what-are-the-top-solana-decentralized-exchanges-dexs
