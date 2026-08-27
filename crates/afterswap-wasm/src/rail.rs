@@ -98,3 +98,27 @@ pub fn rail_merkle_proof(hashes_json: &str, index: usize) -> String {
         Err(e) => format!("err: {e}"),
     }
 }
+
+/// Verify an inclusion proof: record hash (hex), proof (JSON array of
+/// `[sibling_hex, is_left]`), root (hex). Returns `"ok"` or `"err: …"` —
+/// the browser verifier's final step.
+#[wasm_bindgen]
+pub fn rail_merkle_verify(record_hash_hex: &str, proof_json: &str, root_hex: &str) -> String {
+    let (Some(hash), Some(root)) = (hex32(record_hash_hex), hex32(root_hex)) else {
+        return "err: bad hex".to_string();
+    };
+    let Ok(steps_hex) = serde_json::from_str::<Vec<(String, bool)>>(proof_json) else {
+        return "err: parse proof".to_string();
+    };
+    let mut steps = Vec::with_capacity(steps_hex.len());
+    for (s, left) in &steps_hex {
+        match hex32(s) {
+            Some(x) => steps.push((x, *left)),
+            None => return "err: bad sibling hex".to_string(),
+        }
+    }
+    match afterswap_rail::merkle_verify(&hash, &steps, &root) {
+        true => "ok".to_string(),
+        false => "err: proof does not verify".to_string(),
+    }
+}

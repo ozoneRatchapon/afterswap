@@ -1,5 +1,18 @@
 # The Verifiable Execution Rail — technical specification
 
+> **Status 2026-08-28: R0–R3 implemented; local verification green; NOT
+> deployed.** R0 `afterswap-rail` (23 tests, native+wasm). R1 multi-venue
+> capture — live dry run: 21 records, slot gaps ≤ 1, Jupiter chose 11/21.
+> R2 Sequencer DO + R2 segments — local falsifier: 81/81 ingested,
+> ingest→public-read median 3.7 ms, wasm-served proof verified under the
+> native crate. R3 anchor tool (dry-run verified; **no real anchor posted —
+> needs a funded keypair**) + browser verifier (headless-Chrome check: 26/26
+> attestations, 9/9 proofs, 0 failures, computed in-tab). The browser
+> verifier also caught a real schema bug: a full-range u64 fingerprint
+> crossing JSON as a number is mangled by JavaScript above 2^53 — it now
+> crosses as hex. Production deployment and the real ≤30 s measurement are
+> §7, and are owner actions.
+
 Phase spec for roadmap #7b as re-scoped: sell **verifiability, not alpha**.
 The statistical program closed every path to an alpha claim this project can
 detect (benches 025/035: selection differential under the detection floor;
@@ -228,3 +241,34 @@ a record with no access to our infrastructure.
   us; not against Cloudflare and Solana both disappearing. A regulator may
   require a second custodian; the content-addressed segments make mirroring
   trivial, which is the design's answer.
+
+## 7. Deployment runbook (owner actions)
+
+Everything below changes live infrastructure or spends from a key, and none
+of it has been executed — the rail is verified locally only.
+
+1. **Build the wasm bundle** (committed, but rebuild to be sure):
+   `cargo build -p afterswap-wasm --target wasm32-unknown-unknown --release`
+   then `wasm-bindgen <target>/wasm32-unknown-unknown/release/afterswap_wasm.wasm
+   --target web --out-dir web-wasm/public/pkg`.
+2. **Set the production attestation key.** Generate a 32-byte seed, keep it
+   with the executor, put the *public* key in `wrangler.jsonc` `vars.RAIL_PUBKEY`
+   (it is registered, not secret). The dev seed's pubkey currently in the
+   config must not survive to production.
+3. **Create the R2 bucket** `afterswap-rail-archive` (paid plan required),
+   with no delete permission on the writer token — append-only by policy.
+4. **Deploy** with `wrangler deploy`. ⚠ This carries a new DO class +
+   migration (`v2: RailSequencer`); the PUT-API fallback path rejects
+   DO-binding changes (error 10021) while the versions-API 10013 bug stands.
+   Confirm with `wrangler deployments list` — never assume from a green push.
+5. **Point the executor at production**: `--exec-ab … --rail-out … ` posts are
+   local-file in R1; production ingest is the executor POSTing each record to
+   `https://<host>/rail/ingest` (small addition, or run the falsifier's POST
+   loop as a bridge).
+6. **Measure the 30 s falsifier for real**: from a machine that is neither
+   the executor nor the Worker, poll `GET /rail/records` and measure
+   execution-to-visible latency across a live run.
+7. **Anchor for real**: `cargo run -p afterswap-server --features live
+   --release -- --anchor --rail-base https://<host> --keypair <path> --rpc
+   <url> --interval-secs 60`. Fees are ~5000 lamports per segment root.
+   Verify the first memo on-chain by signature before trusting the loop.

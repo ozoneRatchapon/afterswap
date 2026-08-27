@@ -171,6 +171,34 @@ export function rail_merkle_root(hashes_json) {
 }
 
 /**
+ * Verify an inclusion proof: record hash (hex), proof (JSON array of
+ * `[sibling_hex, is_left]`), root (hex). Returns `"ok"` or `"err: …"` —
+ * the browser verifier's final step.
+ * @param {string} record_hash_hex
+ * @param {string} proof_json
+ * @param {string} root_hex
+ * @returns {string}
+ */
+export function rail_merkle_verify(record_hash_hex, proof_json, root_hex) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(record_hash_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(proof_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(root_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.rail_merkle_verify(ptr0, len0, ptr1, len1, ptr2, len2);
+        deferred4_0 = ret[0];
+        deferred4_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * `record_hash` (content + attestation) as hex — what the chain links and
  * Merkle leaves commit to.
  * @param {string} record_json

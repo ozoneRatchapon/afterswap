@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AfterSwap — rail verifier</title>
+<style>
+  :root {
+    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #222221;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a;
+    --ok: #7dc57f; --warn: #d9a25f; --bad: #d97676;
+  }
+  body { background: var(--page); color: var(--ink); font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace; margin: 0; padding: 2rem; }
+  h1 { font-size: 1.1rem; } h1 small { color: var(--muted); font-weight: normal; }
+  .note { color: var(--ink-2); max-width: 64ch; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--muted); font-weight: normal; }
+  .badge { display: inline-block; padding: 0 .45em; border-radius: 3px; font-size: .85em; }
+  .signed { background: #1d3a1e; color: var(--ok); }
+  .observed { background: #3a2f1d; color: var(--warn); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+  .win { text-decoration: underline; }
+  #stats { color: var(--ink-2); margin-top: .6rem; }
+</style>
+</head>
+<body>
+<h1>rail verifier <small>— every check below runs in your browser, against the same
+compiled <code>afterswap-rail</code> the executor and the ingest gate use</small></h1>
+<p class="note">
+  <span class="badge signed">signed</span> = the venue signed the quote (RFC 9421);
+  re-verifiable against the venue's key, forever.
+  <span class="badge observed">observed</span> = the venue signs nothing; the record
+  retains the body we saw and our attestation is the only warrant — exactly as strong
+  as the attestation key, no stronger. ✓&nbsp;attest and ✓&nbsp;proof are computed here,
+  in this tab, not read from the server.
+</p>
+<div id="stats">loading…</div>
+<table id="tbl" hidden>
+  <thead><tr>
+    <th>seq</th><th>instrument</th><th>venues (net out)</th><th>chosen</th>
+    <th>attestation</th><th>inclusion proof</th>
+  </tr></thead>
+  <tbody></tbody>
+</table>
+<script type="module">
+import init, {
+  rail_verify_record, rail_record_hash, rail_merkle_verify,
+} from "./pkg/afterswap_wasm.js";
+
+const $ = (s) => document.querySelector(s);
+const el = (t, cls, text) => {
+  const e = document.createElement(t);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+
+await init();
+const stats = await (await fetch("/rail/stats")).json();
+const pubkey = stats.attest_pubkey;
+$("#stats").textContent =
+  `tip seq ${stats.tip_seq}  ·  ${stats.total_accepted} records  ·  ` +
+  `${stats.seq_gaps} gap(s)  ·  ${stats.segments_closed} segment(s), ` +
+  `${stats.segments_anchored} anchored  ·  attest key ${String(pubkey).slice(0, 16)}…`;
+
+const since = Math.max(-1, (stats.tip_seq ?? 0) - 25);
+const records = await (await fetch(`/rail/records?since=${since}&limit=25`)).json();
+const tbody = $("#tbl tbody");
+$("#tbl").hidden = false;
+
+for (const r of records) {
+  const row = el("tr");
+  row.append(el("td", null, String(r.seq)));
+  row.append(el("td", "muted", r.instrument));
+
+  const venues = el("td");
+  for (const q of r.quotes) {
+    const line = el("div");
+    const signed = q.evidence.kind === "provider_signed";
+    line.append(el("span", `badge ${signed ? "signed" : "observed"}`, signed ? "signed" : "observed"));
+    line.append(document.createTextNode(
+      ` ${q.venue} ${q.out_amount}${q.context_slot ? ` @${q.context_slot}` : ""}`));
+    if (q.venue === r.decision.chosen_venue) line.classList.add("win");
+    venues.append(line);
+  }
+  row.append(venues);
+  row.append(el("td", null, r.decision.chosen_venue));
+
+  // Attestation + decision reproduction, in-browser.
+  const body = JSON.stringify(r);
+  const verdict = rail_verify_record(body, pubkey);
+  row.append(el("td", verdict === "ok" ? "ok" : "bad", verdict === "ok" ? "✓ attest" : verdict));
+
+  // Inclusion proof — only exists once the record's segment closed.
+  const proofCell = el("td", "muted", "…");
+  row.append(proofCell);
+  fetch(`/rail/proof/${r.seq}`).then(async (resp) => {
+    if (resp.status === 409) { proofCell.textContent = "segment open"; return; }
+    if (!resp.ok) { proofCell.textContent = `proof ${resp.status}`; proofCell.className = "bad"; return; }
+    const p = await resp.json();
+    const hash = rail_record_hash(body);
+    const v = rail_merkle_verify(hash, JSON.stringify(p.proof), p.segment_root);
+    proofCell.textContent = v === "ok" ? `✓ proof → ${p.segment_root.slice(0, 12)}…` : v;
+    proofCell.className = v === "ok" ? "ok" : "bad";
+  });
+  tbody.append(row);
+}
+</script>
+</body>
+</html>

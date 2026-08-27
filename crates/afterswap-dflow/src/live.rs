@@ -93,6 +93,71 @@ impl LiveExecutor {
         }
     }
 
+    /// Anchor a rail segment root on-chain: a single-instruction memo
+    /// transaction, signed by the executor's keypair.
+    ///
+    /// Memo body follows the shipped `afterswap:quote sha-256=<digest>`
+    /// convention: `afterswap:rail blake3=<root> seq=<from>..<to>`. The
+    /// Worker never sees this path — anchors are exclusively built and
+    /// submitted here, which is what keeps it keyless.
+    pub async fn anchor_memo(&self, memo: &str) -> Result<String, LiveError> {
+        const MEMO_PROGRAM: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+        let blockhash_resp: serde_json::Value = self
+            .http
+            .post(&self.rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc":"2.0","id":1,"method":"getLatestBlockhash",
+                "params":[{"commitment":"finalized"}]
+            }))
+            .send()
+            .await
+            .map_err(|e| LiveError::Rpc(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| LiveError::Rpc(e.to_string()))?;
+        let blockhash_str = blockhash_resp
+            .pointer("/result/value/blockhash")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| LiveError::Rpc("no blockhash".to_string()))?;
+        let blockhash: solana_sdk::hash::Hash = blockhash_str
+            .parse()
+            .map_err(|_| LiveError::Rpc("bad blockhash".to_string()))?;
+
+        let program: solana_sdk::pubkey::Pubkey = MEMO_PROGRAM
+            .parse()
+            .map_err(|_| LiveError::Rpc("bad memo program id".to_string()))?;
+        let ix = solana_sdk::instruction::Instruction {
+            program_id: program,
+            accounts: vec![],
+            data: memo.as_bytes().to_vec(),
+        };
+        let tx = solana_sdk::transaction::Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.keypair.pubkey()),
+            &[&self.keypair],
+            blockhash,
+        );
+        let raw = bincode::serialize(&tx).map_err(|e| LiveError::Sign(e.to_string()))?;
+        let body = serde_json::json!({
+            "jsonrpc":"2.0","id":1,"method":"sendTransaction",
+            "params":[B64.encode(raw), {"encoding":"base64","skipPreflight":false}],
+        });
+        let resp: serde_json::Value = self
+            .http
+            .post(&self.rpc_url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| LiveError::Rpc(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| LiveError::Rpc(e.to_string()))?;
+        match resp.get("result").and_then(|v| v.as_str()) {
+            Some(sig) => Ok(sig.to_string()),
+            None => Err(LiveError::Rpc(resp.to_string())),
+        }
+    }
+
     /// Fetch a landed transaction and extract what actually happened.
     ///
     /// The quote is what we were offered; this is what we got. Recording the

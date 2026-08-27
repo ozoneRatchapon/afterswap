@@ -81,6 +81,11 @@ export class RailSequencer extends DurableObject {
     this.sql.exec(
       `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
     );
+    try {
+      this.sql.exec("ALTER TABLE segments ADD COLUMN anchor_sig TEXT");
+    } catch {
+      // column already exists
+    }
   }
 
   private meta(k: string): string | null {
@@ -103,6 +108,8 @@ export class RailSequencer extends DurableObject {
       if (path === "/rail/ingest" && request.method === "POST") return await this.ingest(request);
       if (path === "/rail/records") return this.records(url);
       if (path.startsWith("/rail/proof/")) return await this.proof(Number(path.split("/").pop()));
+      if (path === "/rail/segments") return this.segments();
+      if (path === "/rail/anchored" && request.method === "POST") return await this.anchored(request);
       if (path === "/rail/stats") return this.stats();
       return json({ error: "unknown rail route" }, 404);
     } catch (e) {
@@ -242,12 +249,42 @@ export class RailSequencer extends DurableObject {
     });
   }
 
+  /// Closed segments, oldest first, with their claimed anchor signatures.
+  /// The executor polls this to find roots still needing an on-chain memo.
+  private segments(): Response {
+    const rows = [...this.sql.exec(
+      "SELECT root, from_seq, to_seq, count, anchor_sig, closed_ms FROM segments ORDER BY from_seq ASC",
+    )] as Array<Record<string, unknown>>;
+    return json(rows);
+  }
+
+  /// Record the executor's report that a segment root was anchored.
+  ///
+  /// The signature is stored as a *claim*, verbatim. The DO deliberately does
+  /// not confirm it on-chain: auditors verify anchors against Solana directly
+  /// (§3.4 step 5), and a Worker that fetched RPC to "confirm" would only be
+  /// adding its own trust to a statement it cannot strengthen. Only roots the
+  /// DO itself closed can be marked, so the endpoint cannot invent segments.
+  private async anchored(request: Request): Promise<Response> {
+    const body = (await request.json()) as { root?: string; signature?: string };
+    if (!body.root || !body.signature) return json({ error: "root and signature required" }, 400);
+    const hit = [...this.sql.exec("SELECT root FROM segments WHERE root = ?", body.root)];
+    if (hit.length === 0) return json({ error: "unknown segment root" }, 404);
+    this.sql.exec("UPDATE segments SET anchor_sig = ? WHERE root = ?", body.signature, body.root);
+    return json({ anchored: body.root, signature: body.signature });
+  }
+
   private stats(): Response {
     const segs = [...this.sql.exec(
       "SELECT root, to_seq FROM segments ORDER BY to_seq DESC LIMIT 1",
     )] as Array<{ root: string; to_seq: number }>;
     const nseg = [...this.sql.exec("SELECT COUNT(*) AS n FROM segments")] as Array<{ n: number }>;
+    const anchored = [...this.sql.exec(
+      "SELECT COUNT(*) AS n FROM segments WHERE anchor_sig IS NOT NULL",
+    )] as Array<{ n: number }>;
     return json({
+      attest_pubkey: this.railEnv.RAIL_PUBKEY ?? null,
+      segments_anchored: anchored[0]?.n ?? 0,
       tip_seq: this.meta("tip_seq") === null ? null : Number(this.meta("tip_seq")),
       tip_hash: this.meta("tip_hash"),
       total_accepted: Number(this.meta("total") ?? "0"),

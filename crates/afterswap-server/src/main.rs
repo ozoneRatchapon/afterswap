@@ -6,6 +6,7 @@
 //! Args (all optional): --ticks N --interval-ms M --open-after K
 //!                      --size SOL --states S --window W
 
+mod anchor;
 mod exec_ab;
 mod paper;
 mod server;
@@ -31,6 +32,9 @@ async fn main() -> anyhow::Result<()> {
     // pair and clip, and shares nothing with the paper loop's engine config.
     if args.iter().any(|a| a == "--exec-ab") {
         return exec_ab::run_cli(&args).await;
+    }
+    if args.iter().any(|a| a == "--anchor") {
+        return anchor::run_cli(&args).await;
     }
 
     let mut engine = EngineConfig::default();

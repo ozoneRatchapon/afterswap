@@ -53,6 +53,13 @@ export function rail_merkle_proof(hashes_json: string, index: number): string;
 export function rail_merkle_root(hashes_json: string): string;
 
 /**
+ * Verify an inclusion proof: record hash (hex), proof (JSON array of
+ * `[sibling_hex, is_left]`), root (hex). Returns `"ok"` or `"err: …"` —
+ * the browser verifier's final step.
+ */
+export function rail_merkle_verify(record_hash_hex: string, proof_json: string, root_hex: string): string;
+
+/**
  * `record_hash` (content + attestation) as hex — what the chain links and
  * Merkle leaves commit to.
  */
@@ -68,6 +75,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly rail_merkle_proof: (a: number, b: number, c: number) => [number, number];
+    readonly rail_merkle_root: (a: number, b: number) => [number, number];
+    readonly rail_merkle_verify: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+    readonly rail_record_hash: (a: number, b: number) => [number, number];
+    readonly rail_verify_record: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbg_wasmengine_free: (a: number, b: number) => void;
     readonly parity_run: (a: number, b: number, c: number) => [number, number];
     readonly wasmengine_close_position: (a: number) => number;
@@ -77,10 +89,6 @@ export interface InitOutput {
     readonly wasmengine_on_tick: (a: number, b: number) => [number, number];
     readonly wasmengine_open_position: (a: number, b: number) => number;
     readonly wasmengine_snapshot: (a: number, b: number) => [number, number];
-    readonly rail_merkle_proof: (a: number, b: number, c: number) => [number, number];
-    readonly rail_merkle_root: (a: number, b: number) => [number, number];
-    readonly rail_record_hash: (a: number, b: number) => [number, number];
-    readonly rail_verify_record: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

@@ -158,6 +158,15 @@ pub struct AuditRecord {
     /// Every venue quoted — the multi-venue discovery Article 78 asks for.
     pub quotes: Vec<VenueQuote>,
     /// blake3-64 fingerprint of the routing rule that governed the decision.
+    ///
+    /// Serialised as a 16-hex string in JSON, never a number: a full-range
+    /// u64 exceeds 2^53, and a JavaScript consumer that parses and
+    /// re-stringifies the record would silently alter it — which shifts the
+    /// canonical bytes and voids the attestation. Found by the browser
+    /// verifier failing on every record; the schema rule is that no
+    /// full-range integer crosses a JSON boundary as a number. Legacy
+    /// numeric values still deserialise.
+    #[serde(with = "fp_serde")]
     pub policy_fingerprint: u64,
     pub decision: RouteDecision,
     /// `None` when no order was sent or it did not land; an absent fill is a
@@ -173,6 +182,32 @@ pub fn parse_amount(s: &str) -> Result<u128, RailError> {
     match !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
         true => s.parse().map_err(|_| RailError::Amount(s.to_string())),
         false => Err(RailError::Amount(s.to_string())),
+    }
+}
+
+/// u64 as 16-hex in JSON; accepts legacy plain numbers on read.
+pub(crate) mod fp_serde {
+    use serde::{Deserializer, Serializer, de::Error as _};
+
+    pub fn serialize<S: Serializer>(v: &u64, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&format!("{v:016x}"))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
+        struct V;
+        impl serde::de::Visitor<'_> for V {
+            type Value = u64;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("16-hex string or legacy u64")
+            }
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<u64, E> {
+                Ok(v)
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<u64, E> {
+                u64::from_str_radix(v, 16).map_err(|_| E::custom("bad fingerprint hex"))
+            }
+        }
+        d.deserialize_any(V).map_err(|e| D::Error::custom(e.to_string()))
     }
 }
 

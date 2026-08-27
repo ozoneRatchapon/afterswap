@@ -33,5 +33,15 @@ rejected, segment closed, and the wasm-served proof VERIFIED under the native
 crate. NOT DEPLOYED — production ≤30 s check needs a real `wrangler deploy`
 (DO-binding migration caveat applies) plus an external observer.
 
-Next action: R3 — segment-root anchoring via executor-signed memo tx + the
-browser verifier page.
+R3 ✅ SHIPPED 2026-08-28 (local verification): anchor poller
+(`server --anchor`, memo format `afterswap:rail blake3=<root> seq=<a>..<b>`,
+dry-run verified; NO real anchor posted — needs a funded keypair),
+`/rail/segments` + `/rail/anchored` claim endpoints, browser verifier
+`rail.html` (headless-Chrome check: 26/26 attestations + 9/9 proofs verified
+in-tab, 0 failures). The verifier caught a real bug: full-range u64
+fingerprints mangled by JS JSON above 2^53 — now hex on the wire, legacy
+numeric still parses.
+
+Remaining (owner actions, RAIL.md §7): production deploy (DO migration
+caveat), real attestation key, R2 bucket, external ≤30 s measurement, first
+funded anchor.

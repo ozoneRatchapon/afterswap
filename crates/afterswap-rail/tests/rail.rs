@@ -413,3 +413,30 @@ fn amounts_must_be_bare_base10_integers() {
         );
     }
 }
+
+/// The bug the browser verifier caught: a full-range u64 fingerprint crosses
+/// JSON as a *string*, because JavaScript's number type mangles integers
+/// above 2^53 on a parse→stringify round trip — which shifts the canonical
+/// bytes and voids the attestation for any JS consumer.
+#[test]
+fn fingerprint_crosses_json_as_hex_and_survives_a_float_hostile_round_trip() {
+    let key = AttestKey::from_seed(SEED);
+    let r = attest(fixture(), &key);
+    assert!(r.policy_fingerprint > 1 << 53, "fixture must exercise the range");
+    let json = serde_json::to_string(&r).expect("serialises");
+    assert!(
+        json.contains(&format!("\"policy_fingerprint\":\"{:016x}\"", r.policy_fingerprint)),
+        "fingerprint must be a hex string in JSON"
+    );
+    // A Value round trip (what any JSON tooling does) preserves the digest.
+    let v: serde_json::Value = serde_json::from_str(&json).expect("value");
+    let back: AuditRecord = serde_json::from_value(v).expect("back");
+    assert_eq!(content_digest(&back), content_digest(&r));
+    // Legacy records with numeric fingerprints still parse.
+    let legacy = json.replace(
+        &format!("\"policy_fingerprint\":\"{:016x}\"", r.policy_fingerprint),
+        &format!("\"policy_fingerprint\":{}", r.policy_fingerprint),
+    );
+    let old: AuditRecord = serde_json::from_str(&legacy).expect("legacy parses");
+    assert_eq!(old.policy_fingerprint, r.policy_fingerprint);
+}
