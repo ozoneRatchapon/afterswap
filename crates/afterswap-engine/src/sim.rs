@@ -336,6 +336,121 @@ pub fn twap_value_norm_cost(
     cash + remaining * (prices[prices.len() - 1] / entry)
 }
 
+/// Temporary price impact of one clip, in bps, Almgren–Chriss form.
+///
+/// Impact depends on the *rate* of liquidation, not just clip size: selling
+/// 10% of a position in one tick removes far more liquidity per unit time
+/// than the same 10% spread over six. Without this term a simulator rewards
+/// dumping — which is exactly the artifact that invalidated our first
+/// shortfall result, where the variance-minimising machine simply liquidated
+/// four times faster than TWAP and paid nothing for it.
+///
+/// `eta` is calibrated so a 10% clip at TWAP's cadence (one per 6 ticks) pays
+/// ~2 bps, matching the fixed per-fill cost we already charge; the same clip
+/// at one per tick pays six times that. Real CPMM impact is convex in size
+/// too, but rate is the term that distinguishes these schedules.
+pub fn temporary_impact_bps(frac: f64, ticks_since_last: usize, eta: f64) -> f64 {
+    let dt = ticks_since_last.max(1) as f64;
+    eta * frac / dt
+}
+
+/// Default `eta`: 10% clip every 6 ticks → 2 bps.
+pub const DEFAULT_ETA: f64 = 120.0;
+
+/// Arrival-price implementation shortfall, in bps of the position.
+///
+/// The objective external review prescribed in place of "edge versus hold":
+/// measure the gap between liquidating everything at the arrival price and
+/// what the trajectory actually realised, residual marked at the terminal
+/// price, net of per-fill cost. **Positive is worse.** Unlike edge-versus-hold
+/// this is defined for any schedule without reference to a counterfactual
+/// holder, which is what makes it comparable across strategies that liquidate
+/// on different cadences.
+pub fn shortfall_bps(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+    cost_bps: f64,
+) -> f64 {
+    shortfall_bps_impact(fsm, window, tranche_frac, peak_drop_bps, cost_bps, 0.0)
+}
+
+/// `shortfall_bps` with rate-dependent temporary impact (`eta`, see
+/// [`temporary_impact_bps`]). Pass `DEFAULT_ETA` for the calibrated model,
+/// or 0.0 for the impact-free simulator that flatters fast liquidation.
+pub fn shortfall_bps_impact(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+    cost_bps: f64,
+    eta: f64,
+) -> f64 {
+    if window.len() < 2 {
+        return 0.0;
+    }
+    let arrival = window[0];
+    let mut m = fsm.clone();
+    m.reset();
+    let (mut remaining, mut cash, mut peak) = (1.0f64, 0.0f64, arrival);
+    let mut last_fill_tick = 0usize;
+
+    for t in 1..window.len() {
+        let dir: u8 = u8::from(window[t] > window[t - 1]);
+        peak = peak.max(window[t]);
+        let off_peak: u8 = u8::from((peak - window[t]) / peak * 10_000.0 >= peak_drop_bps);
+        m.next_action(&[dir]);
+        let action = m.next_action(&[off_peak]);
+        if action == 1 && remaining > 0.0 {
+            let frac = tranche_frac.min(remaining);
+            remaining -= frac;
+            let impact = temporary_impact_bps(frac, t - last_fill_tick, eta);
+            last_fill_tick = t;
+            cash += frac * (window[t] / arrival) * (1.0 - (cost_bps + impact) * 1e-4);
+        }
+    }
+    let realised = cash + remaining * (window[window.len() - 1] / arrival);
+    (1.0 - realised) * 10_000.0
+}
+
+/// TWAP's implementation shortfall on the same window, same convention.
+pub fn twap_shortfall_bps(
+    window: &[f64],
+    n_slices: usize,
+    stride: usize,
+    cost_bps: f64,
+) -> f64 {
+    twap_shortfall_bps_impact(window, n_slices, stride, cost_bps, 0.0)
+}
+
+/// TWAP shortfall charged the same impact model as the machines.
+pub fn twap_shortfall_bps_impact(
+    window: &[f64],
+    n_slices: usize,
+    stride: usize,
+    cost_bps: f64,
+    eta: f64,
+) -> f64 {
+    if window.len() < 2 {
+        return 0.0;
+    }
+    let arrival = window[0];
+    let (mut remaining, mut cash, mut done) = (1.0f64, 0.0f64, 0usize);
+    let frac = 1.0 / n_slices as f64;
+    for (i, &p) in window.iter().enumerate().skip(1) {
+        if i.is_multiple_of(stride) && done < n_slices && remaining > 1e-12 {
+            let f = frac.min(remaining);
+            let impact = temporary_impact_bps(f, stride, eta);
+            cash += f * (p / arrival) * (1.0 - (cost_bps + impact) * 1e-4);
+            remaining -= f;
+            done += 1;
+        }
+    }
+    let realised = cash + remaining * (window[window.len() - 1] / arrival);
+    (1.0 - realised) * 10_000.0
+}
+
 /// Trailing stop (Jupiter's July-2026 flagship exit): sell everything the
 /// first time price drops `drop_bps` below its running peak since entry.
 pub fn trailing_stop_value_norm(prices: &[f64], open_at: usize, drop_bps: f64) -> f64 {

@@ -96,6 +96,18 @@ and reports its result against doing nothing and against every standard
 alternative — honestly, including when that is a loss. Most retail exits are
 not benchmarked against anything at all; that is the bar we actually clear.
 
+**We also changed the objective, on external advice, and it still says no.**
+Directional edge being dead at these horizons, we rebuilt around Almgren–Chriss
+arrival-price implementation shortfall and asked a different question: can the
+machines make execution more *predictable*, if not cheaper? Against TWAP the
+answer looked like yes — 30% lower shortfall variance, significant on 8 of 11
+assets, and it survived adding a price-impact model. Then the second control
+ran: the machines simply liquidate four times sooner, and a plain TWAP
+compressed to the same urgency matches them
+([`027_shortfall`](benches/027_shortfall/report.md), SD ratio 1.12,
+significant on 0 of 11). We had moved along the efficient frontier and briefly
+mistaken it for beating it.
+
 **The pipeline is now tested end to end, and it says no.** Reproducible (G1),
 browser-native byte-identical (G6), selection generalises rather than mines
 noise (PBO 0.05–0.20), and no individual machine survives correcting for having
