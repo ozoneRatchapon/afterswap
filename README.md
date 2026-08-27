@@ -44,6 +44,18 @@ per-regime statistics were all built, measured, and reverted; an over-claimed
 "learning curve" was retracted when more data killed it. Every number here
 survived a gate that was allowed to say no.
 
+## Where to read what
+
+| File | What it holds |
+|---|---|
+| [`docs/PITCH.md`](docs/PITCH.md) | The same product explained five ways — for traders, judges, the DFlow team, engineers, and social — plus Q&A armor |
+| [`docs/SOAK.md`](docs/SOAK.md) | Live-quote soak results, including a retraction of an earlier over-claim |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Everything deliberately *not* built yet, each with its evidence — and the ideas that were tried and reverted |
+| [`docs/DEMO.md`](docs/DEMO.md) | The two-minute demo script, beat by beat |
+| [`docs/API.md`](docs/API.md) | Running the engine from your own agent, free, no API key |
+| [`benches/`](benches/) | Every measurement, numbered and dated: GOAT gates, ecosystem floors, horizon sweep, null control, parameter sweep |
+| [`crates/afterswap-policy/`](crates/afterswap-policy/) | The on-chain policy registry (Pinocchio, live on devnet) |
+
 ## The idea (Wolfram ruliology, applied to trading)
 
 Instead of hand-designing one exit heuristic (trailing stop, TWAP, take-profit
