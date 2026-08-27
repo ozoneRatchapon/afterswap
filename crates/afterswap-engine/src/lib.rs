@@ -11,6 +11,7 @@ pub mod bandit;
 pub mod engine;
 pub mod pbo;
 pub mod power;
+pub mod prereg;
 pub mod stepdown;
 pub mod rating;
 pub mod sim;
