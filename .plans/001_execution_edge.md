@@ -1,0 +1,55 @@
+# Plan 001 — Liquidity-aware exits (the DFlow-native edge)
+
+## Why this, and why now
+
+Bench 018 (chronological train/test, real bars) set the direction: the engine
+beats **trailing stops on volatile tokens** out-of-sample (BONK +34 ± 10 bps,
+PEPE +26 ± 11) but beats **TWAP nowhere**. Everything measured so far uses
+price direction only — the same information every competitor has from candles.
+
+DFlow exposes something they do not have: **executable depth across every
+venue**. Probing quotes at several sizes shows a real, size-dependent price on
+volatile tokens — BONK moves ~27 bps between a small and a large clip, while
+SOL/USDC barely moves 0.3 bps. Selling into good depth and waiting out thin
+depth is an exit signal that cannot be reconstructed from CEX candles, and it
+is exactly the kind of edge a swap aggregator should enable.
+
+**Hypothesis:** adding a depth bit to the machine alphabet improves exits on
+volatile tokens, measured against trailing stops out-of-sample.
+
+**Null result is a fine outcome** and gets recorded like the four before it
+(PL ratings, magnitude bit, bootstrap tuning, per-regime stats).
+
+## Checklist
+
+- [x] Confirm the depth signal exists on DFlow quotes (BONK ~27 bps across
+      sizes; SOL/USDC ~0.3 bps — memecoins only)
+- [x] **Record dual-size DFlow quotes** for BONK — recorder running into
+      `data/incoming/bonk_depth.jsonl` (5 s cadence, ~7-8 bps spread observed
+      and varying). Needs ~2 h for the first usable A/B (≥ 6 windows of 120)
+- [x] **Cheap test first, refactor only if it pays** — `sim::replay_exit_depth`
+      (3rd unrolled bit: spread ≤ expanding median) + `load_depth_corpus`,
+      no engine changes, no risk to the shipping path
+- [x] **Harness**: `examples/depth_bit.rs` picks the best machine on TRAIN
+      windows under each protocol and scores it on disjoint TEST windows
+- [ ] **Run it** once the recording has ≥ 6 windows:
+      `cargo run -p afterswap-engine --example depth_bit --release`
+- [ ] **Only if the 3-bit protocol wins out-of-sample:** thread depth through
+      `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
+      (default off), then re-run GOAT + wasm parity
+- [ ] **A/B on a frozen corpus** (move the recording out of `data/incoming/`
+      only when the recorder is stopped — see the corpus-freeze rule in
+      ROADMAP 7e)
+- [ ] **Ship or revert with a recorded reason**; update README claim table
+- [ ] Re-run GOAT gates + wasm parity (G1–G6) before any deploy
+
+## Rules this plan inherits
+
+1. No claim without a floor and a standard error.
+2. Corpus set frozen during an A/B; in-progress recordings live in
+   `data/incoming/`.
+3. Real data beats synthetic; report them split.
+4. If a feature cannot be measured by an existing instrument, either build the
+   instrument or default it off.
+5. Never grow the model to chase an edge — that breaks the null control, which
+   is the project's most valuable asset.
