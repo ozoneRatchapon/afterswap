@@ -337,6 +337,19 @@ product is disciplined, auditable, zero-cost exit automation with honest
 benchmarking attached, and the open research direction is *execution* (DFlow
 depth, Plan 001) rather than direction prediction.
 
+## 7g. Execution-cost model ✅ SHIPPED, ❌ not a lever (bench 019_cost)
+
+`EngineConfig.fill_cost_bps` charges a per-fill cost on live fills and inside
+the tournament's own replays; the floors gained matching cost-aware variants
+(`twap_value_norm_cost`, `trailing_stop_value_norm_cost`) so comparisons stay
+paired. Default 0 so historical benchmarks remain comparable.
+
+Measured across 11 real assets at 0/1/2/5 bps per fill: **every comparison
+moves less than half a bp.** The expected asymmetry (a tranching exit pays ten
+times, a single-shot stop once) does not appear, because the engine often does
+not complete ten tranches in a window and the trailing stop often never fires.
+One more candidate explanation for the synthetic-vs-real gap, eliminated.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);

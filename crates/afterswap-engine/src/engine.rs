@@ -766,7 +766,7 @@ impl ExitEngine {
 
         if action == 1 && !pos.is_closed() {
             let frac = self.config.tranche_frac.min(pos.remaining_frac);
-            pos.apply_fill(tick, cur_p, frac);
+            pos.apply_fill_with_cost(tick, cur_p, frac, self.config.fill_cost_bps);
             events.push(EngineEvent::TrancheFilled {
                 tick,
                 arm: live.arm,
@@ -806,11 +806,12 @@ impl ExitEngine {
                         if i == arm {
                             continue;
                         }
-                        let edge = replay_exit(
+                        let edge = crate::sim::replay_exit_cost(
                             bandit.strategy(i),
                             &window,
                             self.config.tranche_frac,
                             self.config.peak_drop_bps,
+                            self.config.fill_cost_bps,
                         );
                         let id = bandit.strategy(i).id();
                         bandit.update(i, edge);
