@@ -21,10 +21,16 @@ compete for the right to scale you out.
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
    evolution breeds 4-state machines the enumeration cannot reach. No model,
    no training, no prompt: a decision costs **$0 and ~1.2 microseconds**.
-2. **It beats every standard Solana exit, measured paired on the same price
-   paths**: TWAP/DCA **+76.0 bps**, Jupiter-style trailing stop **+10.5**,
-   TP-ladder **+114.0**, TP/SL bracket **+80.2** — across 6 corpora, all
-   reproducible with one command.
+2. **It is measured against the exits Solana actually uses — and we show where
+   the measurements disagree.** On the DFlow tick corpora it beats all of them
+   (TWAP **+76.0 bps**, trailing stop **+10.5**, TP-ladder **+114.0**, bracket
+   **+80.2**). On **31 days of real 1-minute bars — 225 independent windows,
+   far more statistical power than those 6 corpora** — it does not: it trails
+   TWAP by **−4 ± 1 bps** and is roughly neutral against the rest, turning
+   positive only at coarser bars where the sample is too small to trust
+   ([`benches/017_real_horizon`](benches/017_real_horizon/report.md)).
+   Reconciling those two results is the top open question, and both are in the
+   repo rather than only the flattering one.
 3. **It passes a null control.** On de-meaned (random-walk) paths it shows
    **no** significant edge at any horizon — it does not manufacture alpha from
    noise. Most strategy searches never publish this test; ours is in the repo.

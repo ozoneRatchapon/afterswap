@@ -290,6 +290,34 @@ A/B; in-progress recordings now live in `data/incoming/`. The tell was
 that disabling the feature did *not* restore the previous numbers — a
 control that only exists if you run it.
 
+## 7f. Real long-horizon data ✅ OBTAINED — and it contradicts our headline
+
+The blocking dependency from bench 015 (genuinely long *recorded* data, not
+resampled) is closed: 45,000 real 1-minute SOL/USDC bars, 31 days, public
+CEX reference prices. Idea distilled from
+[trickshot](https://github.com/nathanliow/trickshot) — reconstruct real
+history and replay strategies on it — but sourced from a free public
+endpoint rather than a paid indexer.
+
+**The result does not flatter us** (bench 017_real_horizon). At 1-minute
+bars with 225 non-overlapping windows — far more statistical power than
+the 6 GOAT corpora — the engine **trails TWAP by 4 ± 1 bps** (≈4 SE) and is
+neutral-to-negative against the other floors. Point estimates turn positive
+at 30–60 minute bars (+33 ± 15 vs TWAP) but only 3–7 windows exist there.
+
+**Open question, stated plainly:** the GOAT corpora say we beat every
+standard exit; 225 windows of real market data say we do not, at least at
+minute resolution. Candidate explanations, none yet tested: (a) the six
+corpora are short and half of them are synthetic regimes we designed, so
+they may flatter the engine; (b) the engine runs on second-scale DFlow
+ticks and minute bars are a different regime it was never tuned for;
+(c) TWAP is genuinely hard to beat in a month that trended down 30%.
+
+**Next experiment (now possible for the first time):** train/test split
+*across time* on the real series — tune on the first 20 days, validate on
+the last 11 — which is out-of-distribution validation of the kind that
+caught the bootstrap mistake.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);
