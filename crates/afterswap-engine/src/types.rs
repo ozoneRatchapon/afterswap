@@ -50,6 +50,11 @@ pub struct EngineConfig {
     /// its counterfactual edge. ~24x more learning signal per unit time,
     /// using replay machinery the tournament already pays for.
     pub off_policy_credit: bool,
+    /// Keep realized statistics per market regime (chop / trend-up /
+    /// trend-down) instead of pooling them. A machine that excels in
+    /// downtrends should not have its record diluted by rallies — the
+    /// population specializes by niche instead of averaging to the middle.
+    pub per_regime_stats: bool,
 }
 
 impl Default for EngineConfig {
@@ -70,6 +75,14 @@ impl Default for EngineConfig {
             peak_drop_bps: 30.0,
             surprise_ratio: 1.2,
             off_policy_credit: true,
+            // Off by default: the bench cannot resolve this feature.
+            // Bench-length runs (~300 ticks) rebuild the arm set only a few
+            // times, so regime-keyed *seeding* barely moves the result —
+            // ON and OFF score bit-identically (bench 019). It only bites
+            // across long sessions with persistence, which needs a long
+            // soak A/B to settle. Shipping the simpler pooled default until
+            // there is a measurement that can tell the difference.
+            per_regime_stats: false,
         }
     }
 }

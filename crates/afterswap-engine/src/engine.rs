@@ -75,7 +75,8 @@ pub enum EngineEvent {
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct LearningState {
     /// (fsm_id, reward_sum_bps, pulls)
-    pub realized: Vec<(u64, f64, u32)>,
+    /// (fsm_id, regime, reward_sum_bps, pulls)
+    pub realized: Vec<(u64, u8, f64, u32)>,
     /// Evolved genomes: (transitions, outputs, n_states)
     pub evolved: Vec<([[u8; 2]; MAX_STATES], [u8; MAX_STATES], u8)>,
     /// (fsm_id, generation)
@@ -177,7 +178,9 @@ pub struct ExitEngine {
     completed_windows: usize,
     windows_since_refresh: usize,
     /// Realized reward stats per FSM id, carried across arm rebuilds.
-    realized: HashMap<u64, (f64, u32)>,
+    /// (fsm_id, regime) -> (reward_sum_bps, pulls). Regime is 0 when
+    /// per-regime statistics are disabled, so the map shape never changes.
+    realized: HashMap<(u64, u8), (f64, u32)>,
     prev_price: Option<f64>,
 }
 
@@ -371,6 +374,23 @@ impl ExitEngine {
     }
 
     /// Run (or gate-skip) a tournament and rebuild the bandit arms.
+    /// Closed-form regime label from the surprise EMAs: 1 = trend-up,
+    /// 2 = trend-down, 0 = chop. No training, no thresholds beyond a
+    /// drift-to-volatility ratio, so it stays deterministic (G1/G6).
+    fn current_regime(&self) -> u8 {
+        if !self.config.per_regime_stats {
+            return 0;
+        }
+        const DRIFT_RATIO: f64 = 0.25;
+        let vol = self.surprise_vol.max(0.1);
+        let drift = self.surprise_slow / vol;
+        match drift {
+            d if d >= DRIFT_RATIO => 1,
+            d if d <= -DRIFT_RATIO => 2,
+            _ => 0,
+        }
+    }
+
     /// One evolution step: mutate current arms (incl. 4-state growth past
     /// the enumerable frontier), replay candidates on stored windows, and
     /// replace the worst arm when the best mutant beats it. Deterministic
@@ -507,7 +527,7 @@ impl ExitEngine {
             realized: self
                 .realized
                 .iter()
-                .map(|(&id, &(sum, pulls))| (id, sum, pulls))
+                .map(|(&(id, regime), &(sum, pulls))| (id, regime, sum, pulls))
                 .collect(),
             evolved: self
                 .evolved
@@ -521,8 +541,8 @@ impl ExitEngine {
     /// Import learning artifacts. Call BEFORE feeding prices so the first
     /// tournament already sees the evolved pool and realized seeding.
     pub fn import_learning(&mut self, state: &LearningState) {
-        for &(id, sum, pulls) in &state.realized {
-            self.realized.insert(id, (sum, pulls));
+        for &(id, regime, sum, pulls) in &state.realized {
+            self.realized.insert((id, regime), (sum, pulls));
         }
         for &(transitions, outputs, n_states) in &state.evolved {
             let fsm = FsmStrategy::new(transitions, outputs, n_states, 0);
@@ -634,10 +654,36 @@ impl ExitEngine {
             .collect();
         let mut bandit = ExitBandit::from_arms(arms);
 
-        // Carry realized reward stats across the rebuild (mean-seeded).
+        // Carry realized reward stats across the rebuild (mean-seeded),
+        // reading the record for the regime we are in now: a machine's
+        // downtrend track record should not be diluted by rally windows.
+        let regime = self.current_regime();
         for i in 0..bandit.num_arms() {
             let id = bandit.strategy(i).id();
-            if let Some(&(sum, pulls)) = self.realized.get(&id) {
+            // Shrinkage: trust the regime-specific record only once it has
+            // enough pulls to be worth more than the pooled one; otherwise
+            // fall back to all regimes. Splitting statistics without this
+            // measured worse (bench 016) — thin buckets are noisy buckets.
+            const MIN_REGIME_PULLS: u32 = 4;
+            let regime_record = self
+                .realized
+                .get(&(id, regime))
+                .copied()
+                .filter(|&(_, pulls)| pulls >= MIN_REGIME_PULLS);
+            let pooled = || {
+                let (mut s, mut p) = (0.0f64, 0u32);
+                for r in 0..3u8 {
+                    if let Some(&(ss, pp)) = self.realized.get(&(id, r)) {
+                        s += ss;
+                        p += pp;
+                    }
+                }
+                match p {
+                    0 => None,
+                    _ => Some((s, p)),
+                }
+            };
+            if let Some((sum, pulls)) = regime_record.or_else(pooled) {
                 let mean = match pulls {
                     0 => 0.0,
                     p => sum / f64::from(p),
@@ -667,6 +713,10 @@ impl ExitEngine {
 
     /// Step the live FSM one tick and manage window/reward accounting.
     fn drive_live(&mut self, tick: u64, prev_p: f64, cur_p: f64, events: &mut Vec<EngineEvent>) {
+        // Computed before the bandit borrow: `self.realized` and
+        // `self.bandit` are disjoint fields, but a `&self` method call
+        // would borrow the whole struct.
+        let regime = self.current_regime();
         let Some(bandit) = self.bandit.as_mut() else {
             return;
         };
@@ -740,9 +790,7 @@ impl ExitEngine {
             };
             let arm = live.arm;
             bandit.update(arm, reward_bps);
-            let entry = self.realized.entry(bandit.strategy(arm).id()).or_insert((0.0, 0));
-            entry.0 += reward_bps;
-            entry.1 += 1;
+            let seated_id = bandit.strategy(arm).id();
 
             // Off-policy credit: the realized window is equally informative
             // about every arm that did NOT drive — replay each one on it and
@@ -750,6 +798,7 @@ impl ExitEngine {
             // slightly (seated arm scores actual-vs-hold on the live
             // position; others score a fresh replay), but both are
             // "bps vs holding over this window", which is what UCB1 ranks.
+            let mut off_policy: Vec<(u64, f64)> = Vec::new();
             if self.config.off_policy_credit {
                 let window = self.store.recent(self.config.window_len);
                 if window.len() >= 2 {
@@ -765,11 +814,17 @@ impl ExitEngine {
                         );
                         let id = bandit.strategy(i).id();
                         bandit.update(i, edge);
-                        let e = self.realized.entry(id).or_insert((0.0, 0));
-                        e.0 += edge;
-                        e.1 += 1;
+                        off_policy.push((id, edge));
                     }
                 }
+            }
+            let e = self.realized.entry((seated_id, regime)).or_insert((0.0, 0));
+            e.0 += reward_bps;
+            e.1 += 1;
+            for (id, edge) in off_policy {
+                let e = self.realized.entry((id, regime)).or_insert((0.0, 0));
+                e.0 += edge;
+                e.1 += 1;
             }
             self.completed_windows += 1;
             self.windows_since_refresh += 1;
@@ -799,7 +854,7 @@ impl ExitEngine {
                 bandit.update(arm, reward_bps);
                 let entry = self
                     .realized
-                    .entry(bandit.strategy(arm).id())
+                    .entry((bandit.strategy(arm).id(), regime))
                     .or_insert((0.0, 0));
                 entry.0 += reward_bps;
                 entry.1 += 1;
