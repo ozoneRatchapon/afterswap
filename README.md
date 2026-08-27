@@ -45,7 +45,15 @@ compete for the right to scale you out.
    the profitability is absent**, in-sample +2.5…+16.8 bps collapsing to
    −6…+2 out of sample. We can reliably pick the best machine; the best
    machine is not profitable. That points away from our search and our
-   statistics, and at the strategy space itself. The last test in the
+   statistics, and at the strategy space itself. Decomposing that collapse
+   ([`026_diagnosis`](benches/026_diagnosis/report.md)) shows why, and
+   incidentally refutes the tidy explanation we were offered: with **zero**
+   simulated friction the selected machine still scores −6.35 bps out of
+   sample, so there is no gross edge for fees to have eaten. What the split
+   does reveal is that "edge versus hold" is a badly-conditioned metric — its
+   variance is dominated by realised drift, identical for all 1,054 machines —
+   while the part actually attributable to the search is a consistent but tiny
+   **+2.59 bps over the population median**. The last test in the
    recommended pipeline closes it: Romano–Wolf stepdown across all 1,054
    machines on all 11 assets returns **zero survivors** after familywise
    correction ([`025_multiplicity`](benches/025_multiplicity/report.md)),
