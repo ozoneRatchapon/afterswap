@@ -72,10 +72,10 @@ pub fn cscv(perf: &[Vec<f64>], s: usize) -> Option<PboResult> {
         let mean_over = |row: &Vec<f64>, in_sample: bool| -> f64 {
             let mut acc = 0.0;
             let mut n = 0.0;
-            for k in 0..s {
+            for (k, value) in row.iter().enumerate().take(s) {
                 let selected = mask & (1 << k) != 0;
                 if selected == in_sample {
-                    acc += row[k];
+                    acc += value;
                     n += 1.0;
                 }
             }
