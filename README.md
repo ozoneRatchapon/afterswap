@@ -21,16 +21,16 @@ compete for the right to scale you out.
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
    evolution breeds 4-state machines the enumeration cannot reach. No model,
    no training, no prompt: a decision costs **$0 and ~1.2 microseconds**.
-2. **It is measured against the exits Solana actually uses — and we show where
-   the measurements disagree.** On the DFlow tick corpora it beats all of them
-   (TWAP **+76.0 bps**, trailing stop **+10.5**, TP-ladder **+114.0**, bracket
-   **+80.2**). On **31 days of real 1-minute bars — 225 independent windows,
-   far more statistical power than those 6 corpora** — it does not: it trails
-   TWAP by **−4 ± 1 bps** and is roughly neutral against the rest, turning
-   positive only at coarser bars where the sample is too small to trust
-   ([`benches/017_real_horizon`](benches/017_real_horizon/report.md)).
-   Reconciling those two results is the top open question, and both are in the
-   repo rather than only the flattering one.
+2. **On real market data it does not beat the standard exits — and that is
+   published here, not buried.** Our synthetic regimes flatter it badly
+   (vs TP-ladder **+174**, vs bracket **+124**), but on the **recorded DFlow
+   segments** the same measurement reads **−20 vs trailing, −7 vs ladder,
+   −8 vs bracket**, and on **31 days of real 1-minute bars (225 independent
+   windows)** it trails TWAP by **−4 ± 1 bps**. Two live soaks agree: no
+   significant edge. The benchmark now splits real from synthetic corpora
+   automatically so that gap can never hide again
+   ([`016_goat`](benches/016_goat/report.md),
+   [`017_real_horizon`](benches/017_real_horizon/report.md)).
 3. **It passes a null control.** On de-meaned (random-walk) paths it shows
    **no** significant edge at any horizon — it does not manufacture alpha from
    noise. Most strategy searches never publish this test; ours is in the repo.
@@ -47,6 +47,15 @@ compete for the right to scale you out.
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.
+
+**So what survives?** The machinery, and it is the part that is hard: a
+complete enumeration that provably contains trailing-stop behaviour, an
+overfitting null control it passes, byte-identical determinism from browser to
+native, an auditable on-chain policy, and decisions that cost nothing and take
+a microsecond. What has *not* been demonstrated is a durable price edge on real
+SOL/USDC action at these horizons — a machine that beats holding on a month of
+real data is not something we can claim today, and we would rather say so than
+show you only the synthetic regimes.
 
 And the part most projects leave out: **we publish what did not work.**
 Plackett–Luce ratings, a third input bit, horizon-scaled parameters and

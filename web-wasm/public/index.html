@@ -157,12 +157,11 @@
     <div class="panel">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
-        <div><b style="color:var(--ink)">Beats every standard exit on the DFlow tick corpora</b> —
-          TWAP <span class="up">+76.0</span> · trailing <span class="up">+10.5</span> ·
-          ladder <span class="up">+114.0</span> · bracket <span class="up">+80.2</span> bps.
-          <b style="color:var(--ink)">But not everywhere:</b> on 31 days of real 1-minute bars
-          (225 windows) it trails TWAP by <span class="down">−4 ± 1</span> bps. We publish the
-          disagreement instead of the better half.</div>
+        <div><b style="color:var(--ink)">No proven edge on real data — our own benchmark says so.</b>
+          Synthetic regimes flatter it (<span class="up">+174</span> vs TP-ladder), but on recorded
+          DFlow segments it reads <span class="down">−20</span> vs trailing and on 31 days of real
+          1-minute bars <span class="down">−4 ± 1</span> vs TWAP. The benchmark splits real from
+          synthetic automatically so the gap cannot hide.</div>
         <div><b style="color:var(--ink)">Null control passed</b> — on de-meaned (random-walk) paths it shows
           <b>no</b> significant edge at any horizon: it does not manufacture alpha from noise</div>
         <div><b style="color:var(--ink)">GOAT gates G1–G6 pass</b> — bit-reproducible, this WASM build is
