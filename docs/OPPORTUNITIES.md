@@ -14,7 +14,7 @@ tried and did not work from our environment; 🔒 exists but needs access.
 |---|---|---|
 | `GET /quote` | ✅ used | Price sensor. Our whole engine input today. |
 | `GET /order` | ✅ used | Signed swap transaction — our actuator in live mode. |
-| Multi-size `/quote` probing | ✅ used (Plan 001) | **Executable depth**: BONK moves ~27 bps between a small and a large clip, SOL/USDC ~0.3. A liquidity signal no CEX candle contains. |
+| Multi-size `/quote` probing | ✅ used, then closed | **Executable depth**: BONK moves ~27 bps between a small and a large clip, SOL/USDC ~0.3 — a liquidity signal no CEX candle contains, and **not capturable**: 40.2 bps of pool fee, priority tip and latency drift on public routes leave −13.2 bps net. |
 | `routePlan[].venue` | ✅ **newly exploited** | Free with every quote: which venues fill, how many hops. Route churn is a thin-liquidity tell; venue identity is a fill-quality tell. |
 | `GET /venues` | ✅ available | 20+ venues enumerated (Whirlpools, Raydium ×4, Meteora ×3, HumidiFi, Byreal, Deriverse …). Lets us attribute execution quality per venue. |
 | `GET /priority-fees` | ✅ available | Fee regime is a congestion signal *and* a real cost term our simulator currently ignores. |
@@ -78,8 +78,10 @@ is allowed to make.
    (`afterswap:quote sha-256=…`, no program change needed).
    Remaining to make it end-to-end for *mainnet fills*: the same memo on the
    live sell transaction, which needs the production API.
-3. **Depth/venue-aware exits** (Plan 001, in flight) — the one remaining
-   *signal* hypothesis that is not direction prediction.
+3. ~~**Depth/venue-aware exits** (Plan 001)~~ — **closed**. The spread is
+   real (27 bps on BONK) but smaller than its unavoidable cost on public
+   routes (40.2 bps: 25 pool fee + 10 tip + 5 drift + 0.2 L1) — **−13.2 bps
+   net**. Economics, not measurement.
 4. **Execution-quality public dataset** — quotes, depth, venues, realized fills
    over time. A "DFlow execution weather report" is a product on its own and
    costs us only disk.

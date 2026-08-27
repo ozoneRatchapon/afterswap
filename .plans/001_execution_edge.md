@@ -1,5 +1,15 @@
 # Plan 001 — Liquidity-aware exits (the DFlow-native edge)
 
+> **CLOSED 2026-08-27 — economics, not measurement.** The depth spread this
+> plan was built to capture is 27 bps on BONK against 40.2 bps of unavoidable
+> cost on public routes (25 pool fee + 10 priority tip + 5 latency drift +
+> 0.2 L1), i.e. **−13.2 bps net**. The preliminary A/B had already found no
+> benefit from a depth input bit; the arithmetic explains why looking harder
+> would not have helped. Reopen only alongside private transaction tunnels,
+> zero-fee routing and just-in-time on-chain simulation — all three, since
+> the pool fee alone nearly exhausts the spread. Recorder stopped; the
+> collected quotes stay in `data/incoming/` as a depth/venue dataset.
+
 ## Why this, and why now
 
 Bench 018 (chronological train/test, real bars) set the direction: the engine
