@@ -57,6 +57,79 @@ pub fn replay_exit(
     (strategy_value - hold_value) / hold_value * 10_000.0
 }
 
+/// Replay with a third input bit derived from DFlow's executable depth.
+///
+/// Bits per tick: direction, off-peak, then **good depth** — 1 when the
+/// small-vs-large clip spread is at or below the median spread seen so far in
+/// this window (expanding median, so no lookahead). Depth is information only
+/// an aggregator's quotes carry; CEX candles cannot reconstruct it.
+///
+/// `depths[i]` is the spread in bps aligned with `window[i]`.
+pub fn replay_exit_depth(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    depths: &[f64],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+) -> f64 {
+    if window.len() < 2 || depths.len() != window.len() {
+        return 0.0;
+    }
+    let entry = window[0];
+    let mut m = fsm.clone();
+    m.reset();
+    let mut remaining = 1.0f64;
+    let mut cash = 0.0f64;
+    let mut peak = entry;
+    let mut seen: Vec<f64> = Vec::with_capacity(window.len());
+
+    for t in 1..window.len() {
+        let dir: u8 = u8::from(window[t] > window[t - 1]);
+        peak = peak.max(window[t]);
+        let off_peak: u8 = u8::from((peak - window[t]) / peak * 10_000.0 >= peak_drop_bps);
+
+        seen.push(depths[t]);
+        let mut sorted = seen.clone();
+        sorted.sort_by(f64::total_cmp);
+        let median = sorted[sorted.len() / 2];
+        let good_depth: u8 = u8::from(depths[t] <= median);
+
+        m.next_action(&[dir]);
+        m.next_action(&[off_peak]);
+        let action = m.next_action(&[good_depth]);
+        if action == 1 && remaining > 0.0 {
+            let frac = tranche_frac.min(remaining);
+            remaining -= frac;
+            cash += frac * (window[t] / entry);
+        }
+    }
+    let last = window[window.len() - 1] / entry;
+    (cash + remaining * last - last) / last * 10_000.0
+}
+
+/// Load a `{"price": f, "depth_bps": f}` recording as parallel series.
+pub fn load_depth_corpus(path: &str) -> std::io::Result<(Vec<f64>, Vec<f64>)> {
+    let text = std::fs::read_to_string(path)?;
+    let mut prices = Vec::new();
+    let mut depths = Vec::new();
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let (Some(p), Some(d)) = (
+            v.get("price").and_then(|x| x.as_f64()),
+            v.get("depth_bps").and_then(|x| x.as_f64()),
+        ) else {
+            continue;
+        };
+        if p > 0.0 && d.is_finite() {
+            prices.push(p);
+            depths.push(d);
+        }
+    }
+    Ok((prices, depths))
+}
+
 /// Evaluate every strategy on every window.
 ///
 /// Returns a `WinMatrix` whose `payoffs[i][j]` is strategy `i`'s edge (bps)
