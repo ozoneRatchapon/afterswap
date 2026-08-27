@@ -835,6 +835,54 @@ async function fetchGlobal() {
   } catch {}
 }
 
+// ---- Demo policy commitment: show every visitor a real on-chain
+// commitment without asking them for a wallet. The Worker signs with a
+// throwaway devnet key; this browser fetches the blockhash and submits,
+// because public Solana RPC blocks Cloudflare egress. Mainnet commitments
+// are always signed by the user's own wallet (see liveSell). ----
+const DEVNET_RPC = "https://api.devnet.solana.com";
+const DEMO_COMMIT_KEY = "afterswap-demo-commit-at";
+let demoCommitTried = false;
+
+async function devnetRpc(method, params) {
+  const r = await fetch(DEVNET_RPC, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  return await r.json();
+}
+
+async function commitDemoPolicy(arm) {
+  demoCommitTried = true;
+  // At most one demo commitment per browser per hour: these are real
+  // transactions paid from a finite devnet balance.
+  const last = Number(localStorage.getItem(DEMO_COMMIT_KEY) ?? 0);
+  if (Date.now() - last < 3600_000) return;
+  try {
+    const bh = (await devnetRpc("getLatestBlockhash", []))?.result?.value?.blockhash;
+    if (!bh) return;
+    const res = await (await fetch("/api/commit-policy", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fingerprint: BigInt(arm.id).toString(16),
+        n_states: arm.n_states,
+        tranche_bps: 1000,
+        blockhash: bh,
+      }),
+    })).json();
+    if (!res.signed_tx) return;
+    const sent = await devnetRpc("sendTransaction", [res.signed_tx, { encoding: "base64" }]);
+    if (!sent.result) return;
+    localStorage.setItem(DEMO_COMMIT_KEY, String(Date.now()));
+    $("onchainpanel").style.display = "";
+    $("onchain").insertAdjacentHTML("afterbegin",
+      `<div>📜 <b>${arm.name}</b>'s exit policy committed on-chain before its first sale ·
+       <a style="color:var(--series-1)" target="_blank" rel="noopener"
+          href="https://explorer.solana.com/tx/${sent.result}?cluster=devnet">devnet tx ↗</a>
+       <span style="color:var(--muted)">(fingerprint ${BigInt(arm.id).toString(16).slice(0, 8)}, ${arm.n_states} states)</span></div>`);
+  } catch { /* demo extra; never blocks the engine */ }
+}
+
 let reopenCooldown = 0;
 // A visitor should see machines working within seconds of landing, without
 // having to know what button to press. The first position opens itself as
@@ -869,6 +917,10 @@ async function tick() {
   }
   const events = JSON.parse(engine.on_tick(price));
   const closed = events.find((e) => e.type === "position_closed");
+  if (!demoCommitTried && !$("livemode").checked && snapNow.live_arm != null) {
+    const arm = snapNow.arms.find((a) => a.index === snapNow.live_arm);
+    if (arm) commitDemoPolicy(arm);
+  }
   if (closed && shadow && closed.tick !== lastScoredTick) {
     lastScoredTick = closed.tick;
     recordCycle(closed.final_value_norm, price);

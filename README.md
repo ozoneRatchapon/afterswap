@@ -31,8 +31,12 @@ compete for the right to scale you out.
 4. **The exit policy is committed on-chain before any sale follows it** — an
    18 KB Pinocchio program [live on
    devnet](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet)
-   writes the machine's blake3 fingerprint to an immutable PDA, so every DFlow
-   fill can be audited against a pre-committed policy.
+   writes the machine's blake3 fingerprint to an immutable PDA (**3,285
+   compute units** per commit), so every DFlow fill can be audited against a
+   pre-committed policy. **Open the demo and it happens to you**: the machine
+   that takes your position commits its policy to devnet automatically, no
+   wallet required — the signing key lives in the Worker, your browser only
+   relays the transaction.
 5. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to

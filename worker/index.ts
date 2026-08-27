@@ -16,6 +16,9 @@ import wasmModule from "../web-wasm/public/pkg/afterswap_wasm_bg.wasm";
 
 export { Scoreboard } from "./scoreboard";
 
+import { b58decode, commitPolicy } from "./commit";
+import pdaTable from "./pda_table.json";
+
 let ready: Promise<unknown> | null = null;
 
 const CORS = {
@@ -36,7 +39,12 @@ const USAGE = {
 
 interface Env {
   SCOREBOARD: DurableObjectNamespace;
+  /// Throwaway devnet keypair (base58 64-byte secret) used only to show
+  /// visitors a real on-chain policy commitment without a wallet.
+  DEMO_KEYPAIR?: string;
 }
+
+const POLICY_PROGRAM = "GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -54,6 +62,59 @@ export default {
       // One global instance: the aggregate is the whole point.
       const id = env.SCOREBOARD.idFromName("global-v1");
       return env.SCOREBOARD.get(id).fetch(request);
+    }
+
+    if (url.pathname === "/api/commit-policy") {
+      if (request.method !== "POST") return json({ error: "POST only" }, 405);
+      if (!env.DEMO_KEYPAIR) return json({ error: "demo signer not configured" }, 503);
+      let body: {
+        fingerprint?: unknown;
+        n_states?: unknown;
+        tranche_bps?: unknown;
+        blockhash?: unknown;
+      };
+      try {
+        body = await request.json();
+      } catch {
+        return json({ error: "invalid JSON" }, 400);
+      }
+      const fpHex = typeof body.fingerprint === "string" ? body.fingerprint : "";
+      if (!/^[0-9a-f]{1,16}$/.test(fpHex)) return json({ error: "bad fingerprint" }, 400);
+      const blockhash = typeof body.blockhash === "string" ? body.blockhash : "";
+      if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(blockhash)) {
+        return json({ error: "bad blockhash" }, 400);
+      }
+      const nStates = Number(body.n_states);
+      const trancheBps = Number(body.tranche_bps);
+      if (!(nStates >= 1 && nStates <= 4) || !(trancheBps >= 1 && trancheBps <= 10_000)) {
+        return json({ error: "bad params" }, 400);
+      }
+
+      // The DO hands out position slots and enforces the demo budget.
+      const slotRes = await env.SCOREBOARD
+        .get(env.SCOREBOARD.idFromName("global-v1"))
+        .fetch("https://do/slot", { method: "POST" });
+      const slot = (await slotRes.json()) as { slot?: number; error?: string };
+      if (slot.slot == null) return json({ error: slot.error ?? "no slots left" }, 429);
+      const policyPda = (pdaTable as { pdas: string[] }).pdas[slot.slot];
+      if (!policyPda) return json({ error: "slot out of range" }, 429);
+
+      try {
+        const signedTx = await commitPolicy({
+          secretKey: b58decode(env.DEMO_KEYPAIR),
+          blockhash,
+          programId: POLICY_PROGRAM,
+          owner: (pdaTable as { owner: string }).owner,
+          policyPda,
+          positionId: slot.slot,
+          fingerprint: BigInt("0x" + fpHex),
+          nStates,
+          trancheBps,
+        });
+        return json({ signed_tx: signedTx, policy_pda: policyPda, cluster: "devnet" });
+      } catch (e) {
+        return json({ error: String(e).slice(0, 200) }, 502);
+      }
     }
 
     if (url.pathname !== "/decide") {
