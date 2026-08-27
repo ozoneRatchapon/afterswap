@@ -50,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
         },
         record: arg::<String>(&args, "--record").map(Into::into),
         paired: arg::<String>(&args, "--paired").map(Into::into),
+        pair: arg::<String>(&args, "--pair").unwrap_or_else(|| "sol".to_string()),
         #[cfg(feature = "live")]
         live: match arg::<String>(&args, "--keypair") {
             Some(path) => {

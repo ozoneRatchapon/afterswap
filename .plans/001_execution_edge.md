@@ -43,6 +43,16 @@ volatile tokens, measured against trailing stops out-of-sample.
 - [ ] **Ship or revert with a recorded reason**; update README claim table
 - [ ] Re-run GOAT gates + wasm parity (G1–G6) before any deploy
 
+## Running in parallel while the recorder fills
+
+- [x] **Demo pair switcher** — SOL/USDC (familiar, no edge) or BONK/USDC
+      (where bench 018 measured +34 ± 10 vs trailing). Switching resets the
+      per-browser scoreboard so two markets never mix in one statistic.
+- [x] **Live soak moved to BONK** with paired evaluation
+      (`--pair bonk --paired`), so the live evidence is gathered in the market
+      the claim is about rather than the one it is not.
+- [ ] Report the BONK paired soak once it has enough cycles for a t-value.
+
 ## Rules this plan inherits
 
 1. No claim without a floor and a standard error.

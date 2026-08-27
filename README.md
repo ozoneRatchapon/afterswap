@@ -6,7 +6,9 @@
 >
 > **Live demo (no install, no wallet): https://afterswap.solana-thailand.workers.dev**
 > — the entire engine runs in your browser as WASM; quotes come straight
-> from DFlow. Add `?replay` for the recorded deterministic segment.
+> from DFlow. Switch the pair to **BONK** to watch it in the market where the
+> out-of-sample evidence says exit discipline pays. Add `?replay` for the
+> recorded deterministic segment.
 
 You swapped into SOL. Now what? Every wallet goes silent at exactly the moment
 that decides whether you make money: **the exit**. AfterSwap picks up where the

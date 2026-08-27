@@ -38,6 +38,8 @@ pub struct PaperConfig {
     pub record: Option<PathBuf>,
     /// Append one paired-comparison line per completed position cycle.
     pub paired: Option<PathBuf>,
+    /// Quote pair to soak: "sol" (default) or "bonk".
+    pub pair: String,
     /// Live executor: mirror paper tranche fills into real DFlow orders.
     #[cfg(feature = "live")]
     pub live: Option<LiveExecutor>,
@@ -54,6 +56,7 @@ impl Default for PaperConfig {
             replay: None,
             record: None,
             paired: None,
+            pair: "sol".to_string(),
             #[cfg(feature = "live")]
             live: None,
         }
@@ -110,7 +113,13 @@ pub async fn run_shared(
             info!("REPLAY mode: {} recorded ticks (looping)", prices.len());
             PriceFeed::Replay { prices, idx: 0 }
         }
-        None => PriceFeed::Live(PricePoller::sol_usdc(DflowClient::dev())),
+        None => {
+            info!("live feed: {} / USDC", cfg.pair);
+            PriceFeed::Live(match cfg.pair.as_str() {
+                "bonk" => PricePoller::bonk_usdc(DflowClient::dev()),
+                _ => PricePoller::sol_usdc(DflowClient::dev()),
+            })
+        }
     };
     let mut recorder = cfg
         .record
@@ -193,7 +202,9 @@ pub async fn run_shared(
             }
         }
         ticks += 1;
-        info!("tick {ticks}: SOL/USDC {price:.5}");
+        // Pair label and precision follow the feed: a memecoin quote is
+        // ~3e-6 USDC and rounds to zero at 5 decimals.
+        info!("tick {ticks}: {}/USDC {price:.9}", cfg.pair.to_uppercase());
         for ev in &events {
             info!("event: {}", serde_json::to_string(ev)?);
             #[cfg(feature = "live")]
