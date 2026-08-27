@@ -889,14 +889,20 @@ degenerates toward a coin flip when it is not — which is round three's
 martingale mechanism after all. Bench 034 recorded it as contradicted because
 it tested the signed quantity.
 
-**And our own corpus does not confirm even that.** `corr(|ρ₁|, PBO) = −0.034`
-across eleven assets. The grouping is suggestive — the three with |ρ₁| ≥ 0.13
-sit low and tight (0.075–0.202) while the eight below scatter 0.048–0.623 —
-and with three assets in the first group it is worth nothing.
+Our corpus returns `corr(|ρ₁|, PBO) = −0.034`, and for a while that read as a
+failure to transfer. **It was not — `benches/037_reversion_power` shows the
+test had 4.8% power.**
 
-So: under control the mechanism holds; in our data it does not measurably.
-Either the effect is swamped at the |ρ₁| ≤ 0.30 our assets exhibit, or AR(1) is
-too clean a model for the result to transfer. Neither is tested.
+Sweeping φ across the band our assets actually occupy (|ρ₁| ≤ 0.30), the
+mechanism is present but shallow: PBO falls 0.509 → 0.438, arm means
+correlating at −0.918, against a per-arm standard deviation of 0.21. Drawing
+20,000 pseudo-corpora at our measured |ρ₁| values, 4.8% reach significance at
+n = 11 — the false-positive rate. A corpus generated *by the mechanism itself*
+would usually have looked flat too.
+
+So the flat correlation is not evidence against anything, and settling this is
+a corpus question rather than an analysis one: it needs assets with stronger
+autocorrelation, or many more of them.
 
 FLOKI, JTO and PYTH remain unexplained — but the question is smaller than it
 looked. Bench 031 showed only JTO separates measurably, and the synthetic arms

@@ -37,23 +37,28 @@ That is round three's first mechanism — the martingale signal-to-noise deficit
 recorded as contradicted. Bench 034 tested signed rho_1. Against |rho_1| under controlled conditions,
 the mechanism holds.
 
-## But the real corpus does not confirm it, and that gap is the finding
+## The real corpus is silent, and bench 037 explains why
 
-Across our eleven assets, **corr(|rho_1|, PBO) = −0.034**. Flat. The grouping is suggestive — the three
-assets with |rho_1| >= 0.13 (BONK 0.202, PEPE 0.198, SHIB 0.075) all sit low and tight, while the eight
-below 0.13 scatter from 0.048 to 0.623 — and that pattern is what the synthetic arms predict. With
-three assets in the first group it is also worth nothing.
+Across our eleven assets, **corr(|rho_1|, PBO) = −0.034**. Flat — and for a while that looked like a
+failure to transfer.
 
-So the position is: **under control, |phi| moves PBO; in our data, it does not measurably.** Either the
-effect is swamped at the |rho_1| <= 0.30 our assets actually exhibit, or an AR(1) process is too clean a
-model of a real return series for the result to transfer. Both are testable and neither is tested.
+It is not. [Bench 037](../037_reversion_power/report.md) sweeps phi across the band our assets actually
+occupy (|rho_1| <= 0.30) and then asks what an eleven-asset corpus could have seen. The mechanism is
+present there — PBO falls 0.509 to 0.438 from phi = 0 to phi = 0.30, arm means correlating at −0.918 —
+but shallow, and per-arm PBO standard deviation is 0.21. Drawing 20,000 pseudo-corpora at our measured
+|rho_1| values, **4.8% reach significance at n = 11**. That is the false-positive rate. Our null had no
+power at all.
+
+So the position is: **under control |phi| moves PBO, and our data was never able to say otherwise.**
+The flat correlation is not evidence against the mechanism and should not be cited as such.
 
 ## Where this leaves I1
 
 Three mechanisms were named. Policy degeneracy is uniform across the corpus and explains nothing
 (bench 032). Mean reversion — our own addition, not on the list — is refuted here. Regime
 non-stationarity has one piece of support (bench 031's permutation diagnostic) and no direct test. The
-martingale deficit works in simulation and not in our data.
+martingale deficit works in simulation, and our corpus has 4.8% power
+to test it (bench 037).
 
 FLOKI, JTO and PYTH remain unexplained. What has changed is that the question is smaller than it looked:
 bench 031 showed only JTO separates measurably, and the synthetic arms show that near-martingale series
