@@ -372,6 +372,35 @@ What is still trust-me: the fill itself on mainnet carries no memo yet
 (needs the production API), and the demo's devnet commitments are signed by
 our throwaway key rather than the visitor's wallet.
 
+## 7i. Constant audit ✅ RUN — two retractions (bench 021_sensitivity)
+
+Prompted by the question *"what else did you assert without measuring?"* —
+after a sampling rate for signature verification had already been caught that
+way and was wrong. Swept every intuition-chosen constant one at a time over
+the six corpora:
+
+| constant | spread | verdict |
+|---|---|---|
+| `window_len` | **34 bps** | genuinely load-bearing (48 collapses to +10) |
+| `tranche_frac` | 3 bps | barely a knob |
+| `refresh_every_windows`, `max_arms` | 2 bps each | not knobs |
+| `peak_drop_bps` | 1 bps | the off-peak *bit* mattered (bench 005); its *threshold* does not — robustness, not a problem |
+| `surprise_ratio` | **0 bps** | **retracted** |
+
+**Retraction 1 — the surprise trigger.** Bench 012 reported that it "improved
+every floor". A direct A/B now says otherwise: OFF gives TWAP +75.73 /
+random +6.90 / real-vs-trailing −21.05, ON gives +76.00 / +5.40 / −20.24 —
+under 1.5 bps, in both directions. The original claim came from one
+measurement with no control. **Now off by default**, flag retained.
+
+**Retraction 2 — the learning loop was mostly not running.** The same audit
+measured live cycle length: median ~15 ticks against a 24-tick evaluation
+window, so most positions closed before a window ever completed. After an hour
+of live trading, 19 of 24 machines had never been tried and the seated machine
+was chosen by exploration order rather than by realized performance. Fixed by
+extending off-policy credit to the position-close path: one completed cycle now
+credits every machine. Verified live — 24 of 24 arms carry pulls.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);

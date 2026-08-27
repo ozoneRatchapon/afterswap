@@ -80,7 +80,13 @@ impl Default for EngineConfig {
             evolve_every_windows: 1,
             evolve_candidates: 12,
             peak_drop_bps: 30.0,
-            surprise_ratio: 1.2,
+            // Off by default: a proper sweep (bench 021_sensitivity) puts the
+            // spread across 0.0–4.0 at **0 bps**, and a direct A/B moves the
+            // floors by under 1.5 bps in both directions — noise. The original
+            // claim that it "improved every floor" (bench 012) came from a
+            // single measurement with no control. Flag kept; the concept may
+            // still matter at horizons these benches do not cover.
+            surprise_ratio: 0.0,
             off_policy_credit: true,
             // Off by default: the bench cannot resolve this feature.
             // Bench-length runs (~300 ticks) rebuild the arm set only a few

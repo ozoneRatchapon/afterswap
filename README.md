@@ -33,7 +33,7 @@ compete for the right to scale you out.
      trailing). With four assets tested that looked like a finding; with
      eleven it looks like selection. We report the aggregate, not the two.
    - Our synthetic regimes flatter the engine badly (+174 vs TP-ladder) while
-     recorded DFlow data reads **−7**; the benchmark now splits real from
+     recorded DFlow data reads **−7.9**; the benchmark now splits real from
      synthetic automatically so that gap cannot hide.
 
    Every time we increased statistical power, the apparent edge shrank. That
@@ -74,6 +74,18 @@ a policy **committed on-chain before it sells**, costs **nothing per decision**,
 and reports its result against doing nothing and against every standard
 alternative — honestly, including when that is a loss. Most retail exits are
 not benchmarked against anything at all; that is the bar we actually clear.
+
+**And we audit our own defaults, not just our results.** Asked "what else did
+you assert without measuring?", we swept every constant we had chosen by
+intuition ([`021_sensitivity`](benches/021_sensitivity/report.md)). Two of them
+turned out not to be knobs at all, and one shipped feature — a
+surprise-triggered re-tournament we had claimed "improved every floor" — moves
+the floors by under 1.5 bps in both directions once a control is run. It is now
+off by default with the retraction recorded. A defect the same audit exposed:
+the median live position closed in ~15 ticks against a 24-tick learning window,
+so 19 of 24 machines had never been tried after an hour of live trading. Fixed
+by crediting every machine at position close — 24 of 24 now learn from every
+cycle.
 
 **So what survives?** The machinery, and it is the part that is hard: a
 complete enumeration that provably contains trailing-stop behaviour, an
