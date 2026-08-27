@@ -76,6 +76,20 @@ fn main() {
         );
     }
 
+    let _ = writeln!(
+        md,
+        r#"
+## Verdict
+
+Enumerating the complete 4-state space costs hours per tournament against
+milliseconds for 3 states, and the extra machines make the result no better —
+additional capacity buys more ways to select a winner that does not
+generalise, which is what the CSCV result predicts. Enumerate exhaustively up
+to three states; reach beyond by evolution, whose cost does not grow with the
+space.
+"#
+    );
+
     let next = std::fs::read_dir("benches")
         .map(|d| {
             d.filter_map(Result::ok)

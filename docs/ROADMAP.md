@@ -401,6 +401,25 @@ was chosen by exploration order rather than by realized performance. Fixed by
 extending off-policy credit to the position-close path: one completed cycle now
 credits every machine. Verified live — 24 of 24 arms carry pulls.
 
+## 7j. Enumeration frontier ✅ MEASURED (bench 028_states)
+
+An architectural choice that had been taken on faith — why three states? —
+finally has a number. Complete enumeration at each state count, same objective,
+same corpora:
+
+| states | machines | tournament setup | objective |
+|---|---|---|---|
+| 2 | 26 | 487 µs | +40.4 bps |
+| **3** | **1,054** | **202 ms** | **+43.3 bps** |
+| 4 | 57,068 | **8,253 s** | +41.0 bps |
+
+Going to four states costs **40,000× the setup time and scores worse**. The
+per-corpus figures barely move, so the extra 56,014 machines are not producing
+new behaviour, only more ways to select a non-generalising winner — the same
+mechanism CSCV measures. Conclusion, now evidence-backed: enumerate
+exhaustively to three states, reach beyond by evolution, whose cost is flat in
+the size of the space. That is what the engine already did.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);
