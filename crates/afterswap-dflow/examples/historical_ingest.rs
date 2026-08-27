@@ -208,7 +208,8 @@ fn extract(result: &serde_json::Value, pool_filter: Option<&str>) -> Option<Obse
     }
 
     // A pool is an owner with exactly one leg in and one leg out.
-    let mut best: Option<(String, (String, f64), (String, f64))> = None;
+    type Leg = (String, f64);
+    let mut best: Option<(String, Leg, Leg)> = None;
     for (owner, legs) in &by_owner {
         if let Some(f) = pool_filter
             && owner != f
@@ -403,7 +404,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             writeln!(w, "{}", serde_json::to_string(&o)?)?;
         }
         observations.push(o);
-        if fetched % 50 == 0 {
+        if fetched.is_multiple_of(50) {
             eprintln!("  {fetched} fetched, {} usable", observations.len());
         }
     }
@@ -426,7 +427,7 @@ reading anything below."
         println!("\n## SOL/USDC pools by swap count in this sample\n");
         println!("| vault authority | swaps |\n|---|---|");
         let mut v: Vec<_> = pools.into_iter().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
         for (pool, n) in v.iter().take(10) {
             println!("| `{pool}` | {n} |");
         }
