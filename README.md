@@ -21,16 +21,19 @@ compete for the right to scale you out.
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
    evolution breeds 4-state machines the enumeration cannot reach. No model,
    no training, no prompt: a decision costs **$0 and ~1.2 microseconds**.
-2. **On real market data it does not beat the standard exits — and that is
-   published here, not buried.** Our synthetic regimes flatter it badly
-   (vs TP-ladder **+174**, vs bracket **+124**), but on the **recorded DFlow
-   segments** the same measurement reads **−20 vs trailing, −7 vs ladder,
-   −8 vs bracket**, and on **31 days of real 1-minute bars (225 independent
-   windows)** it trails TWAP by **−4 ± 1 bps**. Two live soaks agree: no
-   significant edge. The benchmark now splits real from synthetic corpora
-   automatically so that gap can never hide again
-   ([`016_goat`](benches/016_goat/report.md),
-   [`017_real_horizon`](benches/017_real_horizon/report.md)).
+2. **Where it works, and where it does not — both measured out-of-sample on
+   real bars.** Tuned on the first 60% of a month of 1-minute history and
+   scored on the last 40%, never overlapping
+   ([`018_train_test`](benches/018_train_test/report.md)):
+   - **Against trailing stops on volatile memecoins it wins significantly:**
+     BONK **+34 ± 10 bps**, PEPE **+26 ± 11 bps** — 3.4 and 2.4 standard
+     errors. Exit discipline pays where drawdowns are deep.
+   - **Against TWAP, nowhere:** +0 ± 3 on SOL, +7 ± 8 BONK, −8 ± 9 PEPE.
+     TWAP is a genuinely hard floor and we do not clear it.
+   - On liquid SOL/USDC at minute resolution there is **no edge at all**, and
+     our own synthetic regimes flatter the engine badly (+174 vs TP-ladder
+     synthetic, **−7 on recorded DFlow data**). The benchmark now splits real
+     from synthetic automatically so that gap can never hide again.
 3. **It passes a null control.** On de-meaned (random-walk) paths it shows
    **no** significant edge at any horizon — it does not manufacture alpha from
    noise. Most strategy searches never publish this test; ours is in the repo.
@@ -47,6 +50,13 @@ compete for the right to scale you out.
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.
+
+**So what is the product, then?** Not "beat the market" — an exit you can
+audit, automate and measure honestly, aimed at the assets where exits actually
+decide the outcome. The strongest evidence points at volatile tokens, where a
+trailing stop is what people reach for and where our machines beat it
+out-of-sample by 26–34 bps. On blue-chip pairs at minute horizons, the honest
+answer is that TWAP is fine and we add discipline, not alpha.
 
 **So what survives?** The machinery, and it is the part that is hard: a
 complete enumeration that provably contains trailing-stop behaviour, an
