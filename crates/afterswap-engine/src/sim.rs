@@ -278,6 +278,53 @@ pub fn synthetic_corpus(regime: Regime, len: usize, seed: u64) -> Vec<f64> {
     out
 }
 
+/// Block-bootstrap longer-horizon bars from a recorded tick series.
+///
+/// Each output bar aggregates `factor` consecutive real returns sampled
+/// as a block, so the return distribution and short-range autocorrelation
+/// of the source are preserved while the effective bar duration (and
+/// per-bar volatility) scales up. This is how we test whether the engine's
+/// edge depends on horizon without waiting hours per experiment. Labeled
+/// bootstrapped, never presented as raw recorded data.
+pub fn bootstrap_bars(
+    source: &[f64],
+    n_bars: usize,
+    factor: usize,
+    seed: u64,
+    demean: bool,
+) -> Vec<f64> {
+    if source.len() < factor + 2 || factor == 0 {
+        return source.to_vec();
+    }
+    let returns: Vec<f64> = source
+        .windows(2)
+        .map(|w| (w[1] / w[0]).ln())
+        .filter(|r| r.is_finite())
+        .collect();
+    // Drift confound: the recorded window was strongly bullish, and
+    // bootstrapping compounds that drift over long horizons until holding
+    // wins by construction. `demean` removes the mean return so the
+    // experiment isolates exit timing from market direction.
+    let drift = match demean {
+        true => returns.iter().sum::<f64>() / returns.len() as f64,
+        false => 0.0,
+    };
+    let mut rng = fastrand::Rng::with_seed(seed);
+    let mut price = source[0];
+    let mut out = Vec::with_capacity(n_bars + 1);
+    out.push(price);
+    for _ in 0..n_bars {
+        let start = rng.usize(..returns.len().saturating_sub(factor).max(1));
+        let bar: f64 = returns[start..(start + factor).min(returns.len())]
+            .iter()
+            .map(|r| r - drift)
+            .sum();
+        price *= bar.exp();
+        out.push(price);
+    }
+    out
+}
+
 /// Load a `{"price": f}` jsonl recording.
 pub fn load_corpus(path: &str) -> std::io::Result<Vec<f64>> {
     let text = std::fs::read_to_string(path)?;

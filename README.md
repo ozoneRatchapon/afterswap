@@ -176,6 +176,15 @@ significant live edge** (mean +0.10 bps, t = +0.36), a thin
 positive tilt in chop, a measurable weak spot in a fast rally, and an
 observable regime adaptation: [`docs/SOAK.md`](docs/SOAK.md).
 
+## Null control
+
+The engine passes the check that matters most for a strategy search: on
+block-bootstrapped **de-meaned** price paths (≈ random walk), it shows **no
+significant edge at any horizon** — it does not manufacture alpha from
+noise. On the same paths with structure preserved, its advantage over other
+exit strategies grows with horizon (+469 ± 87 bps vs TWAP at ~80 min).
+Full sweep: [`benches/016_horizon/report.md`](benches/016_horizon/report.md).
+
 ## Roadmap
 
 Parked ideas with their evidence — input-alphabet v2 (the trailing-stop

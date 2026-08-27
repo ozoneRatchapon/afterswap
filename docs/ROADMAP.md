@@ -205,6 +205,31 @@ online analogue of what the GOAT bench does offline. Run with
 t-values hourly. This is the instrument that makes every future
 improvement measurable in hours instead of weeks.
 
+## 7d. Horizon sweep + null control ✅ RUN (v2.7, bench 016)
+
+Tested the standing hypothesis that live edges look tiny only because the
+demo exit horizon is ~1 minute. Method: block-bootstrap bars from the
+1,224 recorded DFlow ticks at aggregation factors 1–60 (bar ≈ 2 s → 2 min),
+40 seeds per scale, means reported ±SE.
+
+- **Null control (de-meaned, ≈ random walk): no significant edge at any
+  horizon** — every cell within ~1–2 SE of zero. The engine does not
+  manufacture alpha from noise. This is the overfitting check.
+- **Structured (drift preserved): advantage over other exit strategies is
+  real and scales with horizon** — +469 ± 87 bps vs TWAP and +496 ± 86 vs
+  trailing at ~80-minute horizons (>5 SE). Versus *holding* it loses in a
+  compounding bull sample, consistent with G2c.
+- Hypothesis verdict: confirmed for effect *magnitude*, but the sign
+  depends on market structure. Demo-scale measurement sits in the least
+  favorable corner.
+- Caveat kept in the report: bootstrapping preserves only within-block
+  autocorrelation, so it understates real longer-range structure.
+
+**Next from this:** parameters do not obviously transfer across horizons
+(window 24 / 10% tranches was tuned at demo scale) — scale window and
+tranche with bar duration, then re-run this sweep. That is the concrete
+performance lever this experiment exposed.
+
 ## 8. Ops / trust hardening
 
 - Custom domain (workers.dev triggers Phantom's new-domain heuristics);
