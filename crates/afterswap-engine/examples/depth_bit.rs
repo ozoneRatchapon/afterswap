@@ -16,7 +16,9 @@ use std::fmt::Write as _;
 use afterswap_engine::sim::{load_depth_corpus, replay_exit, replay_exit_depth};
 use katgpt_ruliology::FsmEnumerator;
 
-const WINDOW: usize = 120;
+/// Window length in ticks; the recorder samples every 5 s, so 60 ticks is a
+/// five-minute window. Override with the second CLI argument.
+const DEFAULT_WINDOW: usize = 60;
 const PEAK_DROP_BPS: f64 = 30.0;
 const TRANCHE: f64 = 0.1;
 
@@ -34,8 +36,12 @@ fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "data/incoming/bonk_depth.jsonl".to_string());
+    let window: usize = std::env::args()
+        .nth(2)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_WINDOW);
     let (prices, depths) = load_depth_corpus(&path).expect("depth corpus");
-    let n_windows = prices.len() / WINDOW;
+    let n_windows = prices.len() / window;
     if n_windows < 6 {
         println!("only {n_windows} windows in {path} — let the recorder run longer");
         return;
@@ -44,8 +50,8 @@ fn main() {
     let machines = FsmEnumerator::enumerate(3);
 
     let score = |w: usize, m: &katgpt_ruliology::FsmStrategy, depth: bool| {
-        let lo = w * WINDOW;
-        let hi = lo + WINDOW;
+        let lo = w * window;
+        let hi = lo + window;
         match depth {
             true => replay_exit_depth(m, &prices[lo..hi], &depths[lo..hi], TRANCHE, PEAK_DROP_BPS),
             false => replay_exit(m, &prices[lo..hi], TRANCHE, PEAK_DROP_BPS),
@@ -55,8 +61,9 @@ fn main() {
     let mut md = String::from("# Does DFlow depth carry exit signal?\n\n");
     let _ = writeln!(
         md,
-        "{} ticks from `{path}`, {WINDOW}-tick windows: {split} train / {} test. Best machine chosen on train under each protocol, scored on test. Edge is vs holding, in bps.\n",
+        "{} ticks from `{path}`, {window}-tick windows ({} s each at the recorder's 5 s cadence): {split} train / {} test. Best machine chosen on train under each protocol, scored on test. Edge is vs holding, in bps.\n",
         prices.len(),
+        window * 5,
         n_windows - split
     );
     let _ = writeln!(md, "| protocol | best machine (train) | train edge | **test edge (±SE)** |\n|---|---|---|---|");
@@ -82,6 +89,16 @@ fn main() {
             },
             best.1,
             best.0
+        );
+    }
+
+    // The harness states its own sample size problem rather than leaving a
+    // reader to notice it: four test windows cannot separate these.
+    if n_windows - split < 12 {
+        let _ = writeln!(
+            md,
+            "\n> ⚠️ **Preliminary — too few windows to conclude.** With {} test windows the two protocols' standard errors overlap heavily, so this table cannot distinguish them; treat it as a pipeline check, not a result. The recorder is still collecting; re-run with `cargo run -p afterswap-engine --example depth_bit --release` once the file is several times longer.\n",
+            n_windows - split
         );
     }
 

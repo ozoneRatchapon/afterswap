@@ -32,9 +32,12 @@ volatile tokens, measured against trailing stops out-of-sample.
       no engine changes, no risk to the shipping path
 - [x] **Harness**: `examples/depth_bit.rs` picks the best machine on TRAIN
       windows under each protocol and scores it on disjoint TEST windows
-- [ ] **Run it** once the recording has ≥ 6 windows:
-      `cargo run -p afterswap-engine --example depth_bit --release`
-- [ ] **Only if the 3-bit protocol wins out-of-sample:** thread depth through
+- [x] **First run (preliminary, bench 022_depth_bit)** — 534 ticks, 4 train /
+      4 test windows: 2-bit +42.2 ± 14.9 vs 3-bit-with-depth +28.7 ± 17.3.
+      The depth bit does **not** help so far, but the sample cannot separate
+      them; the harness now says so in its own report. Recorder still running.
+- [ ] **Re-run** when the recording is several times longer, then decide
+- [ ] **Still gated on that re-run — only if the 3-bit protocol wins:** thread depth through
       `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
       (default off), then re-run GOAT + wasm parity
 - [ ] **A/B on a frozen corpus** (move the recording out of `data/incoming/`
