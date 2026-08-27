@@ -14,6 +14,7 @@
 
 use std::fmt::Write as _;
 
+use afterswap_engine::power::{Z_POWER_80, mde_from_se};
 use afterswap_engine::sim::{load_quote_corpus, replay_exit, replay_exit_with_bit};
 use katgpt_ruliology::FsmEnumerator;
 
@@ -86,7 +87,10 @@ fn main() {
         c.prices.len(),
         n_windows - split
     );
-    let _ = writeln!(md, "| third bit | selection | train | **test (±SE)** |\n|---|---|---|---|");
+    let _ = writeln!(
+        md,
+        "| third bit | selection | train | **test (±SE)** | MDE |\n|---|---|---|---|---|"
+    );
 
     for (name, bits) in candidates {
         let score = |w: usize, m: &katgpt_ruliology::FsmStrategy| {
@@ -125,11 +129,18 @@ fn main() {
             })
             .collect();
         let (tm, tse) = stat(&per_window);
+        // A null is only informative beside the effect it could have seen.
         let _ = writeln!(
             md,
-            "| {name} | top-{TOP_K} of {ties} tied | {train_best:+.1} | **{tm:+.1} ± {tse:.1}** |"
+            "| {name} | top-{TOP_K} of {ties} tied | {train_best:+.1} | **{tm:+.1} ± {tse:.1}** | {:.1} bps |",
+            mde_from_se(tse, Z_POWER_80)
         );
     }
+
+    let _ = writeln!(
+        md,
+        "\nRead the MDE column first: a candidate signal is only ruled out down to that effect size. Differences smaller than it are invisible to this sample regardless of what the point estimates say.\n"
+    );
 
     if n_windows - split < 12 {
         let _ = writeln!(

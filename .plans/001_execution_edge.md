@@ -55,7 +55,15 @@ volatile tokens, measured against trailing stops out-of-sample.
       entirely. Now averages the top-5 and reports the tie count.
 - [x] **Candidate signals implemented**: depth-below-median, route-changed-venue,
       single-hop-route.
-- [ ] **Re-run** when the recording is several times longer, then decide
+- [x] **Second run at 1,207 ticks** (bench 029_signal_bits, 12 train / 8 test):
+      2-bit **+8.7 ± 8.0**, depth **+9.2 ± 10.5**, route-churn **+8.4 ± 8.2**,
+      single-hop **+6.8 ± 8.6**. Every candidate sits inside every other
+      candidate's standard error. **MDE is 22–30 bps**, so what this actually
+      establishes is: no DFlow-only signal helps *by more than ~22 bps*, which
+      is a weak statement. The harness now prints that column so the weakness
+      is visible rather than implied.
+- [ ] **Re-run again at ~5,000 ticks** (MDE would fall to roughly 11 bps), then
+      decide whether to thread depth through the engine or record the null
 - [ ] **Still gated on that re-run — only if the 3-bit protocol wins:** thread depth through
       `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
       (default off), then re-run GOAT + wasm parity
