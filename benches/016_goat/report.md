@@ -32,7 +32,17 @@ Trailing stop 50 bps · TP ladder 10×10 bps · bracket ±50 bps.
 | dflow_recorded | 0.99839 | 1.00536 | 1.00432 | 1.00529 | -69.4 | -59.1 | -68.7 |
 | dflow_recorded2 | 1.00012 | 0.99723 | 0.99565 | 0.99490 | +28.9 | +44.9 | +52.5 |
 
-**Means: vs trailing +10.53 bps · vs TP-ladder +114.01 bps · vs bracket +80.20 bps.**
+**All corpora: vs trailing +10.53 · vs TP-ladder +114.01 · vs bracket +80.20 bps.**
+
+**Recorded DFlow corpora only (2): vs trailing -20.24 · vs TP-ladder -7.11 · vs bracket -8.13 bps.**
+
+**Synthetic regimes only (4): vs trailing +25.91 · vs TP-ladder +174.57 · vs bracket +124.36 bps.**
+
+The headline mean is produced by the synthetic regimes, which are
+hand-specified and far cleaner than real price action. On the recorded
+DFlow data the engine loses to these floors. Treat the all-corpora row as
+an upper bound, not a result — see `benches/017_real_horizon` for the
+larger real-data test.
 
 ## G3 arm-cap ablation (24 vs uncapped)
 
@@ -47,5 +57,5 @@ Trailing stop 50 bps · TP ladder 10×10 bps · bracket ±50 bps.
 
 ## G4 latency (release)
 
-Mean on_tick **1.068µs**, worst tick (bootstrap tournament incl. 1,054-FSM enumeration) **153.75µs**. Budgets: 1 ms / 1 s — PASS.
+Mean on_tick **898ns**, worst tick (bootstrap tournament incl. 1,054-FSM enumeration) **126.875µs**. Budgets: 1 ms / 1 s — PASS.
 

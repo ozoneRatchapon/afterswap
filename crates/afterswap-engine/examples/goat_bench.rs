@@ -133,6 +133,9 @@ fn main() {
         "## Ecosystem floors (report-only)\n\nTrailing stop 50 bps · TP ladder 10×10 bps · bracket ±50 bps.\n\n| corpus | engine | trailing | ladder | bracket | vs trail | vs ladder | vs bracket |\n|---|---|---|---|---|---|---|---|"
     );
     let (mut s_tr, mut s_la, mut s_br) = (0.0, 0.0, 0.0);
+    // Split real from synthetic: a mean that mixes them hides which one is
+    // doing the work. It was hiding exactly that until bench 017.
+    let (mut r_tr, mut r_la, mut r_br, mut r_n) = (0.0, 0.0, 0.0, 0.0);
     for (name, prices) in &corpora {
         let e = simulate(goat_cfg(), prices, OPEN_AT, 1.0).final_value_norm;
         let tr = trailing_stop_value_norm(prices, OPEN_AT, 50.0);
@@ -142,6 +145,12 @@ fn main() {
         s_tr += dt;
         s_la += dl;
         s_br += db;
+        if name.starts_with("dflow_") {
+            r_tr += dt;
+            r_la += dl;
+            r_br += db;
+            r_n += 1.0;
+        }
         let _ = writeln!(
             md,
             "| {name} | {e:.5} | {tr:.5} | {la:.5} | {br:.5} | {dt:+.1} | {dl:+.1} | {db:+.1} |"
@@ -149,9 +158,18 @@ fn main() {
     }
     let _ = writeln!(
         md,
-        "\n**Means: vs trailing {:+.2} bps · vs TP-ladder {:+.2} bps · vs bracket {:+.2} bps.**\n",
+        "\n**All corpora: vs trailing {:+.2} · vs TP-ladder {:+.2} · vs bracket {:+.2} bps.**",
         s_tr / n, s_la / n, s_br / n
     );
+    if r_n > 0.0 {
+        let syn_n = n - r_n;
+        let _ = writeln!(
+            md,
+            "\n**Recorded DFlow corpora only ({r_n:.0}): vs trailing {:+.2} · vs TP-ladder {:+.2} · vs bracket {:+.2} bps.**\n\n**Synthetic regimes only ({syn_n:.0}): vs trailing {:+.2} · vs TP-ladder {:+.2} · vs bracket {:+.2} bps.**\n\nThe headline mean is produced by the synthetic regimes, which are\nhand-specified and far cleaner than real price action. On the recorded\nDFlow data the engine loses to these floors. Treat the all-corpora row as\nan upper bound, not a result — see `benches/017_real_horizon` for the\nlarger real-data test.\n",
+            r_tr / r_n, r_la / r_n, r_br / r_n,
+            (s_tr - r_tr) / syn_n, (s_la - r_la) / syn_n, (s_br - r_br) / syn_n
+        );
+    }
 
     // G3
     let _ = writeln!(md, "## G3 arm-cap ablation (24 vs uncapped)\n");
