@@ -47,3 +47,11 @@ and the dissent holds at every setting, including partitions large enough to
 clear the 25-observations-per-slice floor an external source warns about. It is
 a property of those three series, not of how the data was sliced.
 
+A further caveat supersedes the reading above: `benches/031_pbo_interval` puts
+stationary-bootstrap intervals on every figure in this table, and they are
+0.29-0.72 wide. No asset's interval clears the envelope of the four clean
+generalisers. **The split this bench reports between three dissenters and eight
+generalisers is not supported at this sample size** — the point estimates
+differ, but not by more than their own uncertainty. Read the PBO column as
+ordering, not as separation.
+
