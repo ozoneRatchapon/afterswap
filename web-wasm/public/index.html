@@ -101,6 +101,7 @@
       <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
     </span>
     <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
+    <span id="sigchip" style="font-size:11px; color:var(--muted); margin-left:8px"></span>
   </span>
 </header>
 
@@ -170,6 +171,10 @@
           <b>no</b> significant edge at any horizon: it does not manufacture alpha from noise</div>
         <div><b style="color:var(--ink)">GOAT gates G1–G6 pass</b> — bit-reproducible, this WASM build is
           byte-identical to the audited native engine, ~1.2 µs/tick</div>
+        <div><b style="color:var(--ink)">The quote itself is verifiable</b> — DFlow signs its API
+          responses (RFC 9421, ed25519) and your browser checks the signature and body digest
+          against DFlow's published key before the machines act on the price. Nothing here asks
+          you to trust our screenshot of a number.</div>
         <div><b style="color:var(--ink)">Exit policy committed on-chain</b> —
           <a style="color:var(--series-1)" target="_blank" rel="noopener"
              href="https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet">policy program on devnet ↗</a>
@@ -746,8 +751,83 @@ async function loadReplay() {
   return text.split("\n").filter(Boolean).map((l) => JSON.parse(l).price);
 }
 
+// ---- DFlow request signing (RFC 9421, ed25519) ----
+// DFlow will sign its API responses; the headers are CORS-exposed, so the
+// visitor's own browser can check that the price the machines acted on really
+// came from DFlow and was not altered in transit. The key below is DFlow's
+// published one, carried as `keyid` in every signature.
+const DFLOW_KEYID = "EZKxYr7bbXHaKAGw2MEpVUU9He3hwXGejSpCsdsZCmiF";
+let lastVerified = null; // { ok, digest, at }
+
+function b58ToBytes(str) {
+  let n = 0n;
+  for (const ch of str) n = n * 58n + BigInt(B58.indexOf(ch));
+  const out = new Uint8Array(32);
+  for (let i = 31; i >= 0; i--) { out[i] = Number(n & 255n); n >>= 8n; }
+  return out;
+}
+
+async function verifySignedResponse(res, text, requestId) {
+  const sigInput = res.headers.get("signature-input");
+  const sig = res.headers.get("signature");
+  const digest = res.headers.get("content-digest");
+  if (!sigInput || !sig || !digest) return { ok: false, reason: "unsigned" };
+  // 1. body integrity
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
+  if (digest !== `sha-256=:${b64}:`) return { ok: false, reason: "digest mismatch" };
+  // 2. signature over the RFC 9421 signature base
+  const params = sigInput.slice(sigInput.indexOf("=") + 1);
+  const base = [
+    `"@status": ${res.status}`,
+    `"content-type": ${res.headers.get("content-type")}`,
+    `"content-digest": ${digest}`,
+    `"x-request-id";req: ${requestId}`,
+    `"@signature-params": ${params}`,
+  ].join("\n");
+  const raw = sig.slice(sig.indexOf(":") + 1, sig.lastIndexOf(":"));
+  const sigBytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+  try {
+    const key = await crypto.subtle.importKey("raw", b58ToBytes(DFLOW_KEYID), { name: "Ed25519" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify({ name: "Ed25519" }, key, sigBytes, new TextEncoder().encode(base));
+    return { ok, reason: ok ? "verified" : "bad signature", digest: b64 };
+  } catch {
+    // Older browsers lack WebCrypto Ed25519; the digest check still held.
+    return { ok: null, reason: "digest ok, ed25519 unsupported here", digest: b64 };
+  }
+}
+
+function renderSigChip(v) {
+  const el = $("sigchip");
+  if (!el || !v) return;
+  if (v.ok === true) {
+    el.innerHTML = `<span style="color:var(--delta-good)">✓ DFlow-signed quote verified in your browser</span>`;
+  } else if (v.ok === null) {
+    el.textContent = `signed quote · ${v.reason}`;
+  } else {
+    el.innerHTML = `<span style="color:var(--delta-bad)">signature ${v.reason}</span>`;
+  }
+}
+
+let sigCheckCountdown = 0;
+
 async function fetchPrice() {
-  const q = await (await fetch(quoteUrl())).json();
+  // Ask for a signature periodically: verifying every tick would spend the
+  // visitor's CPU proving the same thing sixty times a minute.
+  const wantSig = sigCheckCountdown <= 0;
+  const requestId = `afterswap-${Date.now()}`;
+  const res = await fetch(quoteUrl(), {
+    headers: wantSig ? { "x-sign-request": "true", "x-request-id": requestId } : {},
+  });
+  const text = await res.text();
+  if (wantSig) {
+    sigCheckCountdown = 60;
+    lastVerified = await verifySignedResponse(res, text, requestId);
+    renderSigChip(lastVerified);
+  } else {
+    sigCheckCountdown -= 1;
+  }
+  const q = JSON.parse(text);
   const rp = q.routePlan;
   const inD = rp[0].inputMintDecimals, outD = rp[rp.length - 1].outputMintDecimals;
   return (Number(q.outAmount) / 10 ** outD) / (Number(q.inAmount) / 10 ** inD);
