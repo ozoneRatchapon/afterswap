@@ -208,3 +208,117 @@ copy-trading.
    next project, and the evidence here says the answer is counter-intuitive.
 3. **D2** — because it is the only remaining hypothesis for a real edge that
    this project has not already falsified.
+
+
+---
+
+# Round 2 — questions the first answers created (2026-08-27)
+
+Round 1 changed the code the same day it arrived: power gating, an
+evidence-ladder linter, and a CSCV/PBO overfitting test that produced the
+sharpest result this project has. These are the questions that opened up
+*because* of those answers. Same convention: **[self]** = more compute could
+answer it, **[external]** = needs literature or other people's practice.
+
+## E. Adapting the recommended protocol to a non-Sharpe objective
+
+**E1. How do you apply the deflated Sharpe ratio when the objective is a
+paired bps difference rather than a return series?** [external]
+*Why it blocks us:* DSR is defined on Sharpe ratios with skew and kurtosis
+corrections. Our metric is "edge versus a reference exit on the same price
+path" — paired, roughly symmetric, and already variance-reduced. Substituting
+mean/σ of the paired differences may or may not preserve the extreme-value
+correction that makes DSR meaningful.
+*Useful answer:* whether the paired-difference t-statistic can be plugged into
+the DSR machinery directly, or which alternative (Romano-Wolf on the paired
+differences?) is correct for this objective.
+
+**E2. What is the minimum viable configuration of CSCV when windows are
+scarce?** [external]
+*Incident:* our per-asset window counts are 166–375. We used S = 10 (252
+splits). Bailey et al. suggest S = 16. Three assets returned PBO ≈ 0.5 or
+worse and we cannot tell whether that is a real signal-free asset or an
+artefact of too few windows per slice.
+*Useful answer:* guidance on slices-versus-observations, and whether
+overlapping windows (which we could generate cheaply) are admissible or
+destroy the test.
+
+**E3. Our PBO says the ranking generalises while the level does not. Is that a
+named phenomenon, and what does the literature prescribe?** [external]
+*Why it matters:* this is now the central empirical fact about the product.
+"Reliable selection of an unprofitable population" suggests the objective, not
+the search, is wrong — but we would rather know than guess.
+
+## F. When the strategy space is the problem
+
+**F1. Is there a formulation of exit execution with provable guarantees that
+does not require predicting direction?** [external]
+*Motivation:* round 1 established that minute-horizon alpha is decayed
+(50–500 ms) and that our machines cannot be profitable there. Optimal
+execution theory (implementation shortfall, Almgren–Chriss style) claims
+results without directional prediction. Does that transfer to a retail-sized
+exit over a volatile token on an AMM?
+*Useful answer:* the objective function we should be minimising instead of
+"edge versus hold", and whether it admits the same enumerate-and-verify
+treatment.
+
+**F2. What is the right objective when the honest goal is risk control rather
+than return?** [external]
+Drawdown-first, worst-case (tropical/minimax) and viability-set formulations
+all exist. Which are testable with the harness we already have — paired,
+out-of-sample, with a null control?
+
+**F3. Does exit-policy value appear at horizons where alpha is not the
+mechanism — for example forced exits (liquidation, expiry, redemption)?**
+[external]
+Perps and prediction markets have deadlines; our machinery may matter there
+for reasons that survive an efficient market.
+
+## G. Making the loop itself trustworthy
+
+**G1. Do continuous autonomous research loops degrade over time, and what is
+the failure mode?** [external]
+*Why we ask now:* we are about to run one deliberately. Plausible failure
+modes: claim accumulation without retraction, context rot, gradual metric
+drift, or optimising the harness instead of the product.
+*Useful answer:* evidence from long-running autonomous or semi-autonomous
+research systems on what breaks first and what instrumentation catches it.
+
+**G2. How should adopted external findings themselves be verified?** [self]
+*Incident:* round 1's reference table contained an internal inconsistency in
+its unpaired column, which we only caught because we reproduced the paired
+figures first. Adopting a finding is itself an unmeasured assertion unless a
+test reproduces it.
+*Proposal to validate:* every adopted finding ships with a test that fails if
+the finding is misapplied — the power module already does this. Is there
+prior art for "citation tests"?
+
+**G3. What does a pre-registration manifest look like for an agent that writes
+its own analysis code?** [external]
+Round 1 prescribed SHA-256 committing hypothesis, effect size, power target,
+split boundaries and null controls before touching data. We have no example of
+one that survived contact with a real agent loop.
+
+## H. Product questions the answers reframed
+
+**H1. Under MiCA Article 78, what exactly must a best-execution record
+contain, and would our artefact (signed quote + on-chain policy commitment +
+fill) satisfy an auditor?** [external]
+This is the difference between a demo and a compliance product.
+
+**H2. Who currently proves best execution on Solana, and how?** [external]
+If the answer is "nobody, they assert it", the verifiable chain is a market.
+If regulated venues already do it off-chain, we are late.
+
+**H3. Is the 27 bps clip-size spread capturable after priority tips and the
+quote-to-block execution gap — and has anyone measured the net?** [external]
+Round 1 said 10–15 bps can go to tips in congestion. The remainder is either a
+business or a rounding error, and we cannot tell from here.
+
+## Priority for round 2
+
+1. **F1** — if the objective is wrong, everything downstream is wasted effort;
+   this is the only question that could redirect the whole project.
+2. **E3** — because "selection generalises, profit does not" is our central
+   finding and we do not know what it is called or what follows from it.
+3. **H1** — because it decides whether the verifiable chain is a product.
