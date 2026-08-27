@@ -330,6 +330,17 @@ noise. On the same paths with structure preserved, its advantage over other
 exit strategies grows with horizon (+469 ± 87 bps vs TWAP at ~80 min).
 Full sweep: [`benches/014_horizon/report.md`](benches/014_horizon/report.md).
 
+## What we stopped doing, and why
+
+Two research tracks were closed by evidence rather than abandoned. The
+liquidity-depth hypothesis — the one genuinely DFlow-native signal we found,
+27 bps between clip sizes on a long-tail token — is **−13.2 bps net** once the
+pool fee (25), priority tip (10) and latency drift (5) are counted, so no
+amount of better signal processing reaches it. And the non-directional
+redirect closed itself the moment its benchmark was matched on urgency. Both
+are written up with their arithmetic in [`docs/QUESTIONS.md`](docs/QUESTIONS.md)
+and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Roadmap
 
 Parked ideas with their evidence — input-alphabet v2 (the trailing-stop

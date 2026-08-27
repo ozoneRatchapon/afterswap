@@ -438,10 +438,35 @@ publishing post-hoc benchmark statistics rather than verifiable cryptographic
 proof of pre-trade market state.* Our signed-quote → committed-policy → fill
 chain is the missing artefact.
 
-**H3 — is the 27 bps capturable?** **No, not on public routes.** CPMM base
-swap fees, priority/Jito tips and quote-to-block drift together exceed the
-gross spread on long-tail tokens; net realisable margin is negative without
-private transaction tunnels, zero-fee routing and just-in-time on-chain
-simulation. Plan 001's depth hypothesis is therefore capped by economics, not
-by our measurement — which is consistent with its own preliminary result
-showing no benefit.
+**H3 — is the 27 bps capturable? No, and now with the arithmetic.** The
+answer document states it as an identity:
+
+```
+Net Margin = Spread_gross − (Fee_pool + Tip_priority + Drift_latency + Fee_L1)
+BONK:       = 27.0 − (25.0 + 10.0 + 5.0 + 0.2) = −13.2 bps
+```
+
+The CPMM pool fee alone (**25 bps**) very nearly consumes the entire spread
+before priority tips or latency drift are counted. This is not a marginal
+call needing better execution — it is negative by 13.2 bps on public routes,
+and only private transaction tunnels, zero-fee aggregation and just-in-time
+on-chain simulation could change the sign. **Plan 001's depth hypothesis is
+economically dead, not merely unmeasured** — which is consistent with its own
+preliminary A/B showing no benefit, and it is now closed on the economics
+rather than left waiting for more data.
+
+### Extraction note — what we nearly missed
+
+The first pass over both documents used the plain-text export, and **formulas
+and several tables are embedded as images** (70 in round one, 194 in round
+two) that the text export drops silently. In round one this cost nothing: the
+power table survived as text, and the citation tests verified our
+implementation against those published numbers — which is exactly the failure
+mode citation tests exist to catch. In round two the cost table *was* an
+image, so the qualitative claim ("negative net realisation") came through
+while the decisive **−13.2 bps** and its breakdown did not, and a plan stayed
+open that the arithmetic had already closed.
+
+Recovered by exporting `.docx` and reading the embedded media directly. Rule
+adopted: **when adopting an external document, check whether its numbers
+survived the export before acting on its prose.**
