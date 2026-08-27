@@ -3,5 +3,11 @@
   "name": "afterswap",
   "compatibility_date": "2026-08-01",
   "main": "worker/index.ts",
-  "assets": { "directory": "./web-wasm/public" }
+  "assets": { "directory": "./web-wasm/public" },
+  // SQLite-backed Durable Object — the only backend the Workers free plan
+  // allows, and all a counter aggregate needs.
+  "durable_objects": {
+    "bindings": [{ "name": "SCOREBOARD", "class_name": "Scoreboard" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Scoreboard"] }]
 }
