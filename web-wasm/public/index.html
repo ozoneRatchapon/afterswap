@@ -93,7 +93,11 @@
   <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow, running entirely in your tab</span>
   <span class="conn">
     <span style="position:relative">
-      <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
+      <select id="pair" title="quote pair" style="background:var(--surface-2); color:var(--ink-2); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font:inherit; font-size:12px">
+      <option value="sol">SOL / USDC</option>
+      <option value="bonk">BONK / USDC — where our edge is measured</option>
+    </select>
+    <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
       <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
     </span>
     <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
@@ -130,7 +134,7 @@
 </div>
 
 <div class="panel" style="margin-bottom:14px">
-  <h2>SOL / USDC — live DFlow quotes</h2>
+  <h2 id="pairtitle">SOL / USDC — live DFlow quotes</h2>
   <div class="markerkey">
     <span><span class="k" style="background:var(--series-1)"></span>entry</span>
     <span><span class="k" style="background:var(--series-2)"></span>tranche sold</span>
@@ -210,6 +214,7 @@
 const $ = (id) => document.getElementById(id);
 const hexTag = (idStr) => "#" + BigInt(idStr).toString(16).slice(0, 4);
 const fmt = (x, d = 4) => x == null ? "—" : x.toFixed(d);
+const px = (v) => v == null ? "—" : v.toFixed(PAIRS[pair]?.dp ?? 4);
 let last = null;
 
 function bps(state) {
@@ -291,7 +296,7 @@ function renderChart(s) {
   const step = niceStep(hi - lo);
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
     g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>`
-       + `<text x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v.toFixed(2)}</text>`;
+       + `<text x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end">${px(v)}</text>`;
   }
   const pts = prices.map((p, i) => `${X(t0 + i)},${Y(p)}`).join(" ");
   const areaPts = `${X(t0)},${Y(lo)} ${pts} ${X(t1)},${Y(lo)}`;
@@ -319,8 +324,8 @@ function renderChart(s) {
     if (i < 0 || i >= prices.length) return hideTip();
     const t = t0 + i, x = X(t);
     const xh = $("xhair"); xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("visibility", "visible");
-    const evts = fills.filter(f => f.tick === t).map(f => `<br>sold ${(f.frac * 100).toFixed(0)}% @ ${f.price.toFixed(3)}`).join("");
-    showTip(ev.clientX, ev.clientY, `tick <b>${t}</b> · <b>${prices[i].toFixed(4)}</b> USDC${evts}`);
+    const evts = fills.filter(f => f.tick === t).map(f => `<br>sold ${(f.frac * 100).toFixed(0)}% @ ${px(f.price)}`).join("");
+    showTip(ev.clientX, ev.clientY, `tick <b>${t}</b> · <b>${px(prices[i])}</b> USDC${evts}`);
   };
   svg.onmouseleave = () => { hideTip(); const xh = $("xhair"); if (xh) xh.setAttribute("visibility", "hidden"); };
 }
@@ -435,7 +440,7 @@ function feedLine(te, s) {
       return `${armName(e.arm)} scored <span class="${cls}">${r >= 0 ? "+" : ""}${r.toFixed(1)} bps</span> vs holding`;
     }
     case "tranche_filled":
-      return `${armName(e.arm)} saw a ${e.input === 1 ? "rise" : "dip"}${e.off_peak ? " while off the peak" : ""} → sell-state S${e.state} → sold ${(e.frac * 100).toFixed(0)}% @ ${e.price.toFixed(3)}`;
+      return `${armName(e.arm)} saw a ${e.input === 1 ? "rise" : "dip"}${e.off_peak ? " while off the peak" : ""} → sell-state S${e.state} → sold ${(e.frac * 100).toFixed(0)}% @ ${px(e.price)}`;
     case "evolved":
       return `✦ ${e.parent_name} bred <b>${e.child_name}</b> (gen ${e.generation}, ${e.sim_edge_bps >= 0 ? "+" : ""}${e.sim_edge_bps.toFixed(1)} bps sim)`;
     case "position_closed":
@@ -462,7 +467,7 @@ function renderTape(s) {
   if (!fills.length) { $("tape").className = "empty"; $("tape").textContent = "no fills yet"; return; }
   $("tape").className = "";
   $("tape").innerHTML = `<table><thead><tr><th>tick</th><th>frac</th><th>price</th></tr></thead><tbody>${
-    fills.slice(0, 8).map(f => `<tr><td>${f.tick}</td><td>${(f.frac * 100).toFixed(0)}%</td><td>${f.price.toFixed(3)}</td></tr>`).join("")
+    fills.slice(0, 8).map(f => `<tr><td>${f.tick}</td><td>${(f.frac * 100).toFixed(0)}%</td><td>${px(f.price)}</td></tr>`).join("")
   }</tbody></table>`;
 }
 
@@ -680,6 +685,16 @@ import("./pkg/afterswap_wasm.js").then(async (mod) => {
     if (Array.isArray(saved?.prices)) for (const p of saved.prices) engine.on_tick(p);
     if (saved?.learning) refresh();
   } catch { /* corrupt store — start fresh */ }
+  $("pair").value = pair;
+  $("pairtitle").textContent = `${PAIRS[pair].label} — live DFlow quotes`;
+  $("pair").onchange = (ev) => {
+    localStorage.setItem("afterswap-pair", ev.target.value);
+    // Prices, machines and the scoreboard are pair-specific: reload rather
+    // than mix two markets in one session's statistics.
+    localStorage.removeItem(SCORE_KEY);
+    localStorage.removeItem(STORE_KEY);
+    location.reload();
+  };
   renderScores(loadScores());
   fetchGlobal();
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
@@ -713,10 +728,19 @@ function medianFiltered(p) {
   if (rawTail.length < 3) return p;
   return [...rawTail].sort((a, b) => a - b)[1];
 }
-const QUOTE_URL = "https://dev-quote-api.dflow.net/quote"
-  + "?inputMint=So11111111111111111111111111111111111111112"
-  + "&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-  + "&amount=100000000&slippageBps=50";
+// Volatile tokens are where the out-of-sample evidence says exit discipline
+// pays (bench 018: +34 ± 10 bps vs trailing stops on BONK); SOL/USDC is the
+// familiar pair where we honestly show no edge.
+const PAIRS = {
+  sol: { in: "So11111111111111111111111111111111111111112", amount: 100000000, slip: 50, label: "SOL / USDC", dp: 2 },
+  bonk: { in: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", amount: 1000000000, slip: 100, label: "BONK / USDC", dp: 9 },
+};
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+let pair = localStorage.getItem("afterswap-pair") ?? "sol";
+function quoteUrl() {
+  const p = PAIRS[pair];
+  return `https://dev-quote-api.dflow.net/quote?inputMint=${p.in}&outputMint=${USDC_MINT}&amount=${p.amount}&slippageBps=${p.slip}`;
+}
 
 async function loadReplay() {
   const text = await (await fetch("./recorded.jsonl")).text();
@@ -724,7 +748,7 @@ async function loadReplay() {
 }
 
 async function fetchPrice() {
-  const q = await (await fetch(QUOTE_URL)).json();
+  const q = await (await fetch(quoteUrl())).json();
   const rp = q.routePlan;
   const inD = rp[0].inputMintDecimals, outD = rp[rp.length - 1].outputMintDecimals;
   return (Number(q.outAmount) / 10 ** outD) / (Number(q.inAmount) / 10 ** inD);
