@@ -220,8 +220,8 @@ provenance. Social loop: "Eager Puffin has exited 4,120 positions at
 ## 7b. Monetization rail ⚠️ RE-SCOPED → Verifiable Execution Rail (R0–R3 built)
 
 **2026-08-28:** the re-scope below is now implemented through R3 — see
-`docs/RAIL.md` (spec + status + deployment runbook) and
-`.plans/002_verifiable_rail.md`. Locally verified end to end; deployment,
+`docs/RAIL.md` (spec + status + deployment runbook) and the rail plan in
+`.plans/` (plan 002). Locally verified end to end; deployment,
 the production attestation key, and the first funded anchor are owner
 actions listed in RAIL.md §7.
 

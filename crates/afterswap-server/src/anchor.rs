@@ -44,6 +44,9 @@ pub async fn run_once(
     let pending: Vec<&Segment> = segments.iter().filter(|s| s.anchor_sig.is_none()).collect();
     info!("{} segment(s), {} unanchored", segments.len(), pending.len());
 
+    // Only the live arm increments; without that feature the binding is
+    // read-only and clippy rightly notices.
+    #[cfg_attr(not(feature = "live"), allow(unused_mut))]
     let mut anchored = 0usize;
     for seg in pending {
         let memo = memo_for(&seg.root, seg.from_seq, seg.to_seq);
