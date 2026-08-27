@@ -284,6 +284,40 @@ mechanism — for example forced exits (liquidation, expiry, redemption)?**
 Perps and prediction markets have deadlines; our machinery may matter there
 for reasons that survive an efficient market.
 
+## G0. What we learned before the answers arrived: it was never the statistics
+
+Three false results appeared in a single day, and **none of them was a
+statistical error**. Each was a data-hygiene error — the thing being measured
+was not the thing we thought was being measured:
+
+1. **Corpus mutated mid-experiment.** A background recorder appended a new file
+   into the directory the benchmark scans, so an A/B compared different data on
+   each side. Three benches were invalidated. *Caught because turning the
+   feature off did not restore the previous numbers* — a control that only
+   exists if you run it.
+2. **Five simultaneous comparisons, no correction.** The live monitor starred
+   any floor with |t| ≥ 1.96 while testing five of them, which fires on ~23% of
+   clean runs by chance. *Caught because we had just built Romano-Wolf and
+   recognised our own mistake in our own instrument.*
+3. **Two engine configurations mixed in one measurement stream.** A long-running
+   soak kept writing to the same file across a config change, and the pooled
+   result crossed the significance threshold while the clean segment did not
+   (t = −2.59 pooled versus −1.45 clean). *Caught by noticing a
+   `route:"surprise"` line in a log that should no longer produce one* — a
+   configuration we had retracted hours earlier was still running.
+
+The generalisable lesson, and our answer to "what makes an autonomous loop
+survivable": **not tighter statistics — provenance.** Every row of measured
+data must carry which code version, which configuration and which corpus
+produced it, and any pooling across those boundaries must be impossible rather
+than merely discouraged. All three failures were invisible to analysis and
+obvious from provenance.
+
+Two practices adopted the same day: measurement runs from a **pinned binary
+copy**, never from the path the build writes to, so developing cannot silently
+mutate what is being measured; and a config change **starts a new measurement
+stream** rather than appending to the existing one.
+
 ## G. Making the loop itself trustworthy
 
 **G1. Do continuous autonomous research loops degrade over time, and what is
@@ -458,15 +492,195 @@ rather than left waiting for more data.
 ### Extraction note — what we nearly missed
 
 The first pass over both documents used the plain-text export, and **formulas
-and several tables are embedded as images** (70 in round one, 194 in round
-two) that the text export drops silently. In round one this cost nothing: the
-power table survived as text, and the citation tests verified our
-implementation against those published numbers — which is exactly the failure
-mode citation tests exist to catch. In round two the cost table *was* an
-image, so the qualitative claim ("negative net realisation") came through
-while the decisive **−13.2 bps** and its breakdown did not, and a plan stayed
-open that the arithmetic had already closed.
+and most numeric table cells are embedded as images** (70 in round one, 194
+in round two) that the text export drops silently — no placeholder, just
+whitespace.
 
-Recovered by exporting `.docx` and reading the embedded media directly. Rule
-adopted: **when adopting an external document, check whether its numbers
-survived the export before acting on its prose.**
+Round one survived: its power table exported as text, and the citation tests
+verify our implementation against those published numbers — which is exactly
+the failure mode citation tests exist to catch.
+
+Round two lost four tables, and the first recovery pass found only one of
+them — the cost table, because that was the one that answered the question in
+hand. All four are now recovered from the `.docx` embedded media and recorded
+in `docs/research/EXTRACTION_LOSS.md`. What the other three changed:
+
+- **The full 5x6 sample-size table** carries an annotation round one lacks —
+  the unpaired power column is quoted at 534 *per group*, not total. The
+  number in that annotation was an image, so it reached us as `( /group)`,
+  and `power.rs` recorded the reference as self-contradictory. It is not.
+  With the label recovered our implementation reproduces all thirty cells,
+  which is the independent cross-check a single copy of the table could never
+  have given us.
+- **The CSCV sizing passage** — unreadable in the export, every number an
+  image — says `S = 10` is the minimum stable partition for `T < 400`, and
+  that `S = 16` would push PBO toward 0.50 on slice-size grounds alone. We
+  use `S = 10` at 166 windows. Right answer, previously unjustified.
+- **The cost table's second column** shows CLMM liquid majors at **+0.1 to
+  +0.3 bps** net, not negative. That is below this sample's detection floor
+  (~1 bps paired) so it changes no decision and does not reopen Plan 001 —
+  but it does mean "execution is unprofitable" is a claim about long-tail
+  CPMM routes specifically, and the README should not generalise it.
+
+The cost table's images truncate every range after the dash — the source
+renders "20.0 -" and stops — but the prose above the table states each upper
+bound separately, and the arithmetic closes on both ends:
+`27 - (25+10+5+0.2) = -13.2` and `27 - (30+15+8+0.5) = -26.5`, exactly the
+published range. Only the CLMM column's upper bounds have no prose
+counterpart and stay unknown.
+
+Rule adopted: **when adopting an external document, check whether its numbers
+survived the export before acting on its prose — and when recovering, sweep
+every image, not just the one you came for.**
+
+# Round 3 — questions the recovered material created (2026-08-27)
+
+Round 2's answers only became fully legible after every embedded image in both
+documents was transcribed and merged back into the prose (264 images; see
+[`docs/research/EXTRACTION_LOSS.md`](research/EXTRACTION_LOSS.md)). Reading the
+continuous text rather than the surviving fragments changed three things: it
+resolved a convention our code had recorded as contradictory, it surfaced a
+sample-size floor that applies to 7 of our 11 assets, and it revealed that the
+statistic round two spends its first section deriving is one we never built.
+Same convention: **[self]** = more compute could answer it, **[external]** =
+needs literature or other people's practice.
+
+## I. The dissent that survived every explanation
+
+**I1. Three assets return PBO ≈ 0.5 at every partition count. What class of
+series does that?** [external]
+*Incident:* FLOKI, JTO and PYTH sit at 0.52–0.62, 0.52–0.60 and 0.27–0.65
+across S ∈ {6, 8, 10, 12, 16} (`benches/030_slice_sensitivity`), while JUP,
+ORCA, RAY and SHIB — same 166 windows, same pipeline — never leave 0.05–0.28.
+Slice size is ruled out. Round 2's answer to E2 supplied the floor hypothesis
+and our own bench refuted it.
+*Useful answer:* known series properties that make CSCV rank-selection
+degenerate — autocorrelation structure, regime count, volatility clustering,
+tick-size or listing artefacts — and which of them is cheapest to measure.
+
+**I2. Is a PBO near 0.5 on a minority of assets evidence about the assets, or
+about the model space?** [external]
+*Why it matters:* we report "selection is sound" from 8 of 11 assets. If the
+three dissenters mean the alphabet genuinely has no relative structure to find
+on those series, that is a bounded and honest statement. If it means our
+enumeration is unstable wherever a particular regime dominates, the 8 are
+suspect too, and the headline claim of bench 024 is overstated.
+
+**I3. What sample size would make the dissent decidable?** [self]
+*Why it blocks us:* the earlier framing — "with 166 windows each we cannot yet
+find out" — was never quantified. We now have the power machinery to answer it
+for a difference in means; we have nothing equivalent for a difference in PBO.
+*Useful answer:* the MDE analogue for a PBO estimate, so the question either
+gets a data collection target or gets closed as undecidable.
+
+## J. Reporting under a floor we do not meet
+
+**J1. How should PBO be reported when the sample sits under the source's own
+stated minimum?** [external]
+*Incident:* round one states CSCV requires `T >= 500` outright and repeats it
+for our exact candidate count. Our largest asset has 375 windows; seven have
+166. Round two does not restate the floor — it prescribes `S = 10` for
+`T < 400` instead — so the two documents disagree about whether our regime is
+admissible at all. Neither endorses `T = 166`.
+*Useful answer:* whether a sub-floor PBO is a weakened estimate that should
+carry an interval, or an inadmissible one that should not be published as a
+number at all.
+
+**J2. When two external sources conflict, what decides?** [external]
+*Incident:* round one gives `S = 16` as its worked CSCV example with no
+sample-size caveat; round two rules `S = 16` out for our window counts and
+prescribes `S = 10`. We followed round two on the grounds that it is later and
+written about our data — a defensible heuristic we invented on the spot.
+*Useful answer:* an actual arbitration rule, because this will recur every
+time a research track spans more than one document.
+
+**J3. Should a citation test fail when the source it cites is superseded?**
+[self]
+*Why it matters:* `tests/power.rs` now pins thirty cells of a published table.
+That is exactly the mechanism that caught our convention error — and exactly
+the mechanism that will quietly enforce a number a later document revises. The
+evidence ladder handles claim decay; citations have no equivalent.
+
+## K. The statistic we did not build
+
+**K1. Do we need the Deflated Paired Metric at all, having gone straight to
+Romano-Wolf?** [external]
+*Incident:* round two derives DPM across its entire first section — Mertens
+asymptotic variance, EVT maximum under the global null, the deflation formula
+— and its prescribed pre-registration manifest gates on `DPM >= 0.95`. We have
+no implementation. We built Romano-Wolf stepdown instead, which the same
+document names as the rigorous alternative when candidates are cross-correlated
+(they are).
+*Useful answer:* whether DPM earns its place as a fast screening filter *during*
+enumeration when a stepdown pass already runs after it, or whether skipping it
+was correct and the manifest gate should be dropped rather than implemented.
+
+**K2. What is the cross-sectional variance of our trial statistics, and is it
+non-zero enough for EVT to apply?** [self]
+*Why it blocks us:* the DPM table lists "requires non-zero cross-sectional
+variance" as a sample requirement. Our 1,054 machines are enumerated from a
+3-state alphabet and are heavily related; if their trial statistics cluster,
+the EVT correction understates false discovery — which the document flags as
+DPM's primary failure mode. This is measurable today from data we already have.
+
+**K3. Does the prereg manifest need gates it cannot evaluate?** [self]
+*Why it matters:* `prereg.rs` is generic over its gates, so nothing breaks. But
+a manifest that pre-commits to `DPM >= 0.95` and then never computes it is the
+pre-registration equivalent of a dead citation — the exact failure the
+claim-evidence test was built to catch, one level up.
+
+## L. Execution tracks the recovery reopened
+
+**L1. Is a +0.1 to +0.3 bps CLMM margin reachable by any design we could run?**
+[self]
+*Incident:* the recovered cost table puts liquid CLMM majors at net positive,
+against BONK's −13.2 to −26.5. Positive, but roughly an order of magnitude
+under our paired MDE (~1 bps at σ_d = 2.6, N = 534). Detecting 0.25 bps paired
+needs 849 cycles; 0.10 bps needs 5,306.
+*Useful answer:* whether a variance-reduction design (tighter pairing, control
+variates, common random numbers across arms) can cut σ_d enough to bring a
+0.3 bps effect inside reach, or whether this is permanently below our floor and
+should be recorded as such rather than left as an open opportunity.
+
+**L2. Are the structural-urgency horizons worth a track?** [external]
+*Incident:* round two prescribes pivoting strategy search toward
+non-discretionary liquidity — lending liquidation boundaries (protocol penalty
+500–1,000 bps), the 60-second window around perpetual funding settlement, and
+derivative expiry auctions. We have evaluated none of them. They are the
+document's actual recommendation, and the only one we have not either adopted
+or refuted.
+*Useful answer:* which of the three has a public, replayable data source, since
+that decides whether this is a research track or a live-capital-only idea.
+
+**L3. Does the verifiable-execution pitch survive its own economics?** [self]
+*Why it matters:* MiCA Article 78 and the 30-second publication requirement
+make the compliance framing concrete, and both documents converge on it. But
+our own arithmetic says the execution edge we would be proving is negative on
+long-tail routes and sub-MDE on liquid ones. The product may be "verifiable
+best execution" rather than "better execution" — worth deciding deliberately
+rather than by drift.
+
+## M. Process, after the extraction failure
+
+**M1. What is the general procedure for adopting an external document?** [self]
+*Incident:* two rounds of research were acted on from a text export that
+silently dropped 264 images. Round one survived by luck (its key table
+exported as text); round two lost four tables, and the first recovery pass
+found only the one that answered the question in hand.
+*Useful answer:* a checklist worth committing — verify numeric survival before
+acting, transcribe every image rather than the load-bearing ones, read the
+merged text continuously, and treat "this symbol is obviously unimportant" as
+a claim requiring the sentence around it.
+
+**M2. Should the recovered documents be committed in merged form?** [self]
+*Why it matters:* the `.txt` exports in `docs/research/` are still the lossy
+originals, kept verbatim on purpose. The merged reconstructions exist only as
+scratch files. Committing them makes the research readable but introduces a
+transcription of our own making between the source and any future reader.
+
+## Priority for round 3
+
+If only three get researched: **I1** (what makes a series PBO-degenerate),
+**J1** (how to report a sub-floor PBO), **K1** (whether DPM is owed a build).
+The first two decide whether bench 024's headline holds; the third decides
+whether our pre-registration manifest is honest.

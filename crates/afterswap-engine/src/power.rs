@@ -17,6 +17,8 @@ const Z_ALPHA: f64 = 1.959_963_985;
 pub const Z_POWER_80: f64 = 0.841_621_234;
 /// z for 90% power.
 pub const Z_POWER_90: f64 = 1.281_551_566;
+/// z for 95% power.
+pub const Z_POWER_95: f64 = 1.644_853_627;
 
 /// Cycles needed to detect `delta` bps at 5% significance and the given power,
 /// with paired measurement (the reference exits run on the same price path).
@@ -28,12 +30,14 @@ pub fn required_n_paired(delta_bps: f64, sd_bps: f64, z_power: f64) -> f64 {
 /// Same, unpaired — **total** across both arms (each arm gets half), which is
 /// why unpaired measurement costs ~25× more data at our variances.
 ///
-/// Convention note: the external reference table this module was checked
-/// against matches on every paired figure, but its unpaired *power* column
-/// implies a different sample convention than its unpaired *required-N*
-/// column. We implement the internally consistent version — total N, standard
-/// error 2σ/√N — and match its required-N figures (1,368 total for δ = 1 bps
-/// at σ = 6.6, 80% power).
+/// Convention note (resolved): the reference table's unpaired *required-N*
+/// column is a total across both arms, while its unpaired *power* column is
+/// quoted at 534 **per group** — i.e. N = 1,068 total. The round-one document
+/// leaves that implicit and the two columns read as contradictory; the
+/// round-two document annotates the cell "(534/group)", but the 534 was an
+/// embedded image and did not survive the text export, so the annotation
+/// reached us as a bare "( /group)". With the label recovered, both columns
+/// agree with this implementation exactly — see `tests/power.rs`.
 pub fn required_n_unpaired(delta_bps: f64, sd_bps: f64, z_power: f64) -> f64 {
     4.0 * required_n_paired(delta_bps, sd_bps, z_power)
 }

@@ -41,6 +41,9 @@ fix that; only a different objective (execution cost, risk control) or a
 different market can.
 
 Three assets dissent — FLOKI (0.62), JTO (0.52), PYTH (0.45) — where selection
-is a coin flip or worse. We do not know why, and with 166 windows each we
-cannot yet find out.
+is a coin flip or worse. We still do not know why, but we know one thing it is
+not: `benches/030_slice_sensitivity` sweeps the partition count from 6 to 16
+and the dissent holds at every setting, including partitions large enough to
+clear the 25-observations-per-slice floor an external source warns about. It is
+a property of those three series, not of how the data was sliced.
 
