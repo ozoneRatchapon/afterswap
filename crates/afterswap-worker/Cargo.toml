@@ -8,6 +8,19 @@ description = "Pure-Rust rail Worker: ingest, Sequencer DO (SQLite), R2 segments
 [lib]
 crate-type = ["cdylib"]
 
+# Deviation from the official workers-rs template, deliberate: the template
+# sets `[profile.release] lto = true, strip = true, codegen-units = 1`, but
+# cargo profiles only apply at the workspace root, and this workspace's
+# release profile also builds every bench whose published numbers (µs-level
+# engine latencies) were produced under the default profile — changing it
+# would break bench comparability for a size win we do not need. Measured
+# 2026-08-28: worker-build's automatic wasm-opt pass already takes the module
+# 1.6 MB → 730 KB, comfortably inside Workers script-size and startup
+# budgets (falsifier: 5.2 ms median ingest round-trip, 10 ms CPU cap).
+# Revisit only if the module approaches the plan's script-size limit —
+# per-package overrides cannot set `lto` (graph-global in cargo), so that
+# revisit means a dedicated workspace or accepting re-benched baselines.
+
 [dependencies]
 # The rail links here as a plain Rust dependency: the DO calls
 # `verify_record` and `record_hash` as typed functions. The JSON-string wasm
