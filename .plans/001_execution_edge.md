@@ -53,6 +53,15 @@ volatile tokens, measured against trailing stops out-of-sample.
       the claim is about rather than the one it is not.
 - [ ] Report the BONK paired soak once it has enough cycles for a t-value.
 
+## Adjacent results while the recorder fills
+
+- [x] **Execution-cost model** (`fill_cost_bps`, cost-aware floors) — shipped,
+      then measured: not a lever (bench 019_cost, <0.5 bp across 0→5 bps).
+- [x] **Venue capture** added to the recorder: every quote already carries
+      `routePlan[].venue` and hop count, so route churn is a free
+      thin-liquidity signal alongside the size-spread one.
+- [ ] Depth A/B once the recording has ≥ 6 windows (see checklist above).
+
 ## Rules this plan inherits
 
 1. No claim without a floor and a standard error.

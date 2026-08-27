@@ -37,7 +37,10 @@ compete for the right to scale you out.
      synthetic automatically so that gap cannot hide.
 
    Every time we increased statistical power, the apparent edge shrank. That
-   is the result, and it is stated here rather than buried.
+   is the result, and it is stated here rather than buried. Execution cost is
+   not the explanation either — charging 0→5 bps per fill to every strategy
+   alike moves the comparisons by less than half a bp
+   ([`019_cost`](benches/019_cost/report.md)).
 3. **It passes a null control.** On de-meaned (random-walk) paths it shows
    **no** significant edge at any horizon — it does not manufacture alpha from
    noise. Most strategy searches never publish this test; ours is in the repo.

@@ -56,8 +56,15 @@ is allowed to make.
 
 1. **Execution-cost research, not alpha research.** Slippage, priority fees and
    venue choice are large (tens of bps), deterministic, and attributable.
-   Compare imperative vs declarative, clip sizes, and timing against depth.
    *This is where a real, defensible number is still available to us.*
+   **First result in (`benches/019_cost`): per-fill cost is not the hidden
+   variable.** Charging 0→5 bps on every fill, to the engine and to every floor
+   alike, moves each comparison by less than half a bp — the tranche-count
+   asymmetry we expected does not materialise because the engine often does not
+   finish its ten tranches and the trailing stop often never triggers. The cost
+   model stays in the engine (`fill_cost_bps`) for live trading; it is not a
+   research lever. What remains untested here is the *declarative vs
+   imperative* comparison, which needs production API access.
 2. **End-to-end verifiable exits** — signed quote + committed policy PDA +
    on-chain fill. Nobody in this space can currently prove "the fill followed
    the policy, at a quote the venue actually offered". Uniquely ours because

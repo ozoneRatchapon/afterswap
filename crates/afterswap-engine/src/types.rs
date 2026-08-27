@@ -55,6 +55,13 @@ pub struct EngineConfig {
     /// downtrends should not have its record diluted by rallies — the
     /// population specializes by niche instead of averaging to the middle.
     pub per_regime_stats: bool,
+    /// Execution cost charged on every fill, in bps of the filled notional:
+    /// priority fee + base fee + the slippage a clip pays versus the top of
+    /// book. Zero by default so historical benchmarks stay comparable; the
+    /// cost-aware benches set it explicitly. Strategies that exit in many
+    /// tranches pay it many times — which is exactly the asymmetry a
+    /// cost-free simulator hides.
+    pub fill_cost_bps: f64,
 }
 
 impl Default for EngineConfig {
@@ -83,6 +90,7 @@ impl Default for EngineConfig {
             // soak A/B to settle. Shipping the simpler pooled default until
             // there is a measurement that can tell the difference.
             per_regime_stats: false,
+            fill_cost_bps: 0.0,
         }
     }
 }
@@ -137,12 +145,18 @@ impl Position {
         self.cash_norm + self.remaining_frac * (p / self.entry_price)
     }
 
-    /// Apply a tranche sell of `frac` (of original) at `price`.
-    pub fn apply_fill(&mut self, tick: u64, price: f64, frac: f64) {
+    /// Apply a tranche sell of `frac` (of original) at `price`, net of
+    /// `cost_bps` execution cost on the filled notional.
+    pub fn apply_fill_with_cost(&mut self, tick: u64, price: f64, frac: f64, cost_bps: f64) {
         let frac = frac.min(self.remaining_frac);
         self.remaining_frac -= frac;
-        self.cash_norm += frac * (price / self.entry_price);
+        self.cash_norm += frac * (price / self.entry_price) * (1.0 - cost_bps * 1e-4);
         self.fills.push(TrancheFill { tick, price, frac });
+    }
+
+    /// Apply a tranche sell with no execution cost.
+    pub fn apply_fill(&mut self, tick: u64, price: f64, frac: f64) {
+        self.apply_fill_with_cost(tick, price, frac, 0.0);
     }
 
     /// Whether the position is fully exited.

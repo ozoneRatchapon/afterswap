@@ -21,6 +21,17 @@ pub fn replay_exit(
     tranche_frac: f64,
     peak_drop_bps: f64,
 ) -> f64 {
+    replay_exit_cost(fsm, window, tranche_frac, peak_drop_bps, 0.0)
+}
+
+/// `replay_exit` with an execution cost charged on every fill (bps).
+pub fn replay_exit_cost(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    tranche_frac: f64,
+    peak_drop_bps: f64,
+    cost_bps: f64,
+) -> f64 {
     if window.len() < 2 {
         return 0.0;
     }
@@ -47,7 +58,7 @@ pub fn replay_exit(
         if action == 1 && remaining > 0.0 {
             let frac = tranche_frac.min(remaining);
             remaining -= frac;
-            cash += frac * (window[t] / entry);
+            cash += frac * (window[t] / entry) * (1.0 - cost_bps * 1e-4);
         }
     }
 
@@ -226,6 +237,17 @@ pub fn simulate(cfg: EngineConfig, prices: &[f64], open_at: usize, size: f64) ->
 /// TWAP floor: sell `1/n_slices` every `stride` ticks from `open_at`,
 /// unconditionally. Returns final value in units of entry.
 pub fn twap_value_norm(prices: &[f64], open_at: usize, n_slices: usize, stride: usize) -> f64 {
+    twap_value_norm_cost(prices, open_at, n_slices, stride, 0.0)
+}
+
+/// TWAP with a per-fill execution cost (bps) — it pays `n_slices` times.
+pub fn twap_value_norm_cost(
+    prices: &[f64],
+    open_at: usize,
+    n_slices: usize,
+    stride: usize,
+    cost_bps: f64,
+) -> f64 {
     let entry = prices[open_at];
     let mut cash = 0.0f64;
     let mut remaining = 1.0f64;
@@ -234,7 +256,7 @@ pub fn twap_value_norm(prices: &[f64], open_at: usize, n_slices: usize, stride: 
     for (i, &p) in prices.iter().enumerate().skip(open_at + 1) {
         if (i - open_at).is_multiple_of(stride) && remaining > 1e-12 {
             let f = frac.min(remaining);
-            cash += f * (p / entry);
+            cash += f * (p / entry) * (1.0 - cost_bps * 1e-4);
             remaining -= f;
             k += 1;
             if k >= n_slices {
@@ -248,12 +270,22 @@ pub fn twap_value_norm(prices: &[f64], open_at: usize, n_slices: usize, stride: 
 /// Trailing stop (Jupiter's July-2026 flagship exit): sell everything the
 /// first time price drops `drop_bps` below its running peak since entry.
 pub fn trailing_stop_value_norm(prices: &[f64], open_at: usize, drop_bps: f64) -> f64 {
+    trailing_stop_value_norm_cost(prices, open_at, drop_bps, 0.0)
+}
+
+/// Trailing stop with execution cost — it exits all at once, so it pays once.
+pub fn trailing_stop_value_norm_cost(
+    prices: &[f64],
+    open_at: usize,
+    drop_bps: f64,
+    cost_bps: f64,
+) -> f64 {
     let entry = prices[open_at];
     let mut peak = entry;
     for &p in &prices[open_at + 1..] {
         peak = peak.max(p);
         if (peak - p) / peak * 10_000.0 >= drop_bps {
-            return p / entry;
+            return p / entry * (1.0 - cost_bps * 1e-4);
         }
     }
     prices[prices.len() - 1] / entry
