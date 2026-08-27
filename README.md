@@ -45,7 +45,12 @@ compete for the right to scale you out.
    the profitability is absent**, in-sample +2.5…+16.8 bps collapsing to
    −6…+2 out of sample. We can reliably pick the best machine; the best
    machine is not profitable. That points away from our search and our
-   statistics, and at the strategy space itself. Execution cost is
+   statistics, and at the strategy space itself. The last test in the
+   recommended pipeline closes it: Romano–Wolf stepdown across all 1,054
+   machines on all 11 assets returns **zero survivors** after familywise
+   correction ([`025_multiplicity`](benches/025_multiplicity/report.md)),
+   with the minimum detectable effect stated beside every null so the
+   absence is informative rather than merely empty. Execution cost is
    not the explanation either — charging 0→5 bps per fill to every strategy
    alike moves the comparisons by less than half a bp
    ([`019_cost`](benches/019_cost/report.md)).
@@ -82,6 +87,14 @@ a policy **committed on-chain before it sells**, costs **nothing per decision**,
 and reports its result against doing nothing and against every standard
 alternative — honestly, including when that is a loss. Most retail exits are
 not benchmarked against anything at all; that is the bar we actually clear.
+
+**The pipeline is now tested end to end, and it says no.** Reproducible (G1),
+browser-native byte-identical (G6), selection generalises rather than mines
+noise (PBO 0.05–0.20), and no individual machine survives correcting for having
+looked at a thousand candidates (0 survivors, α = 0.05). Each stage was built
+because the previous one could not answer the question — and the honest end
+state is a negative result with its power stated, which is worth more than the
+positive one we could have shipped by stopping earlier.
 
 **And we audit our own defaults, not just our results.** Asked "what else did
 you assert without measuring?", we swept every constant we had chosen by

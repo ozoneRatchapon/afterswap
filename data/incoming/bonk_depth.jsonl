@@ -895,3 +895,61 @@
 {"price": 3.0572080000000004e-06, "depth_bps": 21.190064301333788, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
 {"price": 3.057916e-06, "depth_bps": 18.87913307438716, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
 {"price": 3.057665e-06, "depth_bps": 15.46172936259021, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Meteora DLMM", "BisonFi"]}
+{"price": 3.0573e-06, "depth_bps": 16.65360501567316, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Byreal"]}
+{"price": 3.056381e-06, "depth_bps": 19.654519331241815, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.055109e-06, "depth_bps": 19.245344658608932, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.055109e-06, "depth_bps": 19.245344658608932, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.055109e-06, "depth_bps": 19.245344658608932, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.0534349999999998e-06, "depth_bps": 21.454248366013612, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Byreal"]}
+{"price": 3.0524559999999996e-06, "depth_bps": 19.108655135207076, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Meteora"]}
+{"price": 3.052279e-06, "depth_bps": 19.687408037144728, "hops": 1, "venue": "Raydium AMM", "venues": ["Raydium AMM"]}
+{"price": 3.053146e-06, "depth_bps": 14.240392477514007, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Tessera V"]}
+{"price": 3.052279e-06, "depth_bps": 17.076042518397095, "hops": 1, "venue": "Raydium AMM", "venues": ["Raydium AMM"]}
+{"price": 3.052777e-06, "depth_bps": 14.467486589035413, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.052447e-06, "depth_bps": 15.546905665313684, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.052482e-06, "depth_bps": 15.432421823890461, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.052279e-06, "depth_bps": 16.096428104146533, "hops": 1, "venue": "Raydium AMM", "venues": ["Raydium AMM"]}
+{"price": 3.048029e-06, "depth_bps": 29.671911288475624, "hops": 3, "venue": "Meteora DLMM", "venues": ["Meteora DLMM", "Meteora DLMM", "Meteora"]}
+{"price": 3.047404e-06, "depth_bps": 27.149262034886608, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.0443419999999997e-06, "depth_bps": 30.971248935752797, "hops": 3, "venue": "Meteora", "venues": ["Meteora", "Whirlpools", "Raydium CLMM"]}
+{"price": 3.0442140000000004e-06, "depth_bps": 31.39039884733607, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.046501e-06, "depth_bps": 18.671777734093364, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Aquifer", "Meteora DLMM"]}
+{"price": 3.045515e-06, "depth_bps": 21.90223445383687, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Raydium CLMM", "Deriverse"]}
+{"price": 3.045527e-06, "depth_bps": 34.92245271906308, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi", "AlphaQ"]}
+{"price": 3.0454799999999998e-06, "depth_bps": 22.016905838413013, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Deriverse"]}
+{"price": 3.044796e-06, "depth_bps": 24.257912325536473, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Byreal"]}
+{"price": 3.045141e-06, "depth_bps": 23.12758010615375, "hops": 3, "venue": "Meteora", "venues": ["Meteora", "BisonFi", "Manifest"]}
+{"price": 3.0467810000000003e-06, "depth_bps": 22.984478354835183, "hops": 3, "venue": "Meteora", "venues": ["Meteora", "Meteora DLMM", "BisonFi"]}
+{"price": 3.044471e-06, "depth_bps": 25.32271803944731, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.04943e-06, "depth_bps": 21.172158774828603, "hops": 3, "venue": "Meteora", "venues": ["Meteora", "Meteora DLMM", "Whirlpools"]}
+{"price": 3.0442140000000004e-06, "depth_bps": 38.240780130238015, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.0442140000000004e-06, "depth_bps": 35.95836606441343, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.0442140000000004e-06, "depth_bps": 17.00662425395022, "hops": 1, "venue": "Whirlpools", "venues": ["Whirlpools"]}
+{"price": 3.043472e-06, "depth_bps": 19.43988981439023, "hops": 1, "venue": "Raydium AMM", "venues": ["Raydium AMM"]}
+{"price": 3.043472e-06, "depth_bps": 19.43988981439023, "hops": 1, "venue": "Raydium AMM", "venues": ["Raydium AMM"]}
+{"price": 3.043644e-06, "depth_bps": 18.87584442841237, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "BisonFi"]}
+{"price": 3.0443259999999997e-06, "depth_bps": 16.63933888633928, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Tessera V"]}
+{"price": 3.044205e-06, "depth_bps": 21.9443442918495, "hops": 2, "venue": "Meteora", "venues": ["Meteora", "Tessera V"]}
+{"price": 3.047939e-06, "depth_bps": 5.118871946221027, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.0499299999999998e-06, "depth_bps": 18.22942235313375, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.051867e-06, "depth_bps": 0.7634088004975825, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.052211e-06, "depth_bps": 7.820991291822459, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.052533e-06, "depth_bps": 5.785286317651452, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.053688e-06, "depth_bps": 5.930289641628602, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.053137e-06, "depth_bps": 6.7524221000261315, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.05347e-06, "depth_bps": 2.0628008251190293, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.051311e-06, "depth_bps": 17.630123989923415, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Raydium CLMM"]}
+{"price": 3.0548160000000004e-06, "depth_bps": 6.490447526824485, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Meteora DLMM", "Aquifer"]}
+{"price": 3.052785e-06, "depth_bps": 10.193396380770968, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.052634e-06, "depth_bps": 14.93523485542271, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Tessera V"]}
+{"price": 3.0526e-06, "depth_bps": 5.893137768466993, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.052319e-06, "depth_bps": 6.8131220534326875, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "Raydium CLMM"]}
+{"price": 3.052196e-06, "depth_bps": 7.2158198009438035, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.051948e-06, "depth_bps": 8.027763226821454, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.051627e-06, "depth_bps": 6.1339446536769096, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.051679e-06, "depth_bps": 12.832176986516645, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "PancakeSwap"]}
+{"price": 3.0479799999999997e-06, "depth_bps": 17.750704133097894, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Raydium CLMM", "AlphaQ"]}
+{"price": 3.046249e-06, "depth_bps": 25.053210648678974, "hops": 3, "venue": "Whirlpools", "venues": ["Whirlpools", "Raydium CLMM", "BisonFi"]}
+{"price": 3.0483220000000003e-06, "depth_bps": 20.55260917959685, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.0486399999999997e-06, "depth_bps": 19.511556341256444, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
+{"price": 3.049185e-06, "depth_bps": 13.477221367045082, "hops": 2, "venue": "Whirlpools", "venues": ["Whirlpools", "BisonFi"]}
