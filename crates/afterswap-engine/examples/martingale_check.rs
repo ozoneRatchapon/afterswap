@@ -105,6 +105,13 @@ fn main() {
 
     let machines = FsmEnumerator::enumerate(3);
     let mut md = String::from("# Is the dissent a martingale signal-to-noise deficit?\n\n");
+    md.push_str(
+        "> **Retracted in part by [bench 036](../036_reversion_causal/report.md).** The reading below \
+— that the exit machines are extracting mean reversion — was tested by setting the autocorrelation \
+directly on synthetic AR(1) series. It did not reproduce: the selection differential does not fall as \
+phi rises. What does respond is PBO, and to |phi| rather than to signed phi. The measurements in this \
+bench stand; the mean-reversion interpretation drawn from them does not.\n\n",
+    );
     let _ = writeln!(
         md,
         "`VR(q)` is the Lo-Mackinlay variance ratio at aggregation q, exactly 1 under a martingale. \

@@ -870,14 +870,39 @@ assets **ρ₁ and θ_d correlate at −0.856**: the three most mean-reverting s
 ratios and all generalise cleanly, while everything at or above ρ₁ = 0 clusters
 near θ_d ≈ 0.1.
 
-**The exit machines are extracting mean reversion.** They are not finding a
-general edge that some series lack; they degrade toward coin-flip selection
-wherever mean reversion is absent, and JTO is positively autocorrelated — the
-one regime a peak-drop exit rule is actively wrong about.
+That looked like a finding — the exit machines extracting mean reversion — and
+it carried a cheap test. **The test refuted it.**
 
-That is a hypothesis, not a result, and it carries a cheap test: an exit rule
-inverted for trending regimes should move JTO's PBO. It also does not explain
-FLOKI or PYTH, whose ρ₁ sits near zero.
+`benches/036_reversion_causal` sets ρ₁ directly on synthetic AR(1) series with
+unconditional volatility held constant, then runs the real pipeline. If the
+machines ate mean reversion, Δ would fall as φ rises. It does not: Δ moves
++0.518 → +1.980 bps across φ = −0.4 → +0.4, non-monotone, with per-arm seed
+spreads of ±10 bps against arm means under 2 bps. Nothing is separated. **The
+mean-reversion reading is withdrawn**, and benches 034 and 035 carry retraction
+banners saying so.
+
+What does respond is PBO, and to **|φ| rather than signed φ**: 0.359 ± 0.039 at
+φ = −0.4, 0.564 ± 0.064 at φ = 0, 0.356 ± 0.039 at φ = +0.4. The extremes are
+indistinguishable from each other and sit 2.7 standard errors below the centre.
+Selection generalises when serial structure is present in either direction and
+degenerates toward a coin flip when it is not — which is round three's
+martingale mechanism after all. Bench 034 recorded it as contradicted because
+it tested the signed quantity.
+
+**And our own corpus does not confirm even that.** `corr(|ρ₁|, PBO) = −0.034`
+across eleven assets. The grouping is suggestive — the three with |ρ₁| ≥ 0.13
+sit low and tight (0.075–0.202) while the eight below scatter 0.048–0.623 —
+and with three assets in the first group it is worth nothing.
+
+So: under control the mechanism holds; in our data it does not measurably.
+Either the effect is swamped at the |ρ₁| ≤ 0.30 our assets exhibit, or AR(1) is
+too clean a model for the result to transfer. Neither is tested.
+
+FLOKI, JTO and PYTH remain unexplained — but the question is smaller than it
+looked. Bench 031 showed only JTO separates measurably, and the synthetic arms
+show near-martingale series produce PBO estimates that scatter across most of
+the unit interval unaided. Three assets landing high in a group of eight whose
+PBO is barely repeatable may not need a mechanism at all.
 
 ## K2 follow-through — the description is fixed
 
@@ -886,7 +911,24 @@ effective count of 1.2 stated inline. Historical bench reports are left as
 written: they are dated evidence, and editing them to match a later measurement
 is the failure mode this project keeps a provenance file for.
 
+## The attribution result, which no retraction touches
+
+`benches/035_asset_vs_machine` measures what the tournament contributes, in the
+drift-free form round three prescribes: Δ, the picked machine's edge over the
+population median, selected on 60% of windows and scored on the rest.
+
+**Δ exceeds its own detection floor on 1 of 11 assets.** Mean Δ is +3.1 bps and
+positive on 8 of 11, which is consistent with a small real edge and equally
+consistent with nothing — RAY's +11.2 bps sits against an MDE of 63.7. The one
+asset that clears is PEPE, +11.7 against 9.1.
+
+Bench 025 reached the same place through multiplicity correction. This states
+it in bps: **the tournament's out-of-sample contribution has not been shown to
+be non-zero on ten of eleven assets.**
+
 ## What is still actionable without further research
 
-- test the inverted-exit hypothesis on JTO (I1 follow-up) — the one live lead
-- FLOKI and PYTH remain unexplained by any tested mechanism
+- test whether the |φ| mechanism transfers by widening the synthetic sweep to
+  the |ρ₁| ≤ 0.3 range our assets actually occupy, where it should be weakest
+- FLOKI and PYTH remain unexplained by any tested mechanism, and may not need
+  one

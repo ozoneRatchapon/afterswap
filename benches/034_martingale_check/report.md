@@ -1,5 +1,7 @@
 # Is the dissent a martingale signal-to-noise deficit?
 
+> **Retracted in part by [bench 036](../036_reversion_causal/report.md).** The reading below — that the exit machines are extracting mean reversion — was tested by setting the autocorrelation directly on synthetic AR(1) series. It did not reproduce: the selection differential does not fall as phi rises. What does respond is PBO, and to |phi| rather than to signed phi. The measurements in this bench stand; the mean-reversion interpretation drawn from them does not.
+
 `VR(q)` is the Lo-Mackinlay variance ratio at aggregation q, exactly 1 under a martingale. `rho_1` is lag-1 return autocorrelation, zero under a martingale. `theta_d` is the standardised paired signal-to-noise ratio of the selected machine's per-window edge over the population median across 1054 enumerated machines, zero under a true global null. PBO is bench 024's; the interval verdict is bench 031's.
 
 | asset | PBO | 031 verdict | VR(2) | VR(5) | rho_1 | **theta_d** |
