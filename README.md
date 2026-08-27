@@ -23,6 +23,10 @@ compete for the right to scale you out.
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
    evolution breeds 4-state machines the enumeration cannot reach. No model,
    no training, no prompt: a decision costs **$0 and ~1.2 microseconds**.
+   Read 1,054 as coverage, not as diversity: their returns are correlated
+   tightly enough that the effective count is **1.2**
+   ([bench 032](benches/032_policy_degeneracy/report.md)). The enumeration is
+   exhaustive over the alphabet; the alphabet says close to one thing.
    Three states is a measured frontier, not a guess: completing the 4-state
    space takes **2.3 hours per tournament instead of 202 ms and scores worse**
    ([`028_states`](benches/028_states/report.md)).

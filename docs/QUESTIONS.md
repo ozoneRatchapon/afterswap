@@ -849,9 +849,44 @@ rather than the edge-vs-hold objective used here as a stand-in. That is a
 decision with a cost, and it belongs to whoever closed Plan 001 — not a task
 that can be coded around.
 
+## I1 — all three prescribed mechanisms tested, none of them fits
+
+`benches/034_martingale_check` closes the list.
+
+- **Policy degeneracy** (bench 032): uniform across the corpus. Cannot
+  distinguish anything.
+- **Regime non-stationarity** (bench 031's diagnostic): partial support —
+  shuffling block order lowers PBO, more on longer series.
+- **Martingale signal-to-noise deficit** (bench 034): **contradicted.** The
+  prediction is that dissenting series sit nearer the martingale values. Their
+  θ_d is lower, which fits, but their lag-1 autocorrelation is *further* from
+  zero, not nearer. JTO — the only asset bench 031 separates — has the largest
+  positive ρ₁ in the corpus at +0.1265. It is the least martingale-like series
+  we hold.
+
+What the data shows instead is sharper than any of the three. Across eleven
+assets **ρ₁ and θ_d correlate at −0.856**: the three most mean-reverting series
+(PEPE −0.297, BONK −0.227, SHIB −0.147) carry the three highest signal-to-noise
+ratios and all generalise cleanly, while everything at or above ρ₁ = 0 clusters
+near θ_d ≈ 0.1.
+
+**The exit machines are extracting mean reversion.** They are not finding a
+general edge that some series lack; they degrade toward coin-flip selection
+wherever mean reversion is absent, and JTO is positively autocorrelated — the
+one regime a peak-drop exit rule is actively wrong about.
+
+That is a hypothesis, not a result, and it carries a cheap test: an exit rule
+inverted for trending regimes should move JTO's PBO. It also does not explain
+FLOKI or PYTH, whose ρ₁ sits near zero.
+
+## K2 follow-through — the description is fixed
+
+`README.md` now reads 1,054 as coverage rather than diversity, with the
+effective count of 1.2 stated inline. Historical bench reports are left as
+written: they are dated evidence, and editing them to match a later measurement
+is the failure mode this project keeps a provenance file for.
+
 ## What is still actionable without further research
 
-- test the martingale signal-to-noise mechanism on the three assets (I1),
-  now that policy degeneracy is ruled out and regime non-stationarity has its
-  first supporting evidence
-- decide whether "1,054 machines" should keep being written that way (K2)
+- test the inverted-exit hypothesis on JTO (I1 follow-up) — the one live lead
+- FLOKI and PYTH remain unexplained by any tested mechanism
