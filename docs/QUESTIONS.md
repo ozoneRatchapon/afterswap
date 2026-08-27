@@ -114,6 +114,85 @@ requirement, or a curiosity?
 
 ---
 
+## Answers received (2026-08-27)
+
+External research came back on all four groups
+([full text](research/2026-08-27_epistemic_governance.txt)). What changed here
+as a result, same day:
+
+**A1 — protocol.** Recommended pipeline for a search over ~10³ strategies:
+**deflated Sharpe ratio as a fast screen during search, then Romano-Wolf
+stepdown or CSCV/PBO on the survivors before declaring anything.** Hansen's
+SPA is preferred over White's Reality Check, which loses power when the
+candidate pool is full of bad strategies — which ours is, by construction.
+*Not yet implemented; this is the next gate to build.*
+
+**A2 — power.** ✅ **Implemented** (`src/power.rs`, `tests/power.rs`). The
+reference table is unambiguous about what our experiments could ever have
+found: detecting 1 bps needs **54 paired** or **1,368 unpaired** cycles; our
+534-cycle unpaired soak had **~9% power at 0.25 bps**. Both of the runs we
+agonised over were statistically incapable of answering, and a microsecond of
+arithmetic beforehand would have said so. The module now computes required N,
+achieved power and the minimum detectable effect; the paired figures reproduce
+the reference exactly (n = 54, 60.33% power at 0.25 bps). One correction:
+the reference's *unpaired power* column uses a different sample convention
+than its own *required-N* column, so we implement the internally consistent
+version and say so in the code.
+
+**A3 — evidence ladder.** ✅ **Implemented** (`tests/claims.rs`). Four tiers
+(observational → in-sample significant → multiplicity corrected →
+out-of-sample causal), each with permitted and prohibited vocabulary. The
+linter runs as an ordinary test: a high-conviction comparative claim must cite
+a bench artefact in the same paragraph, and tier-violating language
+("guaranteed", "risk-free", "regime-invariant") fails the build. It caught two
+cases on its first run — one a real gap, one a false positive from a negated
+sentence, which taught it about negations and quotations.
+
+**B1–B3 — self-audit.** Confirms the sensitivity sweep we already built, and
+adds three we have not: `@calibrated` provenance tags enforced by an AST
+literal parser, cryptographically committed **pre-registration manifests**
+(SHA-256 of hypothesis + analysis plan, recorded before data access), and
+**claim TTL decay** with distributional-drift (K-S) triggers.
+
+**C1 — oversight.** The observation from this project is a documented pattern:
+Socratic interrogation has **maximal marginal ROI**, imperative tasking **low**,
+diff review **moderate**. The mechanism named is *localised context
+entrapment* — an agent optimises inside a premise without checking the premise,
+so a question that attacks the premise buys more than an instruction that
+accepts it.
+
+**C2 — gift vs tax.** A clean rule: a constraint that enforces structural
+alignment with the domain (heavy compute in the visitor's browser,
+trust-minimised verification) is a **design gift**; a constraint that forces
+you to reimplement established runtime primitives is an **engineering tax** —
+*pay for infrastructure instead*. By that rule our hand-rolled ed25519 signing
+and precomputed PDAs are a tax we should retire, not a badge.
+
+**C3 — provenance.** Append-only content-addressed bench records, claims bound
+to bench hashes, and retraction as a first-class status transition
+(CONFIRMED → REFUTED → SUPERSEDED) — with the agent rewarded for falsifying
+its own prior claims rather than accumulating them.
+
+**D1 — minute-horizon exits.** Our null result is the *expected* one: lead-lag
+alpha in crypto decays in **50–500 ms**, so at 1-minute sampling it is fully
+decayed, and gross returns of minute-horizon rules collapse once 5–10 bps
+round-trip costs are applied. We were looking where the literature says there
+is nothing to find.
+
+**D2 — execution edge.** The 27 bps clip-size spread on BONK is real and comes
+from fragmented CPMM pools (versus concentrated CLMM ticks on SOL/USDC), but
+capturing it is contested: **10–15 bps can go to priority tips during
+congestion**, and the quote-to-block "execution gap" requires just-in-time
+on-chain simulation to avoid negative slippage. Viable, not free.
+
+**D3 — who pays.** **MiCA Article 78** (EU) obliges crypto-asset service
+providers to demonstrate best execution across price, cost, speed and size,
+with pre- and post-trade publication. A cryptographically verifiable trade
+lifecycle — signed quote, policy committed before the fill, on-chain
+settlement — is a compliance artefact, not a curiosity. Also named:
+institutional allocators verifying no toxic internalisation, and trustless
+copy-trading.
+
 ## If only three get researched
 
 1. **A1** — because everything else in this repo is downstream of whether our
