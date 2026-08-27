@@ -42,6 +42,28 @@ export class WasmEngine {
  */
 export function parity_run(prices_json: string, open_at: number): string;
 
+/**
+ * Inclusion proof for `index`, as a JSON array of `[sibling_hex, is_left]`.
+ */
+export function rail_merkle_proof(hashes_json: string, index: number): string;
+
+/**
+ * Merkle root over a JSON array of record-hash hex strings.
+ */
+export function rail_merkle_root(hashes_json: string): string;
+
+/**
+ * `record_hash` (content + attestation) as hex — what the chain links and
+ * Merkle leaves commit to.
+ */
+export function rail_record_hash(record_json: string): string;
+
+/**
+ * Full standalone verification (§3.4 steps 1 + 6): attestation, amounts,
+ * evidence digests, decision reproduction. Returns `"ok"` or `"err: …"`.
+ */
+export function rail_verify_record(record_json: string, attest_pubkey_hex: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -55,6 +77,10 @@ export interface InitOutput {
     readonly wasmengine_on_tick: (a: number, b: number) => [number, number];
     readonly wasmengine_open_position: (a: number, b: number) => number;
     readonly wasmengine_snapshot: (a: number, b: number) => [number, number];
+    readonly rail_merkle_proof: (a: number, b: number, c: number) => [number, number];
+    readonly rail_merkle_root: (a: number, b: number) => [number, number];
+    readonly rail_record_hash: (a: number, b: number) => [number, number];
+    readonly rail_verify_record: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

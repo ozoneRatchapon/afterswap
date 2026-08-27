@@ -121,6 +121,7 @@ name = "afterswap-wasm"
 version = "0.1.0"
 dependencies = [
  "afterswap-engine",
+ "afterswap-rail",
  "serde_json",
  "wasm-bindgen",
 ]

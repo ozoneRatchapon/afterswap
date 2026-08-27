@@ -15,6 +15,14 @@ pub struct ConfirmedFill {
     pub fee_lamports: u64,
     /// Token balance deltas for the signer, keyed by mint. Negative is sent.
     pub deltas: std::collections::BTreeMap<String, f64>,
+    /// The same deltas in raw smallest units — exact integers from the
+    /// chain's own `amount` strings, no division ever applied. This is the
+    /// only representation allowed to reach a `FillRef`: a float that has
+    /// been divided and re-multiplied can differ in the last digits, and the
+    /// audit record is precisely where the last digits matter.
+    pub raw_deltas: std::collections::BTreeMap<String, i128>,
+    /// Decimals per mint, as reported by the balance entries.
+    pub decimals: std::collections::BTreeMap<String, u8>,
     /// Native lamport delta for the signer, fee already added back so it
     /// reflects trade flow rather than trade flow plus cost.
     pub lamport_delta: i128,
@@ -40,6 +48,27 @@ impl ConfirmedFill {
         }
     }
 
+    /// Raw integer legs for an audit record: `(in_raw, out_raw)`, both
+    /// positive, in each mint's smallest units. Falls back to the native
+    /// lamport delta for a SOL leg that never touched a wrapped account.
+    /// `None` unless both legs moved in the expected direction — the audit
+    /// trail records "no fill" over a guessed one.
+    pub fn raw_legs(&self, input_mint: &str, output_mint: &str) -> Option<(u128, u128)> {
+        let raw_of = |mint: &str| -> i128 {
+            match self.raw_deltas.get(mint) {
+                Some(d) => *d,
+                None if mint == WRAPPED_SOL => self.lamport_delta,
+                None => 0,
+            }
+        };
+        let sent = -raw_of(input_mint);
+        let recv = raw_of(output_mint);
+        match sent > 0 && recv > 0 {
+            true => Some((sent as u128, recv as u128)),
+            false => None,
+        }
+    }
+
     /// Effective price as `out per in`, from realised deltas.
     ///
     /// Returns `None` unless both legs moved in the expected direction —
@@ -58,6 +87,21 @@ impl ConfirmedFill {
 /// Native SOL's mint address, as it appears in token balance entries.
 pub const WRAPPED_SOL: &str = "So11111111111111111111111111111111111111112";
 const LAMPORTS_PER_SOL: f64 = 1_000_000_000.0;
+
+/// Raw integer amount and decimals from a balance entry — the authoritative
+/// fields, untouched.
+fn raw_amount(entry: &serde_json::Value) -> Option<(i128, u8)> {
+    let amt = entry.pointer("/uiTokenAmount/amount")?;
+    let raw: i128 = match amt {
+        serde_json::Value::String(s) => s.parse().ok()?,
+        v => v.as_i64().map(i128::from)?,
+    };
+    let decimals = entry
+        .pointer("/uiTokenAmount/decimals")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as u8;
+    Some((raw, decimals))
+}
 
 /// Exact token amount from a balance entry.
 ///
@@ -115,6 +159,27 @@ pub fn parse_confirmed(result: &serde_json::Value, owner: &str) -> Option<Confir
     }
     deltas.retain(|_, v| v.abs() > 0.0);
 
+    // Raw integer deltas, computed independently of the float path.
+    let mut raw_deltas: std::collections::BTreeMap<String, i128> = Default::default();
+    let mut decimals: std::collections::BTreeMap<String, u8> = Default::default();
+    for (key, sign) in [("postTokenBalances", 1i128), ("preTokenBalances", -1i128)] {
+        if let Some(arr) = meta.get(key).and_then(|v| v.as_array()) {
+            for b in arr {
+                if b.get("owner").and_then(|v| v.as_str()) != Some(owner) {
+                    continue;
+                }
+                let (Some(mint), Some((raw, dec))) =
+                    (b.get("mint").and_then(|v| v.as_str()), raw_amount(b))
+                else {
+                    continue;
+                };
+                *raw_deltas.entry(mint.to_string()).or_insert(0) += sign * raw;
+                decimals.insert(mint.to_string(), dec);
+            }
+        }
+    }
+    raw_deltas.retain(|_, v| *v != 0);
+
     // Native SOL moves in lamports, not token balances. The fee is added back
     // so the delta reflects the trade rather than the trade plus its cost.
     let idx = result
@@ -143,6 +208,8 @@ pub fn parse_confirmed(result: &serde_json::Value, owner: &str) -> Option<Confir
         slot,
         fee_lamports,
         deltas,
+        raw_deltas,
+        decimals,
         lamport_delta,
         err,
     })

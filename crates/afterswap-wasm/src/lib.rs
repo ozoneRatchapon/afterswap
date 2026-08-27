@@ -3,6 +3,8 @@
 //! the same `EngineSnapshot` JSON the server build emits.
 
 use afterswap_engine::{EngineConfig, ExitEngine};
+pub mod rail;
+
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

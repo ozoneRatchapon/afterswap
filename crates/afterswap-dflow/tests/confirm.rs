@@ -154,3 +154,22 @@ fn a_round_trip_has_no_two_sided_price() {
     assert!(f.deltas.is_empty(), "no balances belong to a stranger");
     assert_eq!(f.effective_price(SOL, CBBTC), None);
 }
+
+#[test]
+fn raw_legs_are_exact_integers_from_the_chain() {
+    let v: serde_json::Value = serde_json::from_str(REAL_SWAP).expect("fixture parses");
+    let f = parse_confirmed(&v, REAL_OWNER).expect("parses");
+    let (sent, recv) = f.raw_legs(SOL, CBBTC).expect("two-sided");
+    // 16.924376031 SOL at 9 decimals; 0.022724880 cbBTC at 8 decimals —
+    // exact raw units, no float division anywhere on the path.
+    assert_eq!(sent, 16_924_376_031);
+    assert_eq!(recv, 2_272_488);
+    assert_eq!(f.decimals.get(SOL), Some(&9));
+    assert_eq!(f.decimals.get(CBBTC), Some(&8));
+}
+
+#[test]
+fn raw_legs_refuse_a_one_sided_movement() {
+    let f = parse_confirmed(&tx(1.0, 1.0, 0.0, 0.0, 10_000, "null"), OWNER).expect("parses");
+    assert_eq!(f.raw_legs(SOL, USDC), None);
+}

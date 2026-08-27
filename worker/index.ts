@@ -15,6 +15,7 @@ import init, { WasmEngine, parity_run } from "../web-wasm/public/pkg/afterswap_w
 import wasmModule from "../web-wasm/public/pkg/afterswap_wasm_bg.wasm";
 
 export { Scoreboard } from "./scoreboard";
+export { RailSequencer } from "./rail";
 
 import { b58decode, commitPolicy } from "./commit";
 import pdaTable from "./pda_table.json";
@@ -39,6 +40,7 @@ const USAGE = {
 
 interface Env {
   SCOREBOARD: DurableObjectNamespace;
+  RAIL: DurableObjectNamespace;
   /// Throwaway devnet keypair (base58 64-byte secret) used only to show
   /// visitors a real on-chain policy commitment without a wallet.
   DEMO_KEYPAIR?: string;
@@ -57,6 +59,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    if (url.pathname.startsWith("/rail/")) {
+      const id = env.RAIL.idFromName("rail-v1");
+      return env.RAIL.get(id).fetch(request);
+    }
 
     if (url.pathname === "/api/score") {
       // One global instance: the aggregate is the whole point.

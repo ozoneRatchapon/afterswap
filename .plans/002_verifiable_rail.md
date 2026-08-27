@@ -22,5 +22,16 @@ restart resume, `rail_verify` auditor tool. Dry run on live ticks: 21 records,
 chain verified, 21 provider-signed + 21 observed, slot gaps median 1 / max 1 —
 falsifier passed 21/21 within bound. Jupiter won the decision 11/21.
 
-Next action: R2 — Worker ingest + Sequencer DO + R2 segments + public reads
-(the 30 s publication path).
+R2 ✅ SHIPPED 2026-08-28 (local verification): `worker/rail.ts` RailSequencer
+DO — ingest verifies via the shared wasm build of `afterswap-rail` (no TS
+reimplementation), enforces (not assigns) the executor-signed chain, closes
+64-record segments into content-addressed R2 objects, serves
+/rail/{ingest,records,proof/:seq,stats}. `parse_confirmed` now emits raw
+integer legs; live `FillRef` wired. Falsifier (local miniflare): 81/81
+ingested, ingest→public-read median 3.7 ms / max 39.8 ms, fork and replay
+rejected, segment closed, and the wasm-served proof VERIFIED under the native
+crate. NOT DEPLOYED — production ≤30 s check needs a real `wrangler deploy`
+(DO-binding migration caveat applies) plus an external observer.
+
+Next action: R3 — segment-root anchoring via executor-signed memo tx + the
+browser verifier page.

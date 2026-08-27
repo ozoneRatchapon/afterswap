@@ -115,6 +115,9 @@ struct Filled {
     signature: Option<String>,
     revert: Option<String>,
     simulated: bool,
+    /// Realised legs in raw smallest units, live fills only. The only values
+    /// allowed into a `FillRef` — floats never are.
+    raw_legs: Option<(u128, u128)>,
 }
 
 impl Executor {
@@ -132,6 +135,7 @@ impl Executor {
                 signature: None,
                 revert: None,
                 simulated: true,
+                raw_legs: None,
             }),
             #[cfg(feature = "live")]
             Self::Live(exec) => {
@@ -152,6 +156,7 @@ impl Executor {
                     }
                 };
                 let price = confirmed.effective_price(&req.input_mint, &req.output_mint);
+                let raw_legs = confirmed.raw_legs(&req.input_mint, &req.output_mint);
                 Some(Filled {
                     price: price.unwrap_or(0.0),
                     slot: Some(confirmed.slot),
@@ -159,6 +164,7 @@ impl Executor {
                     signature: Some(sig),
                     revert: confirmed.err,
                     simulated: false,
+                    raw_legs,
                 })
             }
         }
@@ -294,38 +300,61 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
             }
         };
 
-        // Rail capture: primary with evidence headers + shadow, concurrent.
-        // Failures leave a seq gap in the chain — visible, per the spec.
-        if let (Some(w), Some(key)) = (rail_writer.as_mut(), cfg.attest_key.as_ref()) {
-            let captures = tokio::join!(
-                afterswap_dflow::capture_dflow(&client, &cfg.request),
-                afterswap_dflow::capture_jupiter(&jupiter_http, &cfg.request),
-            );
-            match captures {
-                (Ok(primary), shadow) => {
-                    let shadow_vq = match shadow {
-                        Ok(s) => Some(s.into_venue_quote(&cfg.request)),
-                        Err(e) => {
-                            warn!("cycle {cycle}: shadow quote failed (recording primary only): {e}");
-                            None
-                        }
-                    };
-                    let record = build_rail_record(
-                        now_ms(),
-                        &instrument,
-                        primary.into_venue_quote(&cfg.request),
-                        shadow_vq,
-                    );
-                    let record = attest(link(record, rail_tip.as_ref()), key);
-                    writeln!(w, "{}", serde_json::to_string(&record)?)?;
-                    w.flush()?;
-                    rail_tip = Some(record);
+        // Rail capture at arrival: primary with evidence headers + shadow,
+        // concurrent. The record is *built* only after the fill outcome is
+        // known, so live fills enter it; capture failures leave a seq gap in
+        // the chain — visible, per the spec.
+        let rail_capture = match rail_writer.is_some() {
+            true => {
+                let captures = tokio::join!(
+                    afterswap_dflow::capture_dflow(&client, &cfg.request),
+                    afterswap_dflow::capture_jupiter(&jupiter_http, &cfg.request),
+                );
+                match captures {
+                    (Ok(primary), shadow) => {
+                        let shadow_vq = match shadow {
+                            Ok(s) => Some(s.into_venue_quote(&cfg.request)),
+                            Err(e) => {
+                                warn!("cycle {cycle}: shadow quote failed (recording primary only): {e}");
+                                None
+                            }
+                        };
+                        Some((primary.into_venue_quote(&cfg.request), shadow_vq))
+                    }
+                    (Err(e), _) => {
+                        warn!("cycle {cycle}: primary capture failed, no rail record: {e}");
+                        None
+                    }
                 }
-                (Err(e), _) => warn!("cycle {cycle}: primary capture failed, no rail record: {e}"),
             }
-        }
+            false => None,
+        };
 
         let filled = cfg.executor.execute(&cfg.request, &submit).await;
+
+        if let (Some(w), Some(key), Some((primary, shadow))) =
+            (rail_writer.as_mut(), cfg.attest_key.as_ref(), rail_capture)
+        {
+            let mut record = build_rail_record(now_ms(), &instrument, primary, shadow);
+            // Only a live, confirmed, two-sided fill enters the audit trail;
+            // paper fills are the quote restated and stay out by construction.
+            record.fill = filled.as_ref().and_then(|f| match (f.simulated, f.raw_legs, &f.signature) {
+                (false, Some((sent, recv)), Some(sig)) => Some(afterswap_rail::FillRef {
+                    signature: sig.clone(),
+                    slot: f.slot.unwrap_or(0),
+                    in_mint: cfg.request.input_mint.clone(),
+                    out_mint: cfg.request.output_mint.clone(),
+                    in_amount: sent.to_string(),
+                    out_amount: recv.to_string(),
+                    fee_lamports: f.fee_lamports,
+                }),
+                _ => None,
+            });
+            let record = attest(link(record, rail_tip.as_ref()), key);
+            writeln!(w, "{}", serde_json::to_string(&record)?)?;
+            w.flush()?;
+            rail_tip = Some(record);
+        }
         let record = ExecutionCycle {
             cycle,
             t_ms: now_ms(),

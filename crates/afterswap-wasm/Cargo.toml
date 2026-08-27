@@ -10,5 +10,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 afterswap-engine = { path = "../afterswap-engine" }
+afterswap-rail = { path = "../afterswap-rail" }
 serde_json = { workspace = true }
 wasm-bindgen = "=0.2.118"  # must match installed wasm-bindgen CLI
