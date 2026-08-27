@@ -37,7 +37,15 @@ compete for the right to scale you out.
      synthetic automatically so that gap cannot hide.
 
    Every time we increased statistical power, the apparent edge shrank. That
-   is the result, and it is stated here rather than buried. Execution cost is
+   is the result, and it is stated here rather than buried. A formal
+   overfitting test ([`024_overfit`](benches/024_overfit/report.md), CSCV/PBO,
+   calibrated against synthetic noise) then separated two things everything
+   else had conflated: **the selection is sound — PBO 0.05–0.20 on 7 of 11
+   assets, with the in-sample winner ranking 0.70–0.88 out of sample — while
+   the profitability is absent**, in-sample +2.5…+16.8 bps collapsing to
+   −6…+2 out of sample. We can reliably pick the best machine; the best
+   machine is not profitable. That points away from our search and our
+   statistics, and at the strategy space itself. Execution cost is
    not the explanation either — charging 0→5 bps per fill to every strategy
    alike moves the comparisons by less than half a bp
    ([`019_cost`](benches/019_cost/report.md)).

@@ -125,7 +125,14 @@ as a result, same day:
 stepdown or CSCV/PBO on the survivors before declaring anything.** Hansen's
 SPA is preferred over White's Reality Check, which loses power when the
 candidate pool is full of bad strategies — which ours is, by construction.
-*Not yet implemented; this is the next gate to build.*
+✅ **PBO/CSCV implemented** (`src/pbo.rs`, `tests/pbo.rs`, calibrated on
+synthetic noise at 0.48–0.51) and run over the full 1,054-machine population
+on 11 real assets ([`024_overfit`](../benches/024_overfit/report.md)). It
+answered the question it was built for, and the answer was not the expected
+one: **the selection generalises (PBO 0.05–0.20 on most assets) while the
+profit does not** (+2.5…+16.8 bps in-sample → −6…+2 out of sample). Deflated
+Sharpe and Romano-Wolf remain unbuilt; DSR in particular needs adapting,
+since our objective is a paired bps difference rather than a Sharpe ratio.
 
 **A2 — power.** ✅ **Implemented** (`src/power.rs`, `tests/power.rs`). The
 reference table is unambiguous about what our experiments could ever have
