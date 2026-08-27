@@ -157,9 +157,12 @@
     <div class="panel">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
-        <div><b style="color:var(--ink)">Beats every standard Solana exit</b> — paired on 6 corpora:
-          TWAP <span class="up">+76.0</span> · Jupiter-style trailing <span class="up">+10.5</span> ·
-          TP-ladder <span class="up">+114.0</span> · TP/SL bracket <span class="up">+80.2</span> bps</div>
+        <div><b style="color:var(--ink)">Beats every standard exit on the DFlow tick corpora</b> —
+          TWAP <span class="up">+76.0</span> · trailing <span class="up">+10.5</span> ·
+          ladder <span class="up">+114.0</span> · bracket <span class="up">+80.2</span> bps.
+          <b style="color:var(--ink)">But not everywhere:</b> on 31 days of real 1-minute bars
+          (225 windows) it trails TWAP by <span class="down">−4 ± 1</span> bps. We publish the
+          disagreement instead of the better half.</div>
         <div><b style="color:var(--ink)">Null control passed</b> — on de-meaned (random-walk) paths it shows
           <b>no</b> significant edge at any horizon: it does not manufacture alpha from noise</div>
         <div><b style="color:var(--ink)">GOAT gates G1–G6 pass</b> — bit-reproducible, this WASM build is
