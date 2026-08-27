@@ -391,6 +391,15 @@ across venues, *preserving the enumerate-and-verify harness without requiring
 directional forecasting*. Our machinery survives the redirect; only the
 objective changes.
 
+✅ **Implemented and tested** ([`027_shortfall`](../benches/027_shortfall/report.md)):
+`sim::shortfall_bps_impact` plus a rate-dependent temporary-impact model, with
+selection on train and measurement on disjoint test across 11 assets under
+three objectives. The redirect works mechanically — the enumerate-and-verify
+harness took the new objective unchanged, exactly as predicted — but the answer
+is still no: the apparent 30% variance advantage over TWAP is entirely
+explained by liquidating ~4× sooner, and a speed-matched TWAP beats the
+machines at their own urgency (SD ratio 1.12, significant on 0 of 11).
+
 **F2 — risk-centric objectives.** CVaR/expected shortfall on the shortfall
 distribution, minimax/tropical worst-case over rolling sub-windows, and
 viability sets. All stated to be compatible with paired out-of-sample
