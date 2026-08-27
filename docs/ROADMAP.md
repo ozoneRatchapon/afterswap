@@ -205,7 +205,7 @@ online analogue of what the GOAT bench does offline. Run with
 t-values hourly. This is the instrument that makes every future
 improvement measurable in hours instead of weeks.
 
-## 7d. Horizon sweep + null control ✅ RUN (v2.7, bench 016)
+## 7d. Horizon sweep + null control ✅ RUN (v2.7, bench 014)
 
 Tested the standing hypothesis that live edges look tiny only because the
 demo exit horizon is ~1 minute. Method: block-bootstrap bars from the
