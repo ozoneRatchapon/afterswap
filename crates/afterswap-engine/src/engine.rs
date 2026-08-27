@@ -853,6 +853,35 @@ impl ExitEngine {
                 };
                 let arm = l.arm;
                 bandit.update(arm, reward_bps);
+                // Off-policy credit at close, not just at window boundaries.
+                // Measured defect: the median position lasts ~15 ticks against
+                // a 24-tick evaluation window, so most cycles ended before a
+                // window ever closed and the population learned almost
+                // nothing — 19 of 24 arms were still untried after an hour of
+                // live trading. Crediting every arm on the realized prefix
+                // makes each completed cycle a full learning event.
+                if self.config.off_policy_credit {
+                    let window = self.store.recent(self.config.window_len);
+                    if window.len() >= 2 {
+                        for i in 0..bandit.num_arms() {
+                            if i == arm {
+                                continue;
+                            }
+                            let edge = crate::sim::replay_exit_cost(
+                                bandit.strategy(i),
+                                &window,
+                                self.config.tranche_frac,
+                                self.config.peak_drop_bps,
+                                self.config.fill_cost_bps,
+                            );
+                            let id = bandit.strategy(i).id();
+                            bandit.update(i, edge);
+                            let e = self.realized.entry((id, regime)).or_insert((0.0, 0));
+                            e.0 += edge;
+                            e.1 += 1;
+                        }
+                    }
+                }
                 let entry = self
                     .realized
                     .entry((bandit.strategy(arm).id(), regime))
