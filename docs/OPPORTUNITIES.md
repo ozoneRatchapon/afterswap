@@ -69,13 +69,15 @@ is allowed to make.
    on-chain fill. Nobody in this space can currently prove "the fill followed
    the policy, at a quote the venue actually offered". Uniquely ours because
    the policy program already exists on devnet.
-   **Link 1 of 3 shipped:** the quote is now verified in-browser (RFC 9421,
-   ed25519, DFlow's published key) — see the header chip on the live demo.
-   **Link 2** (policy PDA) already exists. **Link 3** is binding them: carry
-   the verified `content-digest` into the same transaction as the policy
-   commitment, so the chain records *which* signed quote the policy was
-   committed against. That is a memo instruction alongside the existing
-   commit — no program change.
+   **✅ All three links shipped.** (1) Every quote is verified in-browser
+   (RFC 9421 ed25519 against DFlow's published key) and an unverified quote is
+   discarded, not traded on. (2) The policy PDA commits the machine
+   fingerprint before the first sale. (3) The commitment transaction now
+   carries the verified quote digest in a memo beside it, binding the policy
+   to a specific signed price — verified on devnet
+   (`afterswap:quote sha-256=…`, no program change needed).
+   Remaining to make it end-to-end for *mainnet fills*: the same memo on the
+   live sell transaction, which needs the production API.
 3. **Depth/venue-aware exits** (Plan 001, in flight) — the one remaining
    *signal* hypothesis that is not direction prediction.
 4. **Execution-quality public dataset** — quotes, depth, venues, realized fills

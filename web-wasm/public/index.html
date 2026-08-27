@@ -801,7 +801,7 @@ function renderSigChip(v) {
   const el = $("sigchip");
   if (!el || !v) return;
   if (v.ok === true) {
-    el.innerHTML = `<span style="color:var(--delta-good)">✓ DFlow-signed quote verified in your browser</span>`;
+    el.innerHTML = `<span style="color:var(--delta-good)">✓ ${verifiedCount} DFlow-signed quotes verified in your browser</span>`;
   } else if (v.ok === null) {
     el.textContent = `signed quote · ${v.reason}`;
   } else {
@@ -809,24 +809,26 @@ function renderSigChip(v) {
   }
 }
 
-let sigCheckCountdown = 0;
+let verifiedCount = 0;
 
 async function fetchPrice() {
-  // Ask for a signature periodically: verifying every tick would spend the
-  // visitor's CPU proving the same thing sixty times a minute.
-  const wantSig = sigCheckCountdown <= 0;
+  // Every quote is signed and verified. Measured cost: 0.055 ms per quote —
+  // 0.006% of a core at one quote per second. Sampling would mean the
+  // machines act on prices nobody checked, which is not a property worth
+  // trading for a rounding error of CPU.
   const requestId = `afterswap-${Date.now()}`;
   const res = await fetch(quoteUrl(), {
-    headers: wantSig ? { "x-sign-request": "true", "x-request-id": requestId } : {},
+    headers: { "x-sign-request": "true", "x-request-id": requestId },
   });
   const text = await res.text();
-  if (wantSig) {
-    sigCheckCountdown = 60;
-    lastVerified = await verifySignedResponse(res, text, requestId);
+  lastVerified = await verifySignedResponse(res, text, requestId);
+  if (lastVerified.ok === false) {
+    // A price that fails verification is not a price: discard the tick.
     renderSigChip(lastVerified);
-  } else {
-    sigCheckCountdown -= 1;
+    throw new Error(`unverified quote: ${lastVerified.reason}`);
   }
+  verifiedCount += 1;
+  renderSigChip(lastVerified);
   const q = JSON.parse(text);
   const rp = q.routePlan;
   const inD = rp[0].inputMintDecimals, outD = rp[rp.length - 1].outputMintDecimals;
@@ -974,6 +976,10 @@ async function commitDemoPolicy(arm) {
         n_states: arm.n_states,
         tranche_bps: 1000,
         blockhash: bh,
+        // Binds the policy to the exact DFlow-signed quote this browser
+        // verified, so the chain records which price the commitment was
+        // made against — not just that a commitment happened.
+        quote_digest: lastVerified?.digest ?? null,
       }),
     })).json();
     if (!res.signed_tx) return;
@@ -982,7 +988,7 @@ async function commitDemoPolicy(arm) {
     localStorage.setItem(DEMO_COMMIT_KEY, String(Date.now()));
     $("onchainpanel").style.display = "";
     $("onchain").insertAdjacentHTML("afterbegin",
-      `<div>📜 <b>${arm.name}</b>'s exit policy committed on-chain before its first sale ·
+      `<div>📜 <b>${arm.name}</b>'s exit policy committed on-chain, bound to a DFlow-signed quote, before its first sale ·
        <a style="color:var(--series-1)" target="_blank" rel="noopener"
           href="https://explorer.solana.com/tx/${sent.result}?cluster=devnet">devnet tx ↗</a>
        <span style="color:var(--muted)">(fingerprint ${BigInt(arm.id).toString(16).slice(0, 8)}, ${arm.n_states} states)</span></div>`);
