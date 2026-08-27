@@ -53,7 +53,13 @@ compete for the right to scale you out.
    that takes your position commits its policy to devnet automatically, no
    wallet required — the signing key lives in the Worker, your browser only
    relays the transaction.
-5. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
+5. **The price itself is verifiable, in your tab.** DFlow signs its API
+   responses (RFC 9421, ed25519); the demo checks the body digest *and* the
+   signature against DFlow's published key before the machines act on a quote.
+   Combined with the on-chain policy commitment, two of the three links in
+   "this fill followed a pre-committed policy at a price the venue really
+   offered" are now cryptographic rather than trust-me.
+6. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.

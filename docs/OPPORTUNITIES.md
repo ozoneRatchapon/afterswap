@@ -24,7 +24,7 @@ tried and did not work from our environment; 🔒 exists but needs access.
 | Book stream WS (10 levels of depth) | 🔒 access-gated | Real depth instead of inferred depth. Plan 001 becomes an order-book strategy rather than a probing hack. |
 | Quote stream WS | 🔒 same gate | Sub-second sensor without polling; removes our 1 s quantization. |
 | Sponsored swaps | ✅ documented | Gasless demo: a visitor could run a *real* mainnet tranche without holding SOL. |
-| Request signing | ✅ documented | DFlow will cryptographically sign its API responses — combined with our on-chain policy commitment this closes an **end-to-end verifiable chain**: signed quote → committed policy → on-chain fill. |
+| Request signing | ✅ **used** | Verified live: `x-sign-request: true` on the keyless dev endpoint returns RFC 9421 headers (`signature`, `signature-input`, `content-digest`), signed ed25519 under DFlow's published key, CORS-exposed. The demo now verifies both the body digest and the signature **in the visitor's own browser** before the machines act on a price. |
 | Proof (identity) | ✅ documented | Verified-identity leaderboards; a machine marketplace needs sybil resistance. |
 | MCP server / Agent CLI / Skills | ✅ documented | Distribution to agents — the market our `/decide` API and `docs/API.md` target. |
 
@@ -69,6 +69,13 @@ is allowed to make.
    on-chain fill. Nobody in this space can currently prove "the fill followed
    the policy, at a quote the venue actually offered". Uniquely ours because
    the policy program already exists on devnet.
+   **Link 1 of 3 shipped:** the quote is now verified in-browser (RFC 9421,
+   ed25519, DFlow's published key) — see the header chip on the live demo.
+   **Link 2** (policy PDA) already exists. **Link 3** is binding them: carry
+   the verified `content-digest` into the same transaction as the policy
+   commitment, so the chain records *which* signed quote the policy was
+   committed against. That is a memo instruction alongside the existing
+   commit — no program change.
 3. **Depth/venue-aware exits** (Plan 001, in flight) — the one remaining
    *signal* hypothesis that is not direction prediction.
 4. **Execution-quality public dataset** — quotes, depth, venues, realized fills
