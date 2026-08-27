@@ -8,7 +8,9 @@
 //! the `EngineEvent`s that come out.
 
 pub mod bandit;
+pub mod cuped;
 pub mod engine;
+pub mod execution;
 pub mod pbo;
 pub mod power;
 pub mod prereg;

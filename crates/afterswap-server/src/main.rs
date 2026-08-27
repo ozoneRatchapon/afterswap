@@ -6,6 +6,7 @@
 //! Args (all optional): --ticks N --interval-ms M --open-after K
 //!                      --size SOL --states S --window W
 
+mod exec_ab;
 mod paper;
 mod server;
 mod shadow;
@@ -25,6 +26,12 @@ fn arg<T: std::str::FromStr>(args: &[String], name: &str) -> Option<T> {
 async fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args: Vec<String> = std::env::args().collect();
+
+    // The execution experiment is its own mode: it sends orders on a fixed
+    // pair and clip, and shares nothing with the paper loop's engine config.
+    if args.iter().any(|a| a == "--exec-ab") {
+        return exec_ab::run_cli(&args).await;
+    }
 
     let mut engine = EngineConfig::default();
     if let Some(s) = arg::<u8>(&args, "--states") {

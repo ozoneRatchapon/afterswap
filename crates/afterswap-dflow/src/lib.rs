@@ -12,7 +12,7 @@ pub mod types;
 
 pub use client::{DEV_BASE, DflowClient, DflowError};
 #[cfg(feature = "live")]
-pub use live::{LiveExecutor, LiveError};
+pub use live::{ConfirmedFill, LiveError, LiveExecutor, parse_confirmed};
 pub use price::{PricePoller, mints};
 pub use snapshot::{DepthProbe, Freshness, QuoteSnapshot};
 pub use types::{OrderResponse, QuoteRequest, QuoteResponse, RoutePlanStep};
