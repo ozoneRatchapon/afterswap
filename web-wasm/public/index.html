@@ -145,6 +145,15 @@
       <div id="board"><div class="empty">waiting for first tournament…</div></div>
     </div>
     <div class="panel">
+      <h2>Live scoreboard — this browser, this session</h2>
+      <div id="scoreboard" class="empty">first cycle in progress…</div>
+      <div style="font-size:11.5px; color:var(--muted); margin-top:8px">
+        Every reference exit is driven by the same ticks from the same entry as
+        the machines, so the price path cancels — the same paired method the
+        benchmarks use, running live in front of you.
+      </div>
+    </div>
+    <div class="panel">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
         <div><b style="color:var(--ink)">Beats every standard Solana exit</b> — paired on 6 corpora:
@@ -667,6 +676,7 @@ import("./pkg/afterswap_wasm.js").then(async (mod) => {
     if (Array.isArray(saved?.prices)) for (const p of saved.prices) engine.on_tick(p);
     if (saved?.learning) refresh();
   } catch { /* corrupt store — start fresh */ }
+  renderScores(loadScores());
   replay = new URLSearchParams(location.search).has("replay") ? await loadReplay() : null;
   setConn(true, replay ? "replay" : "live");
   scheduleTick();
@@ -724,6 +734,79 @@ function refresh() {
   if (engine) render(JSON.parse(engine.snapshot(240)));
 }
 
+// ---- Live paired scoreboard: reference exits driven by the same ticks
+// from the same entry, so the price path cancels. Mirrors shadow.rs. ----
+const SCORE_KEY = "afterswap-scoreboard-v1";
+const FLOORS = ["hold", "twap", "trailing", "ladder", "bracket"];
+let shadow = null, lastScoredTick = null;
+
+function newShadow(entry) {
+  return { entry, peak: entry, ticks: 0, twapCash: 0, twapRem: 1, twapDone: 0,
+           ladCash: 0, ladRem: 1, ladRung: 1, trailLock: null, brkLock: null };
+}
+
+function shadowTick(sh, price) {
+  sh.ticks += 1;
+  sh.peak = Math.max(sh.peak, price);
+  const rel = price / sh.entry;
+  if (sh.ticks % 6 === 0 && sh.twapDone < 10 && sh.twapRem > 1e-12) {
+    const f = Math.min(0.1, sh.twapRem);
+    sh.twapCash += f * rel; sh.twapRem -= f; sh.twapDone += 1;
+  }
+  while (sh.ladRung <= 10 && sh.ladRem > 1e-12 && price >= sh.entry * (1 + sh.ladRung * 10 * 1e-4)) {
+    const f = Math.min(0.1, sh.ladRem);
+    sh.ladCash += f * rel; sh.ladRem -= f; sh.ladRung += 1;
+  }
+  if (sh.trailLock === null && (sh.peak - price) / sh.peak * 1e4 >= 50) sh.trailLock = rel;
+  if (sh.brkLock === null) {
+    const mv = (price - sh.entry) / sh.entry * 1e4;
+    if (mv >= 50 || mv <= -50) sh.brkLock = rel;
+  }
+}
+
+function shadowValues(sh, price) {
+  const rel = price / sh.entry;
+  return {
+    hold: rel,
+    twap: sh.twapCash + sh.twapRem * rel,
+    ladder: sh.ladCash + sh.ladRem * rel,
+    trailing: sh.trailLock ?? rel,
+    bracket: sh.brkLock ?? rel,
+  };
+}
+
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem(SCORE_KEY)) ?? { n: 0, sums: {}, wins: {} }; }
+  catch { return { n: 0, sums: {}, wins: {} }; }
+}
+
+function recordCycle(engineValue, price) {
+  const v = shadowValues(shadow, price);
+  const rec = loadScores();
+  rec.n += 1;
+  for (const f of FLOORS) {
+    const d = (engineValue - v[f]) / v[f] * 1e4;
+    rec.sums[f] = (rec.sums[f] ?? 0) + d;
+    rec.wins[f] = (rec.wins[f] ?? 0) + (d > 0 ? 1 : 0);
+  }
+  try { localStorage.setItem(SCORE_KEY, JSON.stringify(rec)); } catch {}
+  renderScores(rec);
+}
+
+function renderScores(rec) {
+  const el = $("scoreboard");
+  if (!rec || !rec.n) return;
+  el.className = "";
+  const label = { hold: "doing nothing", twap: "TWAP / DCA", trailing: "trailing stop",
+                  ladder: "TP ladder", bracket: "TP+SL bracket" };
+  el.innerHTML = `<table><thead><tr><th>vs</th><th>mean edge</th><th>cycles won</th></tr></thead><tbody>${
+    FLOORS.map((f) => {
+      const m = rec.sums[f] / rec.n;
+      return `<tr><td>${label[f]}</td><td class="${m >= 0 ? "up" : "down"}">${m >= 0 ? "+" : ""}${m.toFixed(2)} bps</td><td>${rec.wins[f]}/${rec.n}</td></tr>`;
+    }).join("")
+  }</tbody></table>`;
+}
+
 let reopenCooldown = 0;
 // A visitor should see machines working within seconds of landing, without
 // having to know what button to press. The first position opens itself as
@@ -751,7 +834,18 @@ async function tick() {
       return;
     }
   }
+  const snapNow = JSON.parse(engine.snapshot(0));
+  if (snapNow.position) {
+    if (!shadow) shadow = newShadow(snapNow.position.entry_price);
+    shadowTick(shadow, price);
+  }
   const events = JSON.parse(engine.on_tick(price));
+  const closed = events.find((e) => e.type === "position_closed");
+  if (closed && shadow && closed.tick !== lastScoredTick) {
+    lastScoredTick = closed.tick;
+    recordCycle(closed.final_value_norm, price);
+    shadow = null;
+  }
   // Continuous-learning mode: reopen a paper position a few ticks after
   // each full exit. Paper only — never combined with live wallet sells.
   if (!autoStarted && $("autoreopen").checked && !$("livemode").checked) {
