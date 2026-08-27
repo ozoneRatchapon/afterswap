@@ -10,11 +10,24 @@
 //! underpowered.
 //!
 //! So this measures the same quantity on candidate pairs using quotes only. No
-//! keypair, no fills, no capital. `impact_bps` rides free on every `/quote`
-//! response, so the only cost is rate limit.
+//! keypair, no fills, no capital.
 //!
-//! Run: cargo run -p afterswap-server --example pool_probe --release -- \
-//!          --minutes 60 --interval-ms 2000
+//! It uses the **two-quote depth spread**, not `impact_bps`. A dry run found
+//! DFlow's dev endpoint returns `priceImpactPct: "0"` on every pair tested, so
+//! the free lag-0 reading is present and identically zero — no variance, and
+//! nothing for CUPED to regress on. The probe costs a second request per
+//! observation and can straddle slots, which is why the slot-gap column is
+//! reported beside the correlation rather than assumed away.
+//!
+//! **Probe one pair at a time.** The dev endpoint returns HTTP 429 well before
+//! six pairs at two requests each will fit in a 6 s tick, and a rate-limited
+//! run does not degrade gracefully — it silently returns a series with holes in
+//! it, which is worse than no series. `--only` selects a single pair.
+//!
+//! ```sh
+//! cargo run -p afterswap-server --example pool_probe --release -- \
+//!     --only SOL/USDC --minutes 60 --interval-ms 4000
+//! ```
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -54,6 +67,38 @@ fn candidates() -> Vec<(&'static str, QuoteRequest)> {
                 output_mint: mints::USDC.to_string(),
                 amount: 1_000_000_000,
                 slippage_bps: 100,
+            },
+        ),
+        // Candidates chosen on one principle: route churn tracks how many
+        // venues quote within a basis point of each other. SOL/USDC churned
+        // 5 of 6 cycles in the dry run because dozens do. These should have
+        // fewer — but that is a structural argument, and this probe exists
+        // because structural arguments are not measurements.
+        (
+            "USDC/USDT",
+            QuoteRequest {
+                input_mint: mints::USDC.to_string(),
+                output_mint: mints::USDT.to_string(),
+                amount: 1_000_000_000, // 1,000 USDC
+                slippage_bps: 20,
+            },
+        ),
+        (
+            "cbBTC/USDC",
+            QuoteRequest {
+                input_mint: mints::CBBTC.to_string(),
+                output_mint: mints::USDC.to_string(),
+                amount: 1_000_000, // 0.01 cbBTC
+                slippage_bps: 50,
+            },
+        ),
+        (
+            "JitoSOL/SOL",
+            QuoteRequest {
+                input_mint: mints::JITOSOL.to_string(),
+                output_mint: mints::SOL.to_string(),
+                amount: 1_000_000_000, // 1 JitoSOL
+                slippage_bps: 30,
             },
         ),
     ]
@@ -99,7 +144,15 @@ async fn main() -> anyhow::Result<()> {
     let ticks = (minutes * 60_000) / interval_ms;
 
     let client = DflowClient::dev();
-    let pairs = candidates();
+    let only = arg::<String>(&args, "--only");
+    let pairs: Vec<_> = candidates()
+        .into_iter()
+        .filter(|(n, _)| only.as_ref().is_none_or(|f| n.contains(f.as_str())))
+        .collect();
+    if pairs.is_empty() {
+        eprintln!("no pair matches --only");
+        return Ok(());
+    }
     let mut series: Vec<Series> = pairs
         .iter()
         .map(|_| Series {
@@ -116,6 +169,13 @@ async fn main() -> anyhow::Result<()> {
         "probing {} pairs, {ticks} observations each at {interval_ms} ms (~{minutes} min)\n",
         pairs.len()
     );
+    if pairs.len() > 2 {
+        eprintln!(
+            "warning: {} pairs at 2 requests each will likely hit the endpoint rate limit. \
+Use --only to probe one pair at a time.\n",
+            pairs.len()
+        );
+    }
 
     let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -123,9 +183,13 @@ async fn main() -> anyhow::Result<()> {
         interval.tick().await;
         for (i, (name, req)) in pairs.iter().enumerate() {
             let poller = PricePoller::new(client.clone(), req.clone());
-            match poller.poll_snapshot(seq).await {
+            // Probe at 10x the primary clip: large enough to move the pool
+            // measurably, small enough that the aggregator still routes it the
+            // way it would route a real order.
+            let probe_amount = req.amount.saturating_mul(10);
+            match poller.poll_snapshot_probed(seq, probe_amount).await {
                 Ok(snap) => {
-                    match snap.impact_bps {
+                    match snap.probe.as_ref().map(|p| p.depth_bps) {
                         Some(v) => series[i].impact.push(v),
                         None => {
                             // Pushing a zero would invent a covariate value.
@@ -147,19 +211,23 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+            // Space requests across pairs; the endpoint 429s otherwise.
+            if pairs.len() > 1 {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
         }
         if seq % 60 == 0 && seq > 0 {
             println!("  {seq}/{ticks} observations");
         }
     }
 
-    println!("\n| pair | n | rho lag-1 | **reduction** | median slot gap | routes | missing impact |");
-    println!("|---|---|---|---|---|---|---|");
+    println!("\n| pair | n | mean depth bps | rho lag-1 | **reduction** | median slot gap | routes | no depth |");
+    println!("|---|---|---|---|---|---|---|---|");
     for (i, (name, _)) in pairs.iter().enumerate() {
         let s = &series[i];
         if s.impact.len() < 30 {
             println!(
-                "| {name} | {} | — | — | — | — | {} |",
+                "| {name} | {} | — | — | — | — | — | {} |",
                 s.impact.len(),
                 s.missing_impact
             );
@@ -169,8 +237,9 @@ async fn main() -> anyhow::Result<()> {
         let mut gaps = s.slot_gaps.clone();
         gaps.sort_unstable();
         let med = gaps.get(gaps.len() / 2).copied().unwrap_or(0);
+        let mean_depth = s.impact.iter().sum::<f64>() / s.impact.len() as f64;
         println!(
-            "| {name} | {} | {r:+.3} | **{:.1}%** | {med} | {} | {} |",
+            "| {name} | {} | {mean_depth:.2} | {r:+.3} | **{:.1}%** | {med} | {} | {} |",
             s.impact.len(),
             r * r * 100.0,
             s.routes.len(),

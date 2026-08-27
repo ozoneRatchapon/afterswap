@@ -12,6 +12,18 @@ pub mod mints {
     /// discipline pays (bench 018: +34 bps vs trailing on BONK).
     pub const BONK: &str = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
     pub const WIF: &str = "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm";
+
+    /// Tether. A stablecoin pair against USDC has near-zero volatility, which
+    /// removes drift from the margin identity and leaves execution cost as
+    /// nearly the whole signal.
+    pub const USDT: &str = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+    /// Coinbase wrapped BTC. Verified on-chain: this mint appears in the real
+    /// Whirlpool swap pinned in `afterswap-dflow/tests/fixtures/`.
+    pub const CBBTC: &str = "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij";
+    /// Jito liquid-staking SOL. LST/SOL pairs concentrate in a small number of
+    /// purpose-built pools, so there are fewer venues within a basis point of
+    /// each other for the aggregator to switch between.
+    pub const JITOSOL: &str = "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn";
 }
 
 /// Polls the quote endpoint for an implied pair price.
