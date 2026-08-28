@@ -112,6 +112,11 @@ Show the bench table or the README section.
   costs seconds of runtime you may not have in a 2-minute cut.
 - Record 1440p or better if the roster table is on screen — fingerprints need
   to be legible for the "not designed by us" point to land.
+- **Warm the endpoint before demoing it live.** Re-measured 2026-08-28: the
+  80/80 success rate reproduces, but the *first* run after the worker has been
+  idle puts about three of forty calls near 2.1 s (cold start). A second run
+  immediately after is p50 59 ms / p95 125 ms / max 155 ms, zero calls over
+  1 s. Fire a throwaway `/decide` call before the take.
 
 ### Do not say — claims the build does not support
 
@@ -162,6 +167,27 @@ from here, so this is the raw material rather than a field-by-field fill.
 | Track / theme | "Build what happens after the swap" |
 | Chain / network | Solana; exit-policy registry live on **devnet** |
 | Program ID | `GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8` (devnet) |
+| Try the API | paste-ready `curl` below — **give this, not a bare URL** (see the 403 caveat) |
+
+**Paste-ready API check (verified working 2026-08-28):**
+
+```sh
+curl -s https://afterswap.solana-thailand.workers.dev/decide \
+  -H "content-type: application/json" \
+  -d '{"prices":[1.0,1.02,1.04,1.06,1.08,1.1,1.12,1.14,1.16,1.18,1.2,1.22,1.24,1.26,1.28,1.3,1.32,1.34,1.36,1.38,1.35,1.32,1.29,1.26,1.23,1.2,1.17,1.14,1.11,1.08,1.05,1.02,0.99,0.96,0.93,0.9],"open_at":1}'
+```
+
+Returns `fills: 7`, `fully_exited: false`, `edge_vs_hold_bps: 700` on a
+rise-then-fall series — the machine scales out on the way up while hold rides
+the whole drawdown down. **Say what this is when you show it:** a hand-made
+price path chosen to make the mechanism visible, *not* evidence of edge. The
+honest-limitations answer above is the claim; this is a functioning-endpoint
+demo. Quoting the +700 without that sentence walks straight into the
+"do not say" guardrail.
+
+Two reasons to hand judges this command rather than the bare URL: it warms the
+worker (so they see the ~60 ms path, not a ~2 s cold start), and `curl` is not
+subject to the 403 that a plain Python client can hit.
 
 **How DFlow is integrated (2–3 sentences):**
 > DFlow is both sensor and actuator. The implied price from `/quote` is the
@@ -194,6 +220,30 @@ from here, so this is the raw material rather than a field-by-field fill.
 > distinguished a fix from a lucky draw. The in-browser WASM path has no such
 > ceiling at all.
 
+**Before submitting — two API-probe caveats found by re-verification 2026-08-28:**
+
+1. **The p95 figures are warm-state.** Re-measured today: 80/80 again, and a
+   warm run reproduces p50 59 ms / p95 125 ms / max 155 ms exactly. But the
+   first run against an idle worker put ~3 of 40 calls near 2.1 s. Every call
+   still returned 200, so "80 of 80" is safe to assert as written; the p95
+   number is not, unless the endpoint is warm. If a judge cold-curls it once,
+   they may see ~2 s. Say "p95 125 ms warm" rather than "p95 125 ms".
+
+2. **A plain Python client can get `403 Forbidden` from the documented API.**
+   Reproduced 12/12 with `urllib`'s default headers against
+   `POST /decide`; `curl` and browser user-agents get 200. Nothing in
+   `worker/` or `crates/afterswap-worker/` blocks anything — the scan is
+   clean — so this is **Cloudflare edge bot management on the account**
+   (Bot Fight Mode or a managed WAF rule), configured in the dashboard, not
+   in the repo. It is also not a stable header rule: the same UA returned 200
+   minutes earlier and 403 later, so it is stateful or probabilistic.
+   **Risk:** the form answer points judges at `POST /decide`, and a judge who
+   reaches for Python gets a 403 and reasonably concludes the API is broken.
+   **Decide before submitting** — either turn Bot Fight Mode off for the
+   submission window (an account setting, so a human call, not one I can or
+   should make), or give judges a `curl` invocation in the form answer rather
+   than a bare URL. The second is free and reversible; prefer it.
+
 **Known caveat to state if asked about regulation / MiCA:**
 > The verifiable rail produces best-execution artifacts **aligned with MiCA
 > Article 78** — every venue quoted per execution, a pre-committed decision
@@ -223,5 +273,14 @@ from here, so this is the raw material rather than a field-by-field fill.
       is not flattened under questioning.
 - [x] Form fact sheet assembled from defensible figures only, including an
       explicit limitations answer.
+- [x] **Re-verified every perishable prod claim in this kit against live
+      production, 2026-08-28** (after the rail deploy). App worker still at
+      version `4f69c750`; `/decide` reproduces **80/80** across two
+      independent 40-call runs. Two corrections landed above rather than
+      being left to a judge to find: the p95 figure is **warm-state only**
+      (a cold worker puts ~3 of 40 calls near 2.1 s), and the documented API
+      returns **403 to a plain Python client** (reproduced 12/12; not our
+      code — Cloudflare edge bot management on the account). Mitigated with
+      a paste-ready `curl` in the answer table.
 - [ ] **Record the 2-minute video** — user-only.
 - [ ] **Submit the Google Form before 23:59 ICT Sun 31 Aug 2026** — user-only.
