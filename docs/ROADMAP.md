@@ -12,13 +12,13 @@ Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 > is the thing both items propose to sell. See "What the evidence did to this
 > roadmap" at the end.
 
-## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench 005)
+## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench `005_goat`)
 
 **Outcome:** implemented via input unrolling (two binary steps per tick:
 direction, then off-peak ≥30 bps) — zero upstream changes needed. Result:
 trailing-stop gap closed (−24.5 → **+2.0 bps**), TWAP floor +60.0 → +87.4,
 TP-ladder +95.4 → +122.8, bracket +53.3 → +80.7. G1–G6 re-validated.
-Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench 008)
+Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench `008_goat`)
 — at 5 bps threshold every floor degraded and G2b FAILED (−7.3: the bit
 sits in the noise band and burns 3-state capacity); at 10 bps G2b
 improved (+5.7) but every other floor still degraded vs the 2-bit
@@ -65,7 +65,7 @@ triggers. Keeps every property that matters: full enumeration,
 auditability, bit-determinism. Learned embeddings are explicitly out —
 they would break the product's core honesty claim.
 
-## 3a. Off-policy credit assignment ✅ SHIPPED (v2.6, bench 013)
+## 3a. Off-policy credit assignment ✅ SHIPPED (v2.6, bench `013_goat`)
 
 The sample-efficiency problem the PL experiment was aiming at, solved a
 different way: only the seated arm used to be rewarded per window (1 of
@@ -73,12 +73,16 @@ different way: only the seated arm used to be rewarded per window (1 of
 credited with its counterfactual edge — the replay cost was already being
 paid by the tournament. Every floor improved: TWAP +72.3→**+76.0**,
 random-arm +1.8→**+5.4**, trailing +7.0→**+10.5**, ladder +110.3→+114.0,
-bracket +76.5→+80.2. Side effect worth noting: with all arms credited
+bracket +76.5→+80.2. **These endpoint values were measured with the
+surprise trigger ON** (the default at the time); Retraction 1 below turned it
+off, and the shipped default now measures TWAP **+75.73** / random-arm
+**+6.90** (bench `039_goat`). The *deltas* stand — the absolute figures do
+not describe what ships. Side effect worth noting: with all arms credited
 every window, UCB1's exploration bonus equalizes and selection tends
 toward follow-the-leader — appropriate, since this is now a
 full-information setting rather than a bandit one.
 
-## 3b. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench 006)
+## 3b. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench `006_goat`)
 
 **Outcome:** implemented (`rating.rs`, Hunter-MM PL, unit-tested,
 deterministic) and wired into survivor ranking — **every floor got worse**
@@ -434,7 +438,8 @@ the six corpora:
 every floor". A direct A/B now says otherwise: OFF gives TWAP +75.73 /
 random +6.90 / real-vs-trailing −21.05, ON gives +76.00 / +5.40 / −20.24 —
 under 1.5 bps, in both directions. The original claim came from one
-measurement with no control. **Now off by default**, flag retained.
+measurement with no control (bench `001_goat`, superseded by
+`039_goat`). **Now off by default**, flag retained.
 
 **Retraction 2 — the learning loop was mostly not running.** The same audit
 measured live cycle length: median ~15 ticks against a 24-tick evaluation

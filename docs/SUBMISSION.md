@@ -61,12 +61,23 @@ well.
 then open http://localhost:8787 and press "Open position".
 
 **Ecosystem benchmark:** measured against the exits Solana traders
-actually use — on 5-corpus mean the engine beats **every** standard exit:
-TWAP/DCA +71.9 bps, TP-ladders +109.9, TP/SL brackets +76.1, and
-Jupiter-style trailing stops +6.5 (6 corpora incl. 2 recorded segments). The trailing-stop result is the story:
-bench 004 measured a −24.5 bps *loss* (machines couldn't see distance-
-from-peak); we added that one input bit and bench 005 closed the gap —
-measured weakness → targeted fix → weakness gone, all reproducible.
+actually use. On the 6-corpus mean (4 synthetic regimes + 2 recorded DFlow
+segments) the engine beats every standard exit: TWAP/DCA **+75.7** bps,
+TP-ladders **+113.7**, TP/SL brackets **+79.9**, Jupiter-style trailing stops
+**+10.3** (bench `039_goat`, the shipped default configuration).
+
+That mean is an upper bound, not a result, and we report it as such: it is
+produced by the synthetic regimes, which are hand-specified and far cleaner
+than real price action. **On the two recorded DFlow corpora alone the engine
+loses to these floors** — trailing **−21.1**, TP-ladder **−7.9**, bracket
+**−8.9** bps — while still clearing its two gated floors (TWAP **+75.73**,
+random-arm **+6.90**). See `benches/017_real_horizon` for the larger
+real-data test.
+
+The trailing-stop result is the story: bench `004_goat` measured a −24.5 bps
+*loss* (machines couldn't see distance-from-peak); we added that one input bit
+and bench `005_goat` closed the gap — measured weakness → targeted fix,
+all reproducible.
 Same engine generalizes to DFlow prediction-market outcome tokens —
 exits after the *bet*.
 
@@ -75,7 +86,7 @@ replays, byte-identical browser/native parity, ~1 µs/tick, every constant swept
 for sensitivity (`benches/021_sensitivity`), pre-run power gating, an
 evidence-ladder linter that fails the build when a claim outruns its evidence,
 and four negative results recorded rather than deleted. Latest floors report:
-`benches/020_goat/report.md`.
+`benches/039_goat/report.md`.
 
 **Status:** built entirely during the buildathon (Aug 21–31); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
