@@ -106,7 +106,8 @@ volatile tokens, measured against trailing stops out-of-sample.
 - [x] **Live soak moved to BONK** with paired evaluation
       (`--pair bonk --paired`), so the live evidence is gathered in the market
       the claim is about rather than the one it is not.
-- [ ] Report the BONK paired soak once it has enough cycles for a t-value.
+- [x] Report the BONK paired soak once it has enough cycles for a t-value.
+      **RESULT: null. Reported below — `reports/bonk_soak.txt`.**
       **Pre-registration, written 2026-08-28 before a single cycle was
       collected** (the live evidence in `docs/SOAK.md` is SOL/USDC only, so
       the market the +34 ± 10 claim is about has never been soaked):
@@ -197,6 +198,70 @@ volatile tokens, measured against trailing stops out-of-sample.
       really waits) and against the unrelated 539-cycle `exploratory_539.jsonl`
       fixture (the report renders); the empty-file path exits 1. The BONK
       paired file itself is still unread — not a row, not a summary.
+
+      **Exception to that claim, logged 2026-08-28 while the run was still
+      live.** Near the end of the run a `wc -l` on the paired file revealed its
+      **cycle count** (245 at the time). No outcome data was exposed — a line
+      count carries no `vs_trailing_bps` — and the stopping rule is enforced by
+      the soak process itself, not by the observer, so it could not have
+      induced optional stopping. It is recorded because a blind-analysis claim
+      that silently omits its own exceptions is worth nothing. The stronger
+      claim above ("not a row, not a summary") should be read as holding for
+      the file's *contents*, with the row count as the logged exception.
+
+      ---
+
+      **RESULT — 2026-08-28 11:21 UTC. The pre-registered soak is a null.**
+
+      The run stopped on the **4,500-tick arm** of the stopping rule, not the
+      300-cycle arm: 253 completed cycles over 4,461 ticks accounted for in
+      paired cycles (median 10 ticks/cycle; the ~39-tick remainder is the
+      trailing cycle that never closed, so it is not a paired result). This is
+      the branch amendment 2 was written for — with 252 df the exact Student-t
+      barely differs from the normal, but the cutoff was no longer an
+      assumption. Integrity checked before reading any values: 253 rows, 0
+      malformed, field set matches `shadow::PairedResult`.
+
+      ```
+      endpoint                      mean       SE       t         p   win rate
+      PRIMARY  vs trailing         -0.02     0.45   -0.05    0.9566  145/253
+               vs hold             -0.11     0.37   -0.29    0.7709  144/253
+               vs TWAP             -0.10     0.41   -0.25    0.8017  144/253
+               vs ladder           -0.49     0.37   -1.32    0.1884  142/253
+               vs bracket          -0.54     0.44   -1.21    0.2293  143/253
+      ```
+
+      **Primary endpoint: -0.02 bps (SE 0.45, t -0.05, p 0.9566, 252 df) — not
+      significant.** MDE at 80% power is **1.3 bps**.
+
+      **This is not an underpowered shrug — it is a decisive non-replication.**
+      Bench 018 measured BONK at **+34 ± 10 bps vs trailing**, and that number
+      is the entire reason the demo pair switcher and this soak exist. The
+      soak's 95% CI on the same endpoint is roughly **[-0.90, +0.86] bps**.
+      A +34 bps effect sits about **76 standard errors** outside it, and the
+      run was powered to see something **26x smaller** than the claim. Whatever
+      bench 018 measured, the live paired soak does not find it.
+
+      **The honest limit on that statement:** this is not a like-for-like
+      replication. Bench 018 was a backtest over a frozen recorded corpus;
+      this is a live paper soak on streaming BONK/USDC quotes, different
+      window, different period. So the correct reading is not "bench 018 is
+      arithmetically wrong" — it is that **the effect does not survive out of
+      the sample it was found in**, which is precisely what selection looks
+      like. That was already the README's stated interpretation (Romano–Wolf,
+      zero survivors across 1,054 machines on 11 assets, BONK read as
+      selection); this soak is the first *direct live* evidence for it rather
+      than an inference from the multiplicity correction.
+
+      **No secondary row is a finding.** All five point negative, none is
+      significant, and they are uncorrected for multiplicity — reported for
+      completeness only, exactly as pre-registered. The two nominally largest
+      (ladder -0.49, bracket -0.54) are the ones a fishing expedition would
+      seize on; they are not claims.
+
+      **Stopping rule honoured.** No extension was launched after seeing this.
+      The rule said report the count reached and treat it as what it is; the
+      result is reported as-is.
 
       Command, to run the moment PID 25782 exits (or now, since it blocks):
 
