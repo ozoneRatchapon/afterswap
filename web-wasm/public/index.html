@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AfterSwap — ruliology exit autopilot</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%233987e5'/><circle cx='11' cy='5' r='3' fill='%23d95926'/></svg>">
+<!-- The engine is loaded by a dynamic import() partway down the module script,
+     so without this hint the browser cannot discover the glue module until it
+     has parsed the whole script — one avoidable round trip in front of a
+     487 KB WASM download. Deliberately not preloading the .wasm itself: the
+     `as="fetch"` credentials mode has to match wasm-bindgen's own fetch or the
+     file is downloaded twice, and that is not something this change can
+     measure here. -->
+<link rel="modulepreload" href="./pkg/afterswap_wasm.js">
 <style>
   /* Reference dark palette (validated: #3987e5,#d95926 on #1a1a19 — all checks pass) */
   :root {
@@ -85,9 +93,47 @@
   .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   footer a { color: var(--ink-2); }
+
+  /* Buttons set border:0, which in some engines drops the default focus ring.
+     One of these controls arms live sells through a connected wallet, so where
+     the keyboard is must never be invisible. */
+  :focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 6px; }
+
+  /* Both grids above are unconditional column counts — five across for the
+     stat row, two for the body — so without these the page only lays out at
+     desktop width, and the link is shared as a link. */
+  @media (max-width: 980px) {
+    .split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    body { padding: 14px; }
+    /* The hero stat carries a 48px number, an explainer paragraph and the
+       controls; it needs the full width, and the four readouts pair off. */
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stats > .stat:first-child { grid-column: 1 / -1; }
+    .stat .value.hero { font-size: 38px; }
+    .controls { flex-wrap: wrap; }
+    input[type=number] { width: 78px; }
+    header { gap: 8px; }
+    .conn { margin-left: 0; flex-wrap: wrap; }
+  }
+  /* Tables of numbers are the one thing that must not reflow into nonsense:
+     let them scroll sideways rather than wrap a bps figure onto two lines. */
+  @media (max-width: 560px) {
+    .panel { padding: 13px; overflow-x: auto; }
+    .stat .value.hero { font-size: 32px; }
+  }
 </style>
 </head>
 <body>
+<noscript>
+  <div style="background:var(--surface-1); border:1px solid var(--status-warn); border-radius:10px; padding:14px; margin-bottom:14px; color:var(--ink-2); font-size:13px">
+    <b style="color:var(--ink)">This page needs JavaScript.</b>
+    The exit machines are a WebAssembly engine that runs in your tab — there is
+    no server computing any of this — so with scripting off the panels below
+    stay empty rather than showing stale numbers.
+  </div>
+</noscript>
 <header>
   <h1>AfterSwap</h1>
   <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow, running entirely in your tab</span>
@@ -100,7 +146,7 @@
     <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
       <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
     </span>
-    <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
+    <span id="conndot" class="dot" aria-hidden="true"></span><span id="conntext" role="status">connecting…</span>
     <span id="sigchip" style="font-size:11px; color:var(--muted); margin-left:8px"></span>
   </span>
 </header>
