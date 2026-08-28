@@ -197,15 +197,22 @@ pub async fn run_shared(
             sh.on_tick(price);
         }
         let events = engine.on_tick(price);
-        if let Some(EngineEvent::PositionClosed {
-            final_value_norm, ..
-        }) = events
-            .iter()
-            .find(|e| matches!(e, EngineEvent::PositionClosed { .. }))
-            && let Some(sh) = shadow.take()
-        {
-            {
-                let paired = sh.compare(*final_value_norm, price);
+        let closed = events.iter().find_map(|e| match e {
+            EngineEvent::PositionClosed {
+                final_value_norm, ..
+            } => Some(*final_value_norm),
+            _ => None,
+        });
+        if let Some(final_value_norm) = closed {
+            // A paired soak needs many cycles, so clear the open latch and let
+            // the next eligible tick re-enter: the dashboard's learn-forever
+            // behaviour, which the CLI loop never had. Without this the run
+            // opens exactly one position and idles for the remaining ticks.
+            if cfg.paired.is_some() {
+                opened = false;
+            }
+            if let Some(sh) = shadow.take() {
+                let paired = sh.compare(final_value_norm, price);
                 info!(
                     "paired ({} ticks): vs hold {:+.2} | vs twap {:+.2} | vs trailing {:+.2} | vs ladder {:+.2} | vs bracket {:+.2} bps",
                     paired.ticks,
