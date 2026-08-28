@@ -79,8 +79,11 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
-      both published. The 2026-08-28 commits are pushed: `origin/develop` is
-      at `946cfc8`, 0 ahead / 0 behind local (verified 2026-08-28).
+      both published. `main` is 0 ahead / 0 behind. NOTE (2026-08-28 late):
+      `origin/develop` is at `fd68e30` and local `develop` is **4 commits
+      ahead** (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661` — the /decide
+      FSM-table fix). The repo is public and satisfies the checklist, but
+      those 4 are unpushed pending the user's go-ahead.
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
       is the engine's only input) and **actuator** (every sell-tranche maps to
@@ -134,3 +137,38 @@ cites bench 039 instead of bench 001.
 `${CARGO_TARGET_DIR:-target}`, which cannot see a shared `target-dir` set in
 `~/.cargo/config.toml`; the gate died on a missing `.wasm` rather than on a
 parity failure. It now asks `cargo metadata`.
+
+## Status 2026-08-28 late (/decide fix, not yet in prod)
+
+Cold `POST /decide` was blowing the Workers Free-plan 2,010 ms CPU ceiling
+(~50% of calls returned Cloudflare 1101) because `FsmEnumerator::enumerate(3)`
+ran per cold isolate. The enumeration is pure and deterministic, so it is now
+computed at development time and shipped as a packed index table
+(`crates/afterswap-engine/src/fsm_table_{1,2,3}.bin`, 2,108 B for the whole
+n=3 space). Cold native enumeration 224.9 ms → 132.5 µs; cold `/decide` on
+local `workerd` 752 ms → 7 ms (same-harness, both measured). WASM grew
+473→476 KB (155 KB gz). `tests/fsm_table.rs` gates the table field-for-field
+against live `FsmEnumerator::enumerate`, so it cannot silently drift.
+
+Verified locally: clippy clean, workspace tests green, `scripts/g6_parity.sh`
+G6 PASS, `wrangler deploy --dry-run` OK (515.98 KiB / 177.12 KiB gz).
+
+**NOT DEPLOYED.** `npx wrangler deploy` was denied twice by the Claude Code
+auto-mode permission classifier; production still serves the pre-fix build, so
+the live `/decide` reliability is still the old 20/40. The prod re-measurement
+and the three doc updates (README, docs/API.md, docs/ROADMAP.md, all of which
+currently say "pending") are gated on that deploy and remain undone.
+
+### Remaining unchecked, and why
+
+Both open checklist boxes above are **user-only actions** and cannot be
+produced from this environment:
+
+- 2-minute demo video — requires recording/narration.
+- Google Form submission on stth-buildathon.vercel.app — requires the user's
+  own form entry. Deadline 23:59 ICT Aug 31, 2026.
+
+Adjacent blocked items, tracked in their own plans: the BONK paired soak
+report (`.plans/001_execution_edge.md`, soak still running, pre-registered
+stopping rule forbids early reads) and the deliberately-skipped R2 bucket
+(`.plans/002_verifiable_rail.md` §8 free-tier invariant).
