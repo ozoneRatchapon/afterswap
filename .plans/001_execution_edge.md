@@ -121,6 +121,26 @@ volatile tokens, measured against trailing stops out-of-sample.
         result as underpowered rather than re-launching for more.
       - Paper mode, live BONK/USDC quotes, zero capital.
 
+      **Harness defect and restart, 2026-08-28 08:51 UTC — disclosed.** The
+      first launch (PID 22851, 07:02 UTC) reached tick 3,146 having recorded
+      exactly **one** cycle. Cause: the CLI paper loop latched `opened` on the
+      first position and never cleared it, so the position closed at tick 44
+      and the process idled for the remaining ticks. `--paired` had therefore
+      never been capable of producing the pre-registered sample; the dashboard's
+      learn-forever reopen was never wired into the CLI. Fixed in `0415e44`
+      with a regression test (`tests/paired_soak_cycles.rs`, verified to fail
+      without the fix: 1 cycle in 1,200 ticks, and 58 cycles in 1,500 with it).
+
+      This restart is **not** the "cut short → re-launch for more" the stopping
+      rule forbids: the first run did not collect an underpowered sample, it
+      collected no sample, because the instrument did not implement the design.
+      The stopping rule is unchanged (300 cycles or 4,500 ticks, whichever
+      first). **Bias vector disclosed:** that single cycle was visible before
+      the restart and was favourable (+0.61 bps vs trailing). It is therefore
+      **discarded, not merged** — the new run starts from an empty file
+      (the broken output is archived outside the repo at
+      `/tmp/bonk_soak_paired.BROKEN_1cycle.jsonl`). Restarted as PID 25782.
+
 ## Adjacent results while the recorder fills
 
 - [x] **Execution-cost model** (`fill_cost_bps`, cost-aware floors) — shipped,
