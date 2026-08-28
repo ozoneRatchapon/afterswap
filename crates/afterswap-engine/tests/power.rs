@@ -154,3 +154,52 @@ fn soak_report_script_agrees_with_power_module() {
     let script_mde = (1.959_963_985_f64 + Z_POWER_80) * se;
     assert!((script_mde - mde_from_se(se, Z_POWER_80)).abs() < 1e-12);
 }
+
+/// The report script reads fields by name out of the JSON that
+/// `afterswap-server::shadow::PairedResult` serializes, and names that type in
+/// its schema-drift error. Neither link is checked by the compiler, and both
+/// have already drifted once: the error message referred to a `PairedCycle`
+/// that has never existed, so the one message meant to explain a schema break
+/// was itself wrong about the schema. Pin both here.
+#[test]
+fn soak_report_script_matches_paired_result_schema() {
+    let script = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../scripts/soak_report.sh"
+    ))
+    .expect("cannot read scripts/soak_report.sh");
+    let shadow = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../afterswap-server/src/shadow.rs"
+    ))
+    .expect("cannot read crates/afterswap-server/src/shadow.rs");
+
+    // Every key the script reads must be a real field on the emitted struct.
+    for key in [
+        "vs_trailing_bps",
+        "vs_hold_bps",
+        "vs_twap_bps",
+        "vs_ladder_bps",
+        "vs_bracket_bps",
+        "ticks",
+    ] {
+        assert!(
+            script.contains(&format!("\"{key}\"")),
+            "scripts/soak_report.sh no longer reads {key}"
+        );
+        assert!(
+            shadow.contains(&format!("pub {key}:")),
+            "scripts/soak_report.sh reads {key}, but PairedResult has no such field"
+        );
+    }
+
+    // And the type it blames on a schema break must be the type that writes it.
+    assert!(
+        script.contains("shadow::PairedResult"),
+        "scripts/soak_report.sh names a type other than PairedResult as the schema owner"
+    );
+    assert!(
+        shadow.contains("pub struct PairedResult"),
+        "PairedResult was renamed; scripts/soak_report.sh still points at it"
+    );
+}

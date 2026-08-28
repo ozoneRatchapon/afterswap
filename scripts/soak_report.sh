@@ -32,6 +32,12 @@
 #      computes the exact two-sided Student-t p-value on n-1 df via the
 #      regularized incomplete beta. Verified against published critical values
 #      at df = 10, 20, 49, 86, 1000 and the normal limit (all p = 0.05000).
+#
+#   3. (10:34 UTC, still blind) The schema-drift error named a struct
+#      `PairedCycle` that has never existed; the emitted type is
+#      shadow::PairedResult. Message text only — no arithmetic, no
+#      endpoint, no field order changed. Pinned by
+#      afterswap-engine/tests/power.rs::soak_report_script_matches_paired_result_schema.
 # ---------------------------------------------------------------------------
 #
 # Usage: scripts/soak_report.sh data/incoming/bonk_soak_paired.jsonl
@@ -103,7 +109,7 @@ missing = sorted({k for k, _ in FIELDS if any(k not in r for r in rows)}
                  | ({"ticks"} if any("ticks" not in r for r in rows) else set()))
 if missing:
     sys.exit(f"ERROR: paired file is missing required field(s): {', '.join(missing)}. "
-             f"Expected the schema written by afterswap-server::shadow::PairedCycle.")
+             f"Expected the schema written by afterswap-server::shadow::PairedResult.")
 
 def stats(xs):
     m = sum(xs) / len(xs)
