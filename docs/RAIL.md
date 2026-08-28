@@ -251,10 +251,27 @@ forge or alter them.
   no-keys-in-Worker invariant. (The devnet demo's throwaway-key path in
   `commit.ts` stays demo-only.)
 - **Endpoints**: `POST /rail/ingest` (attested records only — the DO
-  verifies the attestation via the WASM module before accepting),
+  verifies the attestation via the WASM module before accepting; the body
+  must also be **a single line of compact JSON** — see the framing note
+  below),
   `GET /rail/record/{instrument}/{seq}`, `GET /rail/segment/{id}`,
   `GET /rail/verify/{sig}` (convenience re-verification; auditors need not
   trust it, per §3.4).
+- **Archive framing (added 2026-08-28)**: a record body is stored verbatim,
+  and a closed segment is written to R2 as those bodies joined by `\n`; the
+  proof path rebuilds the segment's Merkle leaves by splitting that object
+  and re-parsing each line. A body carrying a *literal* newline —
+  pretty-printed JSON parses and verifies identically to compact JSON —
+  would therefore shred into unparseable fragments on read-back and fail
+  every proof in its segment, irrecoverably once the SQLite rows have been
+  trimmed. Ingest rejects such a body with `400` so the framing can only
+  fail loudly, at the boundary, while the rows still exist. Both shipped
+  clients (`rail_ship`'s reqwest `.json()`, `rail_falsifier.sh`'s
+  `json.dumps`) already emit single-line bodies, so this rejects nothing
+  that previously succeeded. Pinned in
+  `crates/afterswap-rail/tests/rail.rs` by
+  `an_archived_segment_rebuilds_identical_leaves_and_proofs` and
+  `a_pretty_printed_body_shreds_the_jsonl_framing`.
 - **CPU budget**: blake3 over a 4 KB record is microseconds; ingest fits the
   free plan's 10 ms. The Workers-Paid blocker from #7b applied to full
   enumeration, not to this. ~~R2 needs the paid plan~~ — **corrected
