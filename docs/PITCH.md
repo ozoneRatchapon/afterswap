@@ -64,9 +64,9 @@ them on live quote windows, run the survivors as UCB1 arms, and evolve
 past the enumerable frontier. Bit-reproducible, gate-tested, 1.2 µs/tick,
 pure Rust."
 
-- Lead with the **GOAT report** (`benches/002_goat/report.md`): named
-  floors (TWAP, random-arm), 5 corpora, ablations, bit-identical replays.
-  "+71.9 bps vs TWAP mean across 6 corpora" is a claim with a reproduce command, not a chart
+- Lead with the **GOAT report** (`benches/039_goat/report.md`): named
+  floors (TWAP, random-arm), 6 corpora, ablations, bit-identical replays.
+  "+75.7 bps vs TWAP mean across 6 corpora" is a claim with a reproduce command, not a chart
   crop.
 - The spicy details they'll bite on: Pareto front degenerating to the whole
   space on flat markets (why the cap exists), rewarding partial windows so
@@ -91,15 +91,15 @@ pure Rust."
 ## Demo-day extras
 
 - **On-chain program (when asked "where's the program?"):** "Live on devnet — an 18 KB Pinocchio policy registry; the machine's fingerprint is committed to an immutable PDA before the first fill follows it. Here's the explorer link, and the first committed policy decoded on-chain. Phase B is SPL-delegate execution validated against that commitment — approval once, not per tranche, still non-custodial." (explorer: GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8, devnet)
-- **The redemption-arc benchmark line:** "We benchmarked against what Solana actually uses and found we *lost* to Jupiter's trailing stop by 24 bps — because our machines couldn't see distance-from-peak. We added that one input bit. Now we beat every standard exit on Solana: DCA +87, TP-ladders +123, brackets +81, and trailing stops themselves +2 — and trailing-stop behavior simply *emerged* from the enumeration as a special case. Every number reproduces with one command." (A measured weakness fixed beats a spotless claim.)
+- **The redemption-arc benchmark line:** "We benchmarked against what Solana actually uses and found we *lost* to Jupiter's trailing stop by 24.5 bps — because our machines couldn't see distance-from-peak. We added that one input bit and the gap closed; trailing-stop behavior simply *emerged* from the enumeration as a special case. On the 6-corpus mean we now lead every standard exit — TWAP/DCA +75.7, TP-ladders +113.7, brackets +79.9, trailing +10.3 — but that mean is an upper bound, not a result: it is carried by the four synthetic regimes. **On the two recorded DFlow corpora alone we still lose** — trailing −21.1, ladder −7.9, bracket −8.9. Both rows are in the report, and every number reproduces with one command." (A measured weakness fixed, and one still open, beats a spotless claim. Numbers: bench `039_goat`, the shipped default.)
 - **Engineering-discipline line (if asked about process):** "We also tried Plackett–Luce ratings for arm ranking — measured worse on every floor, reverted, and kept the negative result in the repo. We ship what measures better, not what sounds smarter."
 
 ## Q&A armor (any audience)
 
-- **"Is +5.8 bps even a lot?"** — On one 2-minute demo, no. The point is
+- **"Is +6.9 bps even a lot?"** — On one 2-minute demo, no. The point is
   the *measurement discipline*: honest counterfactual, gate-tested across
-  regimes (+364 bps in the downtrend regime, where exits matter). Scale
-  comes from horizon and size, honesty doesn't change.
+  regimes (+372 bps vs holding in the downtrend regime, where exits matter;
+  bench `039_goat`). Scale comes from horizon and size, honesty doesn't change.
 - **"Why not an LLM/ML model?"** — Exits need determinism, auditability,
   and microsecond latency. A 16-byte machine you can verify beats a black
   box you can't. (And: it's provably uninformed flow — an ML exit isn't.)
