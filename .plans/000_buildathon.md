@@ -79,11 +79,10 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
-      both published. `main` is 0 ahead / 0 behind. NOTE (2026-08-28 late):
-      `origin/develop` is at `fd68e30` and local `develop` is **4 commits
-      ahead** (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661` — the /decide
-      FSM-table fix). The repo is public and satisfies the checklist, but
-      those 4 are unpushed pending the user's go-ahead.
+      both published. Verified 2026-08-28 late: `origin/develop` is at
+      `4ab36df` and `main` at `origin/main`, both 0 ahead / 0 behind. The
+      /decide FSM-table fix (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661`) is
+      pushed. Note this is source-only — it is NOT deployed to prod.
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
       is the engine's only input) and **actuator** (every sell-tranche maps to
