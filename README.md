@@ -231,7 +231,7 @@ DFlow /quote ──► tick ──► FSM population ──► UCB1 bandit ─�
 ## Run it
 
 **Zero-install:** open the [live demo](https://afterswap.solana-thailand.workers.dev)
-— engine compiled to WASM (473 KB, 152 KB gzipped), no server anywhere, your browser polls
+— engine compiled to WASM (476 KB, 155 KB gzipped), no server anywhere, your browser polls
 DFlow directly (their dev API allows CORS). Falls back to the bundled
 recording automatically if DFlow is unreachable.
 
@@ -296,13 +296,41 @@ Returns the tournament roster (names, blake3 fingerprints, simulated
 edges) or, with `open_at`, a full simulated exit with fills and the
 honest edge vs holding. Same input → byte-identical output (G1/G6).
 
-**Status:** live on the public URL — verified 2026-08-28 returning a real
-roster and a full simulated exit. It is **not yet a throughput path**: a
-cold isolate has to pay the 1,054-machine enumeration, and when that
-overruns the CPU budget Cloudflare returns a **503 (error 1102)**;
-retrying succeeds once the process-cached enumeration is warm. We measured
-this rather than hiding it — treat `/decide` as a preview and use the
-local WASM path (`docs/API.md`) when you need it to always answer.
+**Status: unreliable preview — roughly half of calls fail.** Measured
+2026-08-28 over 40 consecutive requests: **20 returned a real roster, 20
+failed.** Use the local WASM path (`docs/API.md`) when you need an answer
+every time.
+
+The cause is measured, not guessed. This account is on the Workers **Free**
+plan, whose CPU ceiling is **2,010 ms** (a `limits` block is rejected
+outright, API error 100328). A cold isolate must enumerate the 1,054
+machines, which costs **1.0–2.0 s of CPU under wasm** — right at the
+ceiling, so about half of cold starts are killed mid-enumeration.
+Enumeration is process-cached, so a warm call costs **1 ms**; the endpoint
+is either nearly free or dead, with little in between.
+
+A killed request is worse than a slow one: it leaves the wasm instance
+trapped, and because the instance is cached per isolate, every later call
+there aborts until Cloudflare recycles it — which is why the failures
+arrive in runs rather than spread evenly. Two bugs found along that path
+are fixed (a poisoned-mutex abort in `enumerate_cached`, and a leaked
+`WasmEngine` handle), and both `/decide` modes now return a clean
+`503 {"error":"engine unavailable, retry shortly"}` instead of a raw
+Cloudflare 1101 crash page. That improved the success rate from ~40% to
+~50%, but it did not touch the CPU ceiling.
+
+**The ceiling itself is now addressed at the source, and the numbers above
+are the *pre-fix* measurement.** Enumeration is pure and deterministic, so
+its result is precomputed and shipped: the 1,054 survivors are stored as
+the raw indices that survived behavioural dedup (2,108 bytes,
+`crates/afterswap-engine/src/fsm_table_3.bin`), and the engine rebuilds the
+identical machines from them. Natively that is **224.9 ms → 132.5 µs**; a
+cold `/decide` in local `workerd`, same harness before and after, went from
+**752 ms / 730 ms → 7 ms**, which is ~280x under the free-plan ceiling.
+`tests/fsm_table.rs` gates the table field-for-field against a live
+`FsmEnumerator::enumerate`, so it stays a cache and never becomes a second
+source of truth. The prod success rate will be re-measured after the next
+deploy and this section updated with what it actually shows.
 Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 
 ## Architecture

@@ -1,6 +1,6 @@
 # Using the engine from your agent — the free path
 
-The engine is a 473 KB WASM binary (152 KB gzipped over the wire) served
+The engine is a 476 KB WASM binary (155 KB gzipped over the wire) served
 publicly. You don't need any API key — run the engine yourself, locally,
 for free, forever. Node 18+:
 
@@ -26,7 +26,7 @@ console.log(`edge vs hold: ${sim.edge_vs_hold_bps.toFixed(1)} bps, fills: ${sim.
 
 Determinism contract: same prices → byte-identical output (GOAT G1/G6).
 
-## Hosted endpoint (live, no key)
+## Hosted endpoint (preview, no key — expect ~50% failures)
 
 `POST /decide` runs the same engine server-side — zero setup, same
 determinism contract. It takes 30..10,000 positive prices and returns the
@@ -48,4 +48,16 @@ curl -X POST https://afterswap.solana-thailand.workers.dev/decide \
 
 It is CPU-bound on the free Workers plan, so treat it as a preview rather
 than a throughput path — the local WASM route above has no such ceiling.
+Measured 2026-08-28 over 40 consecutive calls: **20 ok, 20 failed.** The
+free-plan CPU ceiling is 2,010 ms and the cold 1,054-machine enumeration
+cost 1.0–2.0 s under wasm, so about half of cold starts were killed;
+enumeration is process-cached, so a warm call cost 1 ms. Failures return
+`503 {"error":"engine unavailable, retry shortly"}` — retry, and prefer the
+local WASM route for anything that must always answer.
+
+That enumeration is no longer paid at runtime: its result is precomputed
+and shipped as the surviving raw indices (2,108 bytes), so a cold
+`/decide` in local `workerd` fell from **752 ms to 7 ms**. The 40-call
+figure above is pre-fix; the hosted endpoint will be re-measured after the
+next deploy and this line updated with the result.
 Pay-per-decision via pay.sh 402 is the roadmap (7b).
