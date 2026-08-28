@@ -79,8 +79,8 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
-      both published. (Local `develop` sits ahead of the remote by the
-      commits of 2026-08-28; pushing is a separate, user-authorised step.)
+      both published. The 2026-08-28 commits are pushed: `origin/develop` is
+      at `946cfc8`, 0 ahead / 0 behind local (verified 2026-08-28).
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
       is the engine's only input) and **actuator** (every sell-tranche maps to
