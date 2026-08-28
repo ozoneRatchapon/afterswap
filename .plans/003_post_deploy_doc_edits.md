@@ -34,6 +34,34 @@ killed request traps the per-isolate wasm instance), so a short run can read
 failed against the *pre-fix* build — consistent with the documented clustering.
 Only the full 40-call run is the measurement.
 
+### Second pre-fix baseline — 2026-08-28 10:47 UTC
+
+A full 40-call run against the **same pre-fix build** that produced the
+"20 ok, 20 failed" figure:
+
+```
+n=40 ok=25 fail=15 rate=62.5% p50=63ms p95=1694ms max=1817ms codes=200:25,503:15
+```
+
+Two consequences, both of which change how the post-deploy numbers must be
+written up:
+
+1. **The pre-fix failure rate is not a constant.** Three measurements of one
+   unchanged build: 20/40 (50%), 25/40 (62.5%), and 0/7 in a spot check. Do
+   **not** rewrite the "20 ok, 20 failed" figure to this one — both are real
+   measurements of the same build, and quoting either alone as *the* pre-fix
+   rate overclaims a stability the endpoint does not have. Where the docs
+   state the pre-fix figure, say it varied run to run and give the range.
+2. **It corroborates the diagnosed cause.** Successful calls land at
+   p50 63 ms but p95 1694 ms / max 1817 ms — pressed against the fixed
+   2,010 ms CPU ceiling, with the 503s the calls that tipped over it. That is
+   the runtime-enumeration cost showing up directly in the latency tail, which
+   is what the FSM table is supposed to remove. So the post-deploy check is
+   **not only `ok=40`**: the p95 must also collapse toward p50. A run that
+   returned 40/40 while still showing a ~1.7 s p95 would mean the ceiling was
+   merely no longer being crossed, not that the work was gone — report that
+   distinction rather than calling it a clean success.
+
 ---
 
 ## 1. `README.md` — the "Status" paragraph (~line 299)
@@ -48,8 +76,9 @@ Only the full 40-call run is the measurement.
 **With (success case):**
 
 > **Status: measured <DATE> over 40 consecutive requests — <OK> returned a real
-> roster, <FAIL> failed (p50 <P50> ms).** The free-plan CPU ceiling that used to
-> kill about half of cold starts is no longer reached: the 1,054-machine
+> roster, <FAIL> failed (p50 <P50> ms, p95 <P95> ms).** The free-plan CPU
+> ceiling that used to kill cold starts — a 1,694 ms p95 against a 2,010 ms
+> limit — is no longer reached: the 1,054-machine
 > enumeration is precomputed and shipped as a 2,108-byte table, so a cold call
 > costs ~7 ms instead of 752 ms. The local WASM path (`docs/API.md`) remains the
 > route for anything that must answer without a network hop.
@@ -94,8 +123,10 @@ current behaviour.
 **With:**
 
 > Measured <DATE> over 40 consecutive calls: **<OK> ok, <FAIL> failed**, p50
-> <P50> ms / p95 <P95> ms. (The pre-fix build measured 20 ok / 20 failed; the
-> difference is the precomputed FSM table, below.)
+> <P50> ms / p95 <P95> ms. (The pre-fix build was unstable run to run — two
+> 40-call runs on 2026-08-28 gave 20 ok / 20 failed and 25 ok / 15 failed, with
+> a p95 of 1,694 ms against a 2,010 ms ceiling. The difference is the
+> precomputed FSM table, below.)
 
 **Replace the closing promise (~lines 58-62):**
 
@@ -131,8 +162,10 @@ retry guidance) in place regardless of outcome — it is still the behaviour.
 **With:**
 
 > Re-measured on the hosted endpoint after deploy, <DATE>, same 40-call
-> procedure (`scripts/decide_measure.sh`): **<OK> ok, <FAIL> failed** against
-> the pre-fix **20 ok, 20 failed**.
+> procedure (`scripts/decide_measure.sh`): **<OK> ok, <FAIL> failed**, p50
+> <P50> ms / p95 <P95> ms. The pre-fix build did not have one stable rate —
+> two 40-call runs the same day gave **20 ok / 20 failed** and **25 ok / 15
+> failed** — so the comparison is against that range, not a single number.
 
 Do **not** touch the "Correction (2026-08-28)" block. It is a retraction of an
 earlier overclaim; retractions stay put even when the underlying problem is
