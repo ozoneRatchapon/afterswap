@@ -47,6 +47,15 @@ fn every_cited_bench_exists() {
     let benches = existing_benches();
     let mut missing = Vec::new();
     for (name, text) in doc_files() {
+        // Plan files are numbered the same way benches are
+        // (`.plans/001_execution_edge.md`), so a citation of the
+        // pre-registration would otherwise be read as a citation of a bench
+        // that never existed. Drop those paths before tokenizing.
+        let text: String = text
+            .split_whitespace()
+            .filter(|w| !w.contains(".plans/"))
+            .collect::<Vec<_>>()
+            .join(" ");
         for token in text.split(|c: char| !(c.is_alphanumeric() || c == '_')) {
             // Bench directories are numbered: 016_goat, 025_multiplicity, …
             let looks_like_bench = token.len() > 4
