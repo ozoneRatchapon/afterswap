@@ -141,6 +141,37 @@ different days** (08-28 and 08-29), which is a stronger claim than the form
 answer currently makes. The warm-state caveat on p95 still stands and is still
 worth stating as written — both runs today were warm.
 
+### Re-verified once more after the 2026-08-29 deploy
+
+The responsive/a11y commit `b49b5f1` was deployed on 08-29, which invalidates
+the two `51,771 B` rows above. Everything was re-probed against live production
+after the deploy landed:
+
+| Dependency | Post-deploy result |
+|---|---|
+| `/` | **200**, **54,215 B** (was 51,771), 0.10 s — byte-identical to local |
+| `/?replay` | **200**, 54,215 B |
+| `/pkg/afterswap_wasm_bg.wasm` | **200**, 487,094 B — **sha256 unchanged by the deploy** |
+| `/pkg/afterswap_wasm.js` | **200**, 14,688 B — **sha256 unchanged** |
+| Public repo | **200** — and now current, `6a4987f..c4cac83` pushed |
+| Rail `/rail/stats` | **200**, 0.33 s |
+| `POST /decide` (documented `curl`) | **200** — `fills 7`, `fully_exited false`, `edge_vs_hold_bps 700` |
+| `POST /decide` × 40, run 3 | **40/40**, p50 67 ms, p95 125 ms, max 132 ms |
+| Program + both fallback PDAs | all live devnet, 60 B, owner `GEz2tF…8bD8` |
+
+Two things this establishes and the form answer may now safely say. First, the
+engine did **not** regress: the deploy changed one file, and both WASM assets
+hash the same before and after, so every number measured pre-deploy still
+describes the code that is running. Second, `/decide` is **120 of 120 across
+three 40-call runs on two days** — the "80 of 80" wording in the answer table
+is now conservative rather than optimistic, which is the safe direction to be
+wrong in. Leave it or raise it; do not weaken it.
+
+The only user-visible change is the page itself: three `@media` breakpoints
+(980/760/560px), `:focus-visible`, `<noscript>` and `modulepreload` are all
+confirmed present in the served HTML. The demo URL no longer overflows on a
+phone, so a judge opening it on mobile sees a laid-out page.
+
 **1:32–1:55 — The honest result. Do not skip this.**
 Show the bench table or the README section.
 > "Does it beat a trailing stop? No. We tuned on the first 60% of eleven real
