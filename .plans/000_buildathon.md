@@ -122,11 +122,30 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` re-verified the same day —
       same fingerprint/states/tranche, commit tx succeeded (`err: None`,
       slot 488168150, fee 5000).
+      **Flight check re-run 2026-08-29** so the take rests on same-day probes,
+      not two-day-old ones: `/` and `/?replay` 200, served WASM still
+      487,094 B, `/pkg/afterswap_wasm.js` 200, repo 200, `POST /decide` 200
+      returning the documented `fills 7 / edge 700`, and all three devnet
+      accounts still live (program executable, both fallback PDAs 60 bytes).
+      Full table under "Re-verified again 2026-08-29" in
+      `.plans/004_submission_kit.md`. **Nothing is left to prepare — the script,
+      shot list, timings, fallbacks and guardrails are all written; only the
+      recording itself remains, and it needs a human.**
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
       both published. The /decide FSM-table fix (`cd75dcd`, `424c998`,
-      `68bb7e0`, `27a3661`) is pushed. Note this is source-only — it is NOT
-      deployed to prod.
+      `68bb7e0`, `27a3661`) is pushed *and* is now deployed (version
+      `4f69c750`, 2026-08-28) — the old "source-only, NOT deployed" note here
+      is superseded.
+      **⚠ Ahead-by-5 found 2026-08-29 — the repo is public but NOT current.**
+      Local `develop` is `b49b5f1`; published `origin/develop` is `6a4987f`,
+      five commits behind (`d549910`, `dcba122`, `8ea2850`, `da9dbb0`,
+      `b49b5f1` — 1,519 insertions across 11 files). A judge opening the repo
+      today would not see bench 040 (the Schmitt-trigger null), the recovered
+      research doc, the synthetic-null leakage answer, or the responsive/a11y
+      fix to the demo page. **One command fixes it: `git push origin develop`.**
+      This box stays `[x]` because the repo *is* public and the prototype it
+      documents is live, but push before submitting.
       (**No current-HEAD hash is recorded here on purpose.** This entry went
       stale four separate times by naming one, because every later commit
       invalidated it — a fact that needs re-verifying on every read is worse
@@ -142,6 +161,16 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       Answer text assembled in `.plans/004_submission_kit.md`, including a
       limitations answer. **Closes 23:59 ICT Sun 31 Aug 2026** — highest-value
       remaining item in the project.
+      **Paste-ready as of 2026-08-29.** Every field is drafted: one-liner, live
+      URL, repo, program ID, "how DFlow integrates", "what's novel", honest
+      limitations, the synthetic-null / leakage answer, the MiCA "aligned with
+      (not compliant)" answer, the DFlow-signed vs Jupiter-self-attested
+      asymmetry, and the API caveat — now carrying **40/40 on two separate
+      days**. The `curl` in the answer table was re-run today and returns the
+      documented body. **The last open question is closed too:** the `403` was
+      Cloudflare's zone-default **Browser Integrity Check** (`error code:
+      1010`), not Bot Fight Mode, and the decision is to change nothing and
+      ship the `curl` — see below.
 
 ## Status 2026-08-26 (v1.9)
 - SHIPPED: engine (enum+tournament+UCB1+evolution+renoise+gate), dflow
@@ -213,7 +242,13 @@ pre-fix build still in prod — consistent with the documented per-isolate
 failure clustering, and not itself a measurement. Prod is unchanged; the
 deploy remains harness-blocked here and needs the user.
 
-## Status 2026-08-28 late (/decide fix, not yet in prod)
+> **SUPERSEDED 2026-08-28 (kept as record).** The user ran the deploy; version
+> `4f69c750` shipped the FSM-table fix and the re-measurement was taken. See
+> the checklist entry at the top of this file and `003_post_deploy_doc_edits.md`.
+> `/decide` has since measured **40/40 four times across two days** (08-28 and
+> 08-29). Nothing below this line about "pre-fix build in prod" is still true.
+
+## Status 2026-08-28 late (/decide fix — SUPERSEDED, it is now in prod)
 
 Cold `POST /decide` was blowing the Workers Free-plan 2,010 ms CPU ceiling
 (~50% of calls returned Cloudflare 1101) because `FsmEnumerator::enumerate(3)`
@@ -228,11 +263,11 @@ against live `FsmEnumerator::enumerate`, so it cannot silently drift.
 Verified locally: clippy clean, workspace tests green, `scripts/g6_parity.sh`
 G6 PASS, `wrangler deploy --dry-run` OK (515.98 KiB / 177.12 KiB gz).
 
-**NOT DEPLOYED.** `npx wrangler deploy` was denied twice by the Claude Code
-auto-mode permission classifier; production still serves the pre-fix build, so
-the live `/decide` reliability is still the old 20/40. The prod re-measurement
-and the three doc updates (README, docs/API.md, docs/ROADMAP.md, all of which
-currently say "pending") are gated on that deploy and remain undone.
+~~**NOT DEPLOYED.**~~ **Resolved.** This paragraph recorded a deploy blocked by
+the Claude Code auto-mode permission classifier. The user ran it; production
+serves version `4f69c750`, live `/decide` measures **40/40** (08-28 ×2, 08-29
+×2), and the three doc updates landed. Retained only so the blocked-then-
+unblocked sequence stays legible.
 
 ### Remaining unchecked, and why
 
@@ -247,3 +282,66 @@ Adjacent blocked items, tracked in their own plans: the BONK paired soak
 report (`.plans/001_execution_edge.md`, soak still running, pre-registered
 stopping rule forbids early reads) and the deliberately-skipped R2 bucket
 (`.plans/002_verifiable_rail.md` §8 free-tier invariant).
+
+## Status 2026-08-29 — submission prep closed out
+
+Both remaining checklist boxes are user-only and stay `[ ]`; everything that
+could be prepared for them is now done, and one open question was closed.
+
+### The `403` is Browser Integrity Check, not Bot Fight Mode
+
+The kit had recorded the Python `403` as "Cloudflare edge bot management on the
+account (Bot Fight Mode or a managed WAF rule)" and as "stateful or
+probabilistic". Reading the response body instead of the status line settles it:
+
+```
+HTTP 403 · Server: cloudflare · error code: 1010
+```
+
+**Error 1010 is the Browser Integrity Check**, which Cloudflare documents as
+denying visitors "lacking standard user agents", and which is **on by default**.
+Four probes today:
+
+| Client | `POST /decide` |
+|---|---|
+| `urllib` default (`Python-urllib/3.x`) | **403 · 1010**, 12/12 |
+| `curl/8.7.1` | **200** |
+| Chrome UA | **200** |
+| `python-requests/2.32.3` | **200** |
+
+Three corrections follow, and all three shrink the risk:
+
+1. **Not probabilistic** — 12/12, flipping purely on `User-Agent`, same body and
+   route in the same minute. The earlier "200 earlier, 403 later" was a
+   different UA, not drift.
+2. **Not ours and not `/decide`-specific** — plain `GET /` 403s from the same
+   client, so it is the whole hostname.
+3. **The realistic Python judge is unaffected** — `python-requests`, what anyone
+   actually reaches for, returns 200. Only `urllib`'s bare default UA is banned.
+
+**Decision: change nothing.** BIC is a *zone-level* setting and `workers.dev` is
+Cloudflare's zone, not one in this account, so the toggle is most likely not
+even present in the dashboard. Making it present would mean attaching a custom
+domain two days before the deadline, for a client no judge will use. The form
+answer already hands judges a paste-ready `curl`, which is free, reversible and
+warms the worker. If a judge does report a 403, the one-line reply is in
+`004_submission_kit.md`.
+
+### Everything perishable re-verified
+
+`/`, `/?replay`, both WASM assets, the repo, `POST /decide` (documented body),
+the policy program and both fallback PDAs — all live today. `/decide` measured
+**40/40 twice more** (p50 74/64 ms, p95 132/112 ms), so the "80 of 80" claim now
+holds on two separate days. Table in `004_submission_kit.md`.
+
+### Two things that need the user, beyond the video and the form
+
+- **`git push origin develop`** — local is **5 commits ahead** of the published
+  repo (see the repo checkbox above). Judges cannot currently see bench 040, the
+  recovered research doc, the leakage answer, or the demo-page a11y fix.
+- **`npx wrangler deploy`** — commit `b49b5f1` (responsive + focus-visible +
+  `noscript` + `modulepreload`, CSS/attributes only, no JS touched) is committed
+  but not deployed. Prod `index.html` is 51,771 B; local is 54,215 B. Every
+  other asset is byte-identical to prod, so the deploy is a one-file swap. The
+  live page currently has **zero** media queries, so it overflows on a phone.
+  Both commands were denied here by the auto-mode permission classifier.

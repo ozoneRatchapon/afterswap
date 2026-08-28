@@ -116,6 +116,31 @@ what the two verified fallback PDAs are for. And a warm-up is still required:
 the first calls against an idle Worker can take ~2 s, so load the page once
 before rolling.
 
+### Re-verified again 2026-08-29 (record against these)
+
+The 08-28 check above still holds. Everything perishable in it was exercised
+against live production again today, because a recording on 08-29–08-31 should
+not rest on two-day-old probes.
+
+| Dependency | 2026-08-29 result |
+|---|---|
+| `/` | **200**, 51,771 B, 0.09 s warm |
+| `/?replay` (flat-market fallback) | **200**, 51,771 B |
+| `/pkg/afterswap_wasm_bg.wasm` | **200**, **487,094 B = 476 KB** — unchanged |
+| `/pkg/afterswap_wasm.js` | **200**, 14,688 B |
+| Public repo | **200** |
+| `POST /decide` (documented `curl`) | **200** — `fills 7`, `fully_exited false`, `edge_vs_hold_bps 700` |
+| `POST /decide` × 40, run 1 | **40/40**, p50 74 ms, p95 132 ms, max 216 ms |
+| `POST /decide` × 40, run 2 | **40/40**, p50 64 ms, p95 112 ms, max 133 ms |
+| Policy program `GEz2tF…8bD8` | live devnet, **executable** |
+| Fallback PDA `5LRDFS9W…EXiA` | live devnet, **60 bytes**, owner `GEz2tF…8bD8` |
+| Fallback PDA `ExiLSj7C…Ycnt` | live devnet, **60 bytes**, owner `GEz2tF…8bD8` |
+
+So "80 of 80 across two independent 40-call runs" is now true of **two
+different days** (08-28 and 08-29), which is a stronger claim than the form
+answer currently makes. The warm-state caveat on p95 still stands and is still
+worth stating as written — both runs today were warm.
+
 **1:32–1:55 — The honest result. Do not skip this.**
 Show the bench table or the README section.
 > "Does it beat a trailing stop? No. We tuned on the first 60% of eleven real
@@ -267,7 +292,8 @@ real assets occupy.
 > 2,010 ms CPU ceiling used to kill about half of cold starts. That is fixed —
 > the 1,054-machine enumeration is precomputed into a 2,108-byte table, and the
 > endpoint now measures 80 of 80 across two independent 40-call runs, p95 134 ms
-> and 125 ms (2026-08-28). It was measured twice on purpose: the pre-fix build's
+> and 125 ms (2026-08-28) — and another 80 of 80 on a second day, p95 132 ms and
+> 112 ms (2026-08-29). It was measured twice on purpose: the pre-fix build's
 > rate swung run to run (20/40, then 25/40), so one clean run could not have
 > distinguished a fix from a lucky draw. The in-browser WASM path has no such
 > ceiling at all.
@@ -281,20 +307,80 @@ real assets occupy.
    number is not, unless the endpoint is warm. If a judge cold-curls it once,
    they may see ~2 s. Say "p95 125 ms warm" rather than "p95 125 ms".
 
-2. **A plain Python client can get `403 Forbidden` from the documented API.**
-   Reproduced 12/12 with `urllib`'s default headers against
-   `POST /decide`; `curl` and browser user-agents get 200. Nothing in
-   `worker/` or `crates/afterswap-worker/` blocks anything — the scan is
-   clean — so this is **Cloudflare edge bot management on the account**
-   (Bot Fight Mode or a managed WAF rule), configured in the dashboard, not
-   in the repo. It is also not a stable header rule: the same UA returned 200
-   minutes earlier and 403 later, so it is stateful or probabilistic.
-   **Risk:** the form answer points judges at `POST /decide`, and a judge who
-   reaches for Python gets a 403 and reasonably concludes the API is broken.
-   **Decide before submitting** — either turn Bot Fight Mode off for the
-   submission window (an account setting, so a human call, not one I can or
-   should make), or give judges a `curl` invocation in the form answer rather
-   than a bare URL. The second is free and reversible; prefer it.
+2. **`Python-urllib`'s default User-Agent gets `403` — diagnosed 2026-08-29,
+   and it is smaller than it looked.** The earlier entry here guessed "Bot
+   Fight Mode or a managed WAF rule" and called the behaviour "stateful or
+   probabilistic". Both guesses were wrong. Read the response body instead of
+   the status line and it identifies itself:
+
+   ```
+   HTTP 403 · Server: cloudflare · CF-RAY: …-BKK
+   error code: 1010
+   ```
+
+   **Error 1010 is the Browser Integrity Check** (BIC), which per Cloudflare's
+   own docs "looks for common HTTP headers abused most commonly by spammers"
+   and denies visitors "lacking standard user agents". It is **on by default**.
+   Three probes settle the shape of it (2026-08-29):
+
+   | Client | `POST /decide` |
+   |---|---|
+   | `urllib` default (`Python-urllib/3.x`) | **403 · 1010** (12/12, deterministic) |
+   | `curl/8.7.1` | **200** |
+   | Chrome UA | **200** |
+   | `python-requests/2.32.3` | **200** |
+
+   Two corrections follow, and they cut the risk down:
+
+   - **It is not probabilistic.** 12 of 12 today, and it flips purely on the
+     `User-Agent` string — same body, same route, same minute. The earlier
+     "200 earlier, 403 later" observation was a different UA, not drift.
+   - **It is not `/decide`-specific, and not ours.** Plain `GET /` from the
+     same client 403s too, so it is the whole hostname, not our route. Nothing
+     in `worker/` or `crates/afterswap-worker/` blocks anything.
+   - **The realistic Python judge is fine.** `python-requests` — what anyone
+     actually reaches for — returns 200. Only `urllib`'s bare default UA,
+     which is on Cloudflare's abused-signature list, is banned.
+
+   **On turning it off: there is most likely no toggle to turn.** BIC is a
+   **zone-level** setting (Security → Settings → *Browser integrity check*),
+   and `workers.dev` is Cloudflare's own zone, not one in this account — so it
+   is not expected to appear in this dashboard for
+   `afterswap.solana-thailand.workers.dev`. Worth 30 seconds to confirm by
+   looking, but do not plan on it. Making it togglable means attaching a
+   custom domain on a zone the account does own, which is a DNS change two
+   days before the deadline for a client no judge will use.
+
+   **Decision (made 2026-08-29): change nothing; ship the `curl`.** The form
+   answer already hands judges a paste-ready `curl`, which is free,
+   reversible, warms the worker, and sidesteps this entirely. Touching edge
+   security settings inside the submission window has strictly more downside
+   than the failure mode it prevents.
+
+   **The dashboard steps, if you want to look anyway** (both toggles live on
+   the same page; ~30 seconds). Navigation per Cloudflare's current docs:
+
+   | Setting | Path | Note |
+   |---|---|---|
+   | **Browser Integrity Check** — the one actually causing this | Cloudflare dashboard → select the **zone** → **Security** → **Settings** → toggle **Browser integrity check** off | On by default. This is the 1010 source. |
+   | **Bot Fight Mode** — *not* the cause; listed to rule it out | Cloudflare dashboard → select the **zone** → **Security** → **Settings** → filter by **Bot traffic** → **Bot fight mode** → off | Free-plan product. Leave it as-is. |
+
+   **Expect the zone not to be listed.** Both are zone-scoped, and this project
+   is served from `*.solana-thailand.workers.dev` — a Workers subdomain on
+   Cloudflare's own `workers.dev` zone, not a zone added to this account. If
+   `workers.dev` does not appear in the zone picker, there is nothing to
+   toggle, which is the expected outcome and costs nothing to confirm.
+
+   A narrower alternative exists if this ever becomes worth fixing properly:
+   Cloudflare supports skipping BIC per-path via a **custom rule with a skip
+   action** or a **configuration rule**, rather than disabling it site-wide.
+   That is also zone-scoped, so it needs a custom domain first. Post-buildathon
+   work at most.
+
+   **If a judge does report a 403**, the one-line answer is: *"That is
+   Cloudflare's default Browser Integrity Check rejecting `Python-urllib`'s
+   user agent on the shared `workers.dev` hostname — not the API. `curl`,
+   `requests`, and any browser all return 200."*
 
 **Known caveat to state if asked about regulation / MiCA:**
 > The verifiable rail produces best-execution artifacts **aligned with MiCA
@@ -332,10 +418,24 @@ real assets occupy.
       being left to a judge to find: the p95 figure is **warm-state only**
       (a cold worker puts ~3 of 40 calls near 2.1 s), and the documented API
       returns **403 to a plain Python client** (reproduced 12/12; not our
-      code — Cloudflare edge bot management on the account). Mitigated with
-      a paste-ready `curl` in the answer table.
+      code). Mitigated with a paste-ready `curl` in the answer table.
+      *(The "Cloudflare edge bot management on the account" attribution
+      recorded here on 08-28 was a guess and was wrong — see the 08-29 entry
+      below for the actual cause.)*
 - [x] **Synthetic-null / leakage answer added**, sourced from bench 036's
       `phi = +0.0` arm (Delta = -0.365 bps, PBO 0.564). Figures read from
       `benches/036_reversion_causal/report.md`, not from memory.
+- [x] **Re-verified every perishable claim again 2026-08-29** so a recording
+      on 08-29–08-31 rests on same-week probes: page/replay/WASM/repo all 200,
+      served WASM still 487,094 B, `/decide` **40/40 twice more** (p50 74/64 ms,
+      p95 132/112 ms), and all three devnet accounts still live. Table above.
+- [x] **The `403` mystery is closed, and it was smaller than feared.** The body
+      says `error code: 1010` = Cloudflare's **Browser Integrity Check**, a
+      zone-level default — not Bot Fight Mode, not a WAF rule, not our code. It
+      is host-wide (plain `GET /` 403s too) and keys purely on User-Agent:
+      `urllib` default is banned 12/12, while `curl`, Chrome and
+      **`python-requests` all return 200**. Decision: **change nothing, ship the
+      `curl`** — there is most likely no toggle anyway, since `workers.dev` is
+      not a zone in this account.
 - [ ] **Record the 2-minute video** — user-only.
 - [ ] **Submit the Google Form before 23:59 ICT Sun 31 Aug 2026** — user-only.
