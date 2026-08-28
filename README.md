@@ -265,18 +265,18 @@ cargo run -p afterswap-server -- --ticks 75 --interval-ms 1000 \
 
 The engine passes the GOAT gate discipline inherited from katgpt-rs — no
 performance claim without a named floor
-(full report: [`benches/001_goat/report.md`](benches/001_goat/report.md)):
+(full report: [`benches/039_goat/report.md`](benches/039_goat/report.md), re-run 2026-08-28):
 
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+76.0 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
-| **G2b floor: random arm** | PASS — **+5.4 bps mean** vs seeded random arm selection (8 seeds) |
-| **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
-| **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
-| **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
+| **G2a floor: TWAP** | PASS — **+75.7 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
+| **G2b floor: random arm** | PASS — **+6.9 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2c vs hold** (report-only) | **+372.2 bps** in trend-down, +14.9 chop, −137.7 v-shape, +0.0 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
+| **G3 arm-cap ablation** | PASS — 24-arm cap costs at worst **−0.6 bps** vs the uncapped front (chop; 0.0 on four of six corpora), against a −10 bps budget |
+| **G4 latency** (release) | PASS — **686 ns** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **111 µs**. Budgets 1 ms / 1 s |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+114.0 bps vs TP-ladder**, **+80.2 bps vs TP/SL bracket**, **+10.5 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
+| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+113.7 bps vs TP-ladder**, **+79.9 bps vs TP/SL bracket**, **+10.3 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and

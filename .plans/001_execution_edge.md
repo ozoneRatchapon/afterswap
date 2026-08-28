@@ -62,16 +62,41 @@ volatile tokens, measured against trailing stops out-of-sample.
       establishes is: no DFlow-only signal helps *by more than ~22 bps*, which
       is a weak statement. The harness now prints that column so the weakness
       is visible rather than implied.
-- [ ] **Re-run again at ~5,000 ticks** (MDE would fall to roughly 11 bps), then
-      decide whether to thread depth through the engine or record the null
-- [ ] **Still gated on that re-run — only if the 3-bit protocol wins:** thread depth through
-      `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
-      (default off), then re-run GOAT + wasm parity
-- [ ] **A/B on a frozen corpus** (move the recording out of `data/incoming/`
-      only when the recorder is stopped — see the corpus-freeze rule in
-      ROADMAP 7e)
-- [ ] **Ship or revert with a recorded reason**; update README claim table
-- [ ] Re-run GOAT gates + wasm parity (G1–G6) before any deploy
+- [—] **Re-run again at ~5,000 ticks** — **CLOSED, not executed.** The corpus
+      is 1,207 ticks and the recorder stopped 2026-08-27 19:06. Reaching 5,000
+      means restarting it for ~13 more hours on a track already closed for
+      arithmetic, not for measurement (−13.2 bps net). Collecting more data
+      *after* seeing an unfavourable result, in the hope the next look reads
+      differently, is exactly the optional-stopping pattern commit `5b3eedd`
+      pre-registered this project against. The null stands as recorded.
+- [—] **Thread depth through the engine** — **CLOSED, not taken.** It was
+      gated on the 3-bit protocol winning and it did not: bench 029 put depth
+      at +9.2 ± 10.5 against the 2-bit control's +8.7 ± 8.0. No engine change
+      was made; `sim::replay_exit_with_bit` stays a harness-only path, so the
+      shipping engine never carried the feature and needs no revert.
+- [x] **A/B on a frozen corpus** — ran against a stationary file: the recorder
+      was already stopped when benches 029 and 038 read
+      `data/incoming/bonk_depth.jsonl`, and it has not changed since.
+      **The file deliberately stays in `data/incoming/`.** GOAT's `corpora()`
+      does a non-recursive `read_dir("../../data")`, so promoting it would add
+      a seventh corpus and silently move every documented GOAT and bench
+      number in the repo — the precise failure ROADMAP 7e's freeze rule was
+      written after. Freezing means "not changing under an experiment", not
+      "moved into the scanned set"; for a closed track the move buys nothing
+      and costs the comparability of every prior bench.
+- [x] **Ship or revert with a recorded reason**; update README claim table —
+      **reverted**, reason in README §"What we stopped doing, and why" (the
+      27 bps depth spread against 40.2 bps of unavoidable cost) and in this
+      plan's header. Claim table refreshed 2026-08-28 to bench 039.
+- [x] Re-run GOAT gates + wasm parity (G1–G6) before any deploy — **all PASS**
+      on 2026-08-28, `benches/039_goat/report.md`: G1 determinism, G2a TWAP
+      +75.73, G2b random-arm +6.90, G3 worst cap cost −0.6 (budget −10), G4
+      686 ns mean / 111.4 µs worst, G5 evolution ablation, G6 wasm
+      byte-parity; 7/7 in `tests/goat.rs`. Two things fell out: the README
+      gate table had been quoting the *surprise-trigger-ON* numbers that
+      ROADMAP retraction 1 turned off by default, and `scripts/g6_parity.sh`
+      could not find the `.wasm` when the target dir comes from
+      `~/.cargo/config.toml` rather than `$CARGO_TARGET_DIR`.
 
 ## Running in parallel while the recorder fills
 
@@ -82,6 +107,19 @@ volatile tokens, measured against trailing stops out-of-sample.
       (`--pair bonk --paired`), so the live evidence is gathered in the market
       the claim is about rather than the one it is not.
 - [ ] Report the BONK paired soak once it has enough cycles for a t-value.
+      **Pre-registration, written 2026-08-28 before a single cycle was
+      collected** (the live evidence in `docs/SOAK.md` is SOL/USDC only, so
+      the market the +34 ± 10 claim is about has never been soaked):
+      - Primary endpoint: **mean `vs_trailing_bps` per completed cycle**, with
+        its standard error and t. Chosen because bench 018's BONK claim is
+        against trailing stops.
+      - Secondary, reported but not interpreted as findings: vs hold, TWAP,
+        ladder, bracket.
+      - Stopping rule: **stop at 300 completed cycles or at 4,500 ticks,
+        whichever comes first** — fixed now, not revisited after looking. If
+        the run is cut short, report the cycle count reached and treat the
+        result as underpowered rather than re-launching for more.
+      - Paper mode, live BONK/USDC quotes, zero capital.
 
 ## Adjacent results while the recorder fills
 
@@ -90,7 +128,11 @@ volatile tokens, measured against trailing stops out-of-sample.
 - [x] **Venue capture** added to the recorder: every quote already carries
       `routePlan[].venue` and hop count, so route churn is a free
       thin-liquidity signal alongside the size-spread one.
-- [ ] Depth A/B once the recording has ≥ 6 windows (see checklist above).
+- [x] Depth A/B once the recording has ≥ 6 windows — done twice: bench 022
+      (4/4 windows, preliminary) and bench 029 (12 train / 8 test, 1,207
+      ticks). Bench 038 later reused the same recording for a different
+      question and found the depth reading *is* worth 34.6% CUPED variance
+      reduction at lag 1 — as a control variate, not as an exit signal.
 
 ## Rules this plan inherits
 

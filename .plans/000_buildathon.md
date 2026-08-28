@@ -73,11 +73,19 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 
 ## Submission checklist
 
-- [ ] Functional prototype (public URL)
-- [ ] 2-minute demo video
-- [ ] Public repo (this one) — push to GitHub
-- [ ] "How DFlow integrates" writeup (README section)
-- [ ] Application via Google Form on stth-buildathon.vercel.app
+- [x] Functional prototype (public URL) — `https://afterswap.solana-thailand.workers.dev`
+      returns 200; the rail at `…-rail.solana-thailand.workers.dev/rail/stats`
+      does too (verified 2026-08-28)
+- [ ] 2-minute demo video — **user-only**, cannot be produced from here
+- [x] Public repo (this one) — push to GitHub — `origin` is
+      `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
+      both published. (Local `develop` sits ahead of the remote by the
+      commits of 2026-08-28; pushing is a separate, user-authorised step.)
+- [x] "How DFlow integrates" writeup (README section) — README
+      §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
+      is the engine's only input) and **actuator** (every sell-tranche maps to
+      a /order), with the data-flow diagram
+- [ ] Application via Google Form on stth-buildathon.vercel.app — **user-only**
 
 ## Status 2026-08-26 (v1.9)
 - SHIPPED: engine (enum+tournament+UCB1+evolution+renoise+gate), dflow
@@ -108,3 +116,21 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
   +71.9, trailing +6.5, ladder +109.9, bracket +76.1 — all floors beaten.
 - Gate suite 25x faster (enumerate cache). Live soak monitor: 165+ cycles,
   mean +0.20 bps, learning trend positive. Docs synced to bench 010.
+
+## Status 2026-08-28 (gates re-run)
+
+GOAT G1–G6 re-run end to end on the shipped default configuration
+(`benches/039_goat/report.md`): G1 determinism, G2a TWAP **+75.73**, G2b
+random-arm **+6.90**, G3 worst cap cost **−0.6** (budget −10), G4 mean
+`on_tick` **686 ns** / worst **111.4 µs**, G5 evolution ablation, G6 wasm
+byte-parity — all PASS, 7/7 in `tests/goat.rs`.
+
+The README's gate table had been carrying **+76.0 / +5.4**, which are the
+*surprise-trigger-ON* numbers that ROADMAP retraction 1 turned off by
+default. The table now reports the configuration that actually ships and
+cites bench 039 instead of bench 001.
+
+`scripts/g6_parity.sh` resolved the build directory from
+`${CARGO_TARGET_DIR:-target}`, which cannot see a shared `target-dir` set in
+`~/.cargo/config.toml`; the gate died on a missing `.wasm` rather than on a
+parity failure. It now asks `cargo metadata`.
