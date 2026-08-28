@@ -208,8 +208,28 @@ b_t^hyst = { 1                if X_t >= theta_high
 `rg -i "hysteresis|schmitt|theta_high|theta_low"` over the repo returns **0
 matches across 220 files**. This is a real, verified gap rather than a
 suspected one — the engine's bit thresholds are single-valued, so a feature
-sitting on its threshold flips the input word every tick. Cheapest place to
-test it is `benches/022_depth_bit` / `023_signal_bits`.
+sitting on its threshold flips the input word every tick.
+
+**Tested, 2026-08-29 — `benches/040_hysteresis/report.md`.** The gap is now
+closed as *measured*, not as *implemented*. `replay_exit_hysteresis` in
+`crates/afterswap-engine/src/sim.rs` applies the source's `b_t^hyst` to the
+off-peak drawdown bit — the only single-valued numeric threshold in the
+shipping alphabet — and `crates/afterswap-engine/tests/hysteresis.rs` asserts
+that at `theta_low == theta_high` it reproduces `replay_exit_cost` bit-for-bit,
+so the sweep's baseline row *is* the shipping protocol rather than a
+re-implementation of it. Sweeping 4 arm thresholds x 4 band widths over 3,462
+ticks (34 train / 23 test windows), **no band beats the shipping 30/30
+threshold**: every paired Delta is negative, and Romano-Wolf stepdown over all
+15 non-benchmark arms rejects none at alpha = 0.05.
+
+The null is a measured one rather than an unengaged one: the report's `flips`
+column shows the trigger firing 0.1-3.5 times per window and the band cutting
+that roughly in half, so the chatter the source is worried about is real here
+and simply is not costing the machines anything down to the sample's paired MDE
+of ~2.7 bps. **Decision: the shipping single threshold stays**, and the signal
+path is not touched two days before the submission deadline on the strength of
+a null. The prescription is not wrong — it is unmeasurable at this sample size,
+and the re-test is one command once the recorder has more ticks.
 
 ### 2. Romano–Wolf — our implementation matches, with one divergence
 
