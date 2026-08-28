@@ -11,6 +11,7 @@ pub mod bandit;
 pub mod cuped;
 pub mod engine;
 pub mod execution;
+pub mod fsm_table;
 pub mod pbo;
 pub mod power;
 pub mod prereg;

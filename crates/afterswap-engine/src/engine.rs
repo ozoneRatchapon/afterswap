@@ -17,6 +17,7 @@ use log::info;
 use serde::Serialize;
 
 use crate::bandit::{ArmSnapshot, ExitBandit};
+use crate::fsm_table;
 use crate::sim::{evaluate_matrix, replay_exit};
 use crate::types::{EngineConfig, Position};
 use crate::windows::WindowStore;
@@ -913,10 +914,27 @@ fn enumerate_cached(n_states: u8) -> Vec<FsmStrategy> {
     use std::sync::{Mutex, OnceLock};
     static CACHE: OnceLock<Mutex<HashMap<u8, Vec<FsmStrategy>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = cache.lock().expect("enumeration cache poisoned");
+    // A request killed mid-enumeration — Cloudflare cuts the ~0.26s (native)
+    // cold enumeration off at the free-plan CPU budget — leaves this mutex
+    // poisoned. The cached map is still structurally sound, so recover into
+    // it. Aborting here would be far worse than a stale lock: under wasm a
+    // panic traps the whole instance, and the instance is cached per isolate,
+    // so one killed request would poison every later /decide call until
+    // Cloudflare recycled the isolate.
+    let mut guard = match cache.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
     guard
         .entry(n_states)
-        .or_insert_with(|| FsmEnumerator::enumerate(n_states))
+        // Prefer the shipped table: it is the same set, reconstructed in
+        // ~1 ms instead of ~220 ms (native) / 1-2 s (wasm). Live enumeration
+        // remains the fallback for any state count no table covers, and
+        // `tests/fsm_table.rs` gates the two against each other so this stays
+        // a cache rather than a second source of truth.
+        .or_insert_with(|| {
+            fsm_table::decode(n_states).unwrap_or_else(|| FsmEnumerator::enumerate(n_states))
+        })
         .clone()
 }
 
