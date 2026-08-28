@@ -1,1 +1,4 @@
-data/rail/*.jsonl
+# Patterns in a nested .gitignore are relative to this directory — a
+# `data/rail/` prefix here would match `data/rail/data/rail/`, i.e. nothing.
+*.jsonl
+!sol_usdc.jsonl

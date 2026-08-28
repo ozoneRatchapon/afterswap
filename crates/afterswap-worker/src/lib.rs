@@ -42,8 +42,13 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     match path.starts_with("/rail/") {
         true => {
             // One object per deployment: a single chain, a single writer.
+            // `rail-prod-v1` supersedes `rail-v1`: the attestation key was
+            // rotated off the public dev seed, and the verifier checks every
+            // record against the single current pubkey, so a dev-attested
+            // prefix would read as verification failures. A fresh instance
+            // starts the production chain at seq 0 under the production key.
             let ns = env.durable_object("RAIL")?;
-            let stub = ns.id_from_name("rail-v1")?.get_stub()?;
+            let stub = ns.id_from_name("rail-prod-v1")?.get_stub()?;
             stub.fetch_with_request(req).await
         }
         false => Response::error("rail worker: unknown route", 404),

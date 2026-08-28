@@ -8,12 +8,30 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8791}"
 LOG=/tmp/rail_falsifier.jsonl
+# The dev seed's pubkey (seed [0xA5; 32], hardcoded in gen_chain). Local only.
+DEV_PUBKEY=29e5833a915a6429a4e3a7948475c338ef436eb82be89c92f059704403db9d55
 
 cp data/rail/sol_usdc.jsonl "$LOG"
 cargo run -p afterswap-rail --example gen_chain --release --quiet -- "$LOG" 60
 
-npx wrangler dev --port "$PORT" --local >/tmp/wrangler_dev.log 2>&1 & WPID=$!
-trap 'kill $WPID 2>/dev/null || true' EXIT
+# The rail lives in its own pure-Rust Worker; the repo-root config is the
+# dashboard and has no RAIL binding. Must `cd` rather than pass `--config`:
+# wrangler runs the `worker-build` step in the *invoking* cwd, so from the
+# repo root it parses the workspace Cargo.toml and dies on `missing field
+# `package``. `exec` makes this subshell become wrangler, so the trap below
+# kills the real process and not just a shell wrapping it.
+# `--var` pins the local instance to the dev seed's pubkey, keeping this
+# hermetic: the deployed config carries the production key, whose seed is
+# not in the repo and must not be needed to run the falsifier.
+# `--persist-to` a throwaway dir: the rail is append-only, so a DO carried
+# over from a previous run rejects the whole replayed log as `seq not
+# monotonic`. A fresh chain per run is what makes this repeatable.
+STATE_DIR=$(mktemp -d)
+( cd crates/afterswap-worker && exec npx wrangler dev \
+    --var "RAIL_PUBKEY:$DEV_PUBKEY" --port "$PORT" --local \
+    --persist-to "$STATE_DIR" \
+) >/tmp/wrangler_dev.log 2>&1 & WPID=$!
+trap 'kill $WPID 2>/dev/null || true; rm -rf "$STATE_DIR"' EXIT
 until curl -sf "http://localhost:$PORT/rail/stats" >/dev/null 2>&1; do sleep 1; done
 
 python3 - "$PORT" "$LOG" <<'PY'

@@ -6,15 +6,10 @@
 //! Args (all optional): --ticks N --interval-ms M --open-after K
 //!                      --size SOL --states S --window W
 
-mod anchor;
-mod exec_ab;
-mod paper;
-mod server;
-mod shadow;
-
 use std::sync::Arc;
 
 use afterswap_engine::{EngineConfig, ExitEngine};
+use afterswap_server::{anchor, exec_ab, paper, server};
 use paper::PaperConfig;
 use tokio::sync::{Mutex, broadcast};
 
