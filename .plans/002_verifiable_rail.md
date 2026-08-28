@@ -77,8 +77,11 @@ numeric still parses.
       throwaway `--persist-to` dir. Two consecutive clean runs: 81/81
       ingested, 0 rejected, median 2.5–3.3 ms, fork 400, replay 409, segment
       closed, identical root `68462ce7…`, proof native-VERIFIED.
-- [ ] **R2 bucket** — deliberately not created: §8 free-tier invariant keeps
-      closed segments in DO SQLite. Enable only if leaving the free tier.
+- [—] **R2 bucket** — **CLOSED, not executed.** Deliberately not created: the
+      §8 free-tier invariant keeps closed segments in DO SQLite, and creating
+      the bucket would breach it for no capability the rail lacks today. This
+      is a resolved decision, not outstanding work — re-open only if the
+      project leaves the free tier.
 - [x] **Point the real executor at production ingest** (§7.5) —
       `--rail-ingest <origin>` and `crates/afterswap-server/src/rail_ship.rs`.
       70 live cycles: **70 accepted, 0 rejected, 0 failed, 0 seq gaps** against
