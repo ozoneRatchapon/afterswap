@@ -88,14 +88,15 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       the README's own finding is that there is no durable edge.
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
-      both published. Verified 2026-08-28 10:42 UTC against the real remote:
-      `develop` and `origin/develop` are both at `82fb509` (0 ahead / 0
-      behind), `main` and `origin/main` both at `bf98edf`. The /decide
-      FSM-table fix (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661`) is pushed.
-      Note this is source-only — it is NOT deployed to prod.
-      (This entry has now gone stale three times by naming a specific commit.
-      Re-verify with `git rev-parse --short develop origin/develop` before
-      trusting the hash above; the checkbox is about the repo being public and
+      both published. The /decide FSM-table fix (`cd75dcd`, `424c998`,
+      `68bb7e0`, `27a3661`) is pushed. Note this is source-only — it is NOT
+      deployed to prod.
+      (**No current-HEAD hash is recorded here on purpose.** This entry went
+      stale four separate times by naming one, because every later commit
+      invalidated it — a fact that needs re-verifying on every read is worse
+      than no fact. Check it live instead:
+      `git rev-parse --short develop origin/develop` — equal means published.
+      The checkbox is about the repo being public and
       current, which it is.)
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
