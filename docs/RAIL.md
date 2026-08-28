@@ -200,11 +200,18 @@ the shipped quote-digest memo. Tampering with any published record after its
 segment anchors requires rewriting a Solana transaction. Anchor cost at
 1/min ≈ 0.007 SOL/day; at 1/10min it is noise.
 
-**Retention:** closed segments are content-addressed objects in R2
-(append-only by policy, no delete permission on the writer token). A record
-is ~2–4 KB; even 10k executions/day is ~40 MB/day → < 75 GB over five
-years → R2 cost ~$1/month. The Durable Object holds only the live window
-and the sequence counters.
+**Retention — as shipped:** no R2 bucket is bound (§7 step 3, skipped per
+the §8 free-tier invariant), so `close_segment` takes the `Err(_)` branch:
+closed records are marked `archived = 1` and **never deleted** — the trim
+`DELETE` is gated behind a successful R2 put. Durability is therefore the
+Durable Object's SQLite, not a bucket policy. At ~2–4 KB/record, >1M records
+fit the free allowance.
+
+**Retention — if the bucket is bound:** closed segments become
+content-addressed objects in R2 (append-only by policy, no delete permission
+on the writer token) and SQLite keeps only a `RING_KEEP` live window. Even
+10k executions/day is ~40 MB/day → < 75 GB over five years → ~$1/month.
+This path is implemented and unexercised; treat it as designed, not proven.
 
 ### 3.4 What an auditor verifies, independently
 
@@ -277,10 +284,13 @@ a record with no access to our infrastructure.
 - Anchoring proves a record existed *by* anchor time and was not altered
   *after*; the ≤ 30 s window between execution and publication rests on our
   attestation alone.
-- "5-year retention" is an R2 bucket policy plus anchors — durable against
-  us; not against Cloudflare and Solana both disappearing. A regulator may
-  require a second custodian; the content-addressed segments make mirroring
-  trivial, which is the design's answer.
+- "5-year retention" is, **as deployed**, Durable Object SQLite plus anchors
+  — no bucket is bound and nothing is trimmed. It is durable against us, not
+  against Cloudflare and Solana both disappearing, and it rests on a single
+  DO's storage rather than on an object-store policy. The R2 archive path
+  (§3.3) is written but unexercised. A regulator may require a second
+  custodian; the content-addressed segments make mirroring trivial, which is
+  the design's answer — and executing §7 step 3 is what turns it on.
 
 ## 7. Deployment runbook (owner actions)
 
@@ -297,7 +307,8 @@ what was expected.
    with the executor, put the *public* key in `wrangler.jsonc` `vars.RAIL_PUBKEY`
    (it is registered, not secret). The dev seed's pubkey currently in the
    config must not survive to production.
-3. **Create the R2 bucket** `afterswap-rail-archive` (paid plan required),
+3. **Create the R2 bucket** `afterswap-rail-archive` (R2 free tier, per the
+   §4 correction — not the paid plan),
    with no delete permission on the writer token — append-only by policy.
 4. **Deploy** with `wrangler deploy`. ⚠ This carries a new DO class +
    migration (`v2: RailSequencer`); the PUT-API fallback path rejects

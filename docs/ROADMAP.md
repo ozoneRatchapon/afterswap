@@ -572,3 +572,57 @@ The honest summary is that the statistical work is well ahead of the product
 work, and it has spent the last several benches removing claims rather than
 adding them. That is the pipeline functioning as designed, and it is also why
 the roadmap is not clear.
+
+## Reconsideration — 2026-08-28
+
+Re-ranked after the submission-kit review, which turned up two things the
+ordering above hides. Written as an appended record, not an edit, so the
+earlier reasoning stays readable next to what replaced it.
+
+**Correction to "blocked on data rather than effort."** The CUPED / sub-bps
+bullet is filed under data-blocked, and that is the wrong label. The thing it
+waits on is the depth-aware recorder — a *build* that stopped when Plan 001
+closed, not a dataset the market refuses to hand us. It is effort-blocked and
+was mislabelled. The second bullet (generalisation across assets) is genuinely
+data-blocked: no amount of building produces 11 assets with stronger
+autocorrelation.
+
+**The trust ladder has a missing rung.** §4 lays it out as Memo commitment →
+PDA-enforced policy → machine-on-chain. What is deployed is the first rung
+plus a registry: `afterswap-policy` exposes exactly one instruction,
+`CommitPolicy`. Nothing validates a sell against the committed policy, and
+there is no delegate authority — so today the chain can prove a violation
+after the fact and cannot prevent one. That gap, not the marketplace and not
+the frontier, is what the next build should close.
+
+**Retention gap, closed as documentation (2026-08-28).** `RAIL.md` §3.3 and §6
+described five-year retention as an R2 bucket policy; no bucket is bound
+(§7 step 3, skipped per the free-tier invariant), and the trim `DELETE` in
+`sequencer.rs` is gated behind a successful R2 put — so nothing is deleted and
+durability is the Durable Object's SQLite. Both passages now say that. The
+archive path is written and unexercised; executing step 3 is what makes the
+R2 claim true rather than designed.
+
+### Worth continuing, in order
+
+1. **§4 Phase B — delegated execution.** Closes the missing rung and fixes the
+   UX failure observed live (a wallet prompt per tranche). MagicBlock's
+   `hydra` and `ephemeral-spl-token` are MIT and already Pinocchio, the same
+   framework as our program. Untested by us; needs an audit before mainnet.
+2. **Mainnet for the program and the anchors.** Devnet history is periodically
+   reset (`RAIL.md` §8). An audit trail whose anchors can vanish is not
+   durable evidence, which is the only claim that survived the benches.
+3. **The depth-aware recorder.** Unblocks CUPED and the paired execution
+   outcome — the item above says "blocked on data", and it is not.
+4. **Retention**: either execute §7 step 3 or leave the claim scoped to DO
+   SQLite as it now is. Both are honest; only one is an archive.
+
+### Dropped
+
+- **§7 marketplace** and **§7j frontier** — premise contradicted (bench 035)
+  and closed (bench 028) respectively.
+- **§5 shared world**, **§6 outcome tokens**, **§6b perps/maker exits** — all
+  three assume finding or selling edge. Benches 025 and 035 removed the edge;
+  what survived is verifiability, and none of these sell that.
+- **§4 Phase C** — the endgame of a ladder whose second rung is not built.
+  Reconsider once Phase B exists.
