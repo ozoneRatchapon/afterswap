@@ -83,6 +83,15 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       two independent 40-call runs, p50 76/69 ms, p95 134/125 ms — see
       `.plans/003_post_deploy_doc_edits.md`. All three surfaces are healthy.
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
+      **Pre-recording flight check done 2026-08-28** (still `[ ]`: the
+      recording itself is the deliverable and needs a human). Every shot
+      dependency re-verified live — page/WASM/engine assets 200, served
+      WASM 487,094 B = 476 KB, the 1,054 figure test-pinned, `?replay`
+      200, and both devnet fallback PDAs present at 60 bytes. Table in
+      `.plans/004_submission_kit.md`. One claim was corrected: the
+      "11 demo commits spent" figure was removed as stale and
+      unverifiable — `/slot` increments on read and the GET surface hides
+      the counter, so the budget cannot be observed without spending it.
       Everything except the recording is prepared in
       `.plans/004_submission_kit.md`: a shot-by-shot script timed to 0:00–2:00,
       recording notes (use `?replay` if live quotes are flat; `/decide` is now

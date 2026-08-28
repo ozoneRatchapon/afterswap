@@ -79,11 +79,42 @@ which is mainnet, spends real SOL, and does pop the wallet.
 Two gotchas: the commit is rate-limited to **one per browser per hour** via
 `localStorage["afterswap-demo-commit-at"]`, so clear that key (or use a fresh
 profile) before the take; and it is capped at **380 total** across all
-visitors (`Scoreboard.MAX_DEMO_COMMITS`) — 11 spent as of 2026-08-28.
+visitors (`Scoreboard.MAX_DEMO_COMMITS`). **The remaining budget cannot be
+read without spending it:** `/slot` (`worker/scoreboard.ts:38`) increments
+on every read, and the GET surface deliberately excludes the counter
+(`WHERE floor != 'slot'`, line 83). An earlier "11 spent" figure was
+removed here — it was stale (the 2026-08-28 end-to-end test spent one more)
+and is not re-checkable. Recognise exhaustion on camera by its signature:
+`/api/commit-policy` returns **429 `demo commit budget spent`**. If that
+appears, stop and use the fallback PDA below rather than retrying.
+Note the counter increments *before* the devnet broadcast is known to have
+succeeded, so a failed broadcast still burns one.
 Fallback if nothing commits on camera: open the already-verified PDA
 `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` on the devnet explorer
 (fingerprint `0x165ef4aabbcc`, 3 states, 10% tranches) and narrate the same
 line — the claim is the commitment existing, not it being made on camera.
+
+### Pre-recording flight check (all re-verified live 2026-08-28)
+
+Every shot dependency was exercised against production immediately before this
+was written, so the take should not surface a dead surface. Re-run these if you
+record on a later day — the first three are perishable.
+
+| Shot | Dependency | Verified state |
+|---|---|---|
+| 0:12–0:30 | "1,054 machines" | `fsm_table::decode(3).len() == 1054`, pinned by `crates/afterswap-engine/tests/fsm_table.rs:52` |
+| 0:30–0:48 | "476 KB WASM" | served `/pkg/afterswap_wasm_bg.wasm` = **487,094 bytes = 476 KB**, HTTP 200 |
+| 0:30–0:48 | page + engine assets | `/`, `/pkg/afterswap_wasm.js`, `/pkg/afterswap_wasm_bg.wasm` all **200** (0.06–0.29 s) |
+| 0:48–1:10 | live quote feed | `/?replay` **200**; replay fallback wired at `index.html:704`, and auto-engages after 5 unreachable ticks (`index.html:1017`) |
+| 1:10–1:32 | fallback PDA | `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` — live on devnet, **60 bytes**, owner `GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8` |
+| 1:10–1:32 | 2026-08-28 test PDA | `ExiLSj7CGwFF1bknhJ6h48s1L5RZf8bKec1Nc2hZYcnt` — same, also live (second usable fallback) |
+
+**Two things this check could not cover.** The remaining demo-commit budget is
+unobservable without consuming one (see the note above), so whether the live
+1:10 commit fires on camera is genuinely unknown until you record — that is
+what the two verified fallback PDAs are for. And a warm-up is still required:
+the first calls against an idle Worker can take ~2 s, so load the page once
+before rolling.
 
 **1:32–1:55 — The honest result. Do not skip this.**
 Show the bench table or the README section.
