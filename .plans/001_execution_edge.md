@@ -168,7 +168,7 @@ volatile tokens, measured against trailing stops out-of-sample.
 
       Also hardened: the script fails with a named-field error instead of a
       `KeyError` traceback if the paired schema drifts from
-      `afterswap-server::shadow::PairedCycle`, and it states explicitly that
+      `afterswap-server::shadow::PairedResult`, and it states explicitly that
       the secondary rows are uncorrected for multiplicity.
 
       The duplication that allowed fault 1 to persist — a shell script
@@ -178,6 +178,29 @@ volatile tokens, measured against trailing stops out-of-sample.
       them in the `(Z_ALPHA + Z_POWER80) * se` shape, and has not
       reintroduced the 3.92·SE form. Mutation-tested: reverting the live line
       to the old formula makes it fail, restoring it makes it pass.
+
+      **Amendment 3, 2026-08-28 10:34 UTC — disclosed, still blind.** The
+      schema-drift error named a struct `PairedCycle` that has never existed;
+      the emitted type is `shadow::PairedResult`. Message text only — no
+      arithmetic, endpoint, field order or stopping rule touched. The wider
+      point is that the one message whose job is to explain a schema break was
+      itself wrong about the schema, so both the field names and the type name
+      are now pinned by
+      `tests/power.rs::soak_report_script_matches_paired_result_schema`
+      (mutation-tested).
+
+      **Report harness ready, 2026-08-28 10:37 UTC.** The report must not
+      depend on a human typing it at the one moment it becomes permissible, so
+      `scripts/soak_watch.sh <pid>` blocks on `kill -0` until the soak process
+      exits and then runs the pre-registered report exactly once, writing it to
+      `reports/bonk_soak.txt`. Verified end-to-end against a dummy process (it
+      really waits) and against the unrelated 539-cycle `exploratory_539.jsonl`
+      fixture (the report renders); the empty-file path exits 1. The BONK
+      paired file itself is still unread — not a row, not a summary.
+
+      Command, to run the moment PID 25782 exits (or now, since it blocks):
+
+          bash scripts/soak_watch.sh 25782
 
 ## Adjacent results while the recorder fills
 

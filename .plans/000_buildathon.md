@@ -137,6 +137,28 @@ cites bench 039 instead of bench 001.
 `~/.cargo/config.toml`; the gate died on a missing `.wasm` rather than on a
 parity failure. It now asks `cargo metadata`.
 
+
+### Post-deploy re-measurement — prepared, 2026-08-28 10:42 UTC
+
+The three documents that quote the pre-fix "20 ok, 20 failed" figure each
+promise in writing to be updated with a measurement. Both halves of keeping
+that promise are now done except the deploy itself:
+
+- `scripts/decide_measure.sh [n]` runs the same 40-call procedure that produced
+  the original figure and prints `n= ok= fail= rate= p50= p95= max= codes=`.
+  Written down as a script so the re-measurement is the *same* measurement
+  rather than a new one wearing its name. Validated end-to-end against prod.
+- `.plans/003_post_deploy_doc_edits.md` holds the exact replacement text for
+  README.md, docs/API.md and docs/ROADMAP.md, with only `<OK>`/`<FAIL>`/`<P50>`
+  left to substitute. Written before the deploy so the wording cannot be tuned
+  to a flattering result, and it carries a failure variant as well as a success
+  one. Every anchor string was checked to match its file verbatim.
+
+Spot checks at 10:39 UTC returned **0 ok / 7 failed** (all 503) against the
+pre-fix build still in prod — consistent with the documented per-isolate
+failure clustering, and not itself a measurement. Prod is unchanged; the
+deploy remains harness-blocked here and needs the user.
+
 ## Status 2026-08-28 late (/decide fix, not yet in prod)
 
 Cold `POST /decide` was blowing the Workers Free-plan 2,010 ms CPU ceiling
