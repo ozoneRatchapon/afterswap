@@ -10,6 +10,10 @@
   // (its DO migration was never deployed from here, so removing it is safe).
   // rail.html stays on this origin and targets the rail worker cross-origin
   // via ?rail=<base>.
+  // NOTE: this account is on the Workers Free plan, which rejects a `limits`
+  // block (API 100328). /decide re-enumerates 1,054 FSMs per call (~0.26s
+  // native CPU, several times that under wasm), so it cannot be made
+  // reliable here by raising the CPU ceiling — see docs/API.md.
   "durable_objects": {
     "bindings": [{ "name": "SCOREBOARD", "class_name": "Scoreboard" }]
   },

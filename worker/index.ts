@@ -53,6 +53,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/// One roster pass. `WasmEngine` owns Rust-side memory that JS garbage
+/// collection does not reclaim, so the handle is freed on every path —
+/// otherwise each request leaks and the isolate's wasm memory grows
+/// monotonically.
+function run_roster(prices: number[]): any {
+  const engine = new WasmEngine(12, 3, 0.1, 24);
+  try {
+    for (const p of prices) engine.on_tick(p);
+    return JSON.parse(engine.snapshot(0));
+  } finally {
+    engine.free();
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -139,7 +153,7 @@ export default {
       return json({ error: "prices must be 30..10000 positive numbers" }, 400);
     }
 
-    ready ??= init(wasmModule);
+    ready ??= init({ module_or_path: wasmModule });
     await ready;
 
     const openAt = typeof body.open_at === "number" ? Math.floor(body.open_at) : null;
@@ -147,7 +161,14 @@ export default {
       if (openAt < 1 || openAt >= prices.length - 1) {
         return json({ error: "open_at out of range" }, 400);
       }
-      const sim = JSON.parse(parity_run(JSON.stringify(prices), openAt));
+      let sim: any;
+      try {
+        sim = JSON.parse(parity_run(JSON.stringify(prices), openAt));
+      } catch (e) {
+        // Same trapped-instance failure mode as the roster path below.
+        console.log(`SIM_FAIL ticks=${prices.length} err=${String(e).slice(0, 160)}`);
+        return json({ error: "engine unavailable, retry shortly" }, 503);
+      }
       return json({
         engine: USAGE.engine,
         mode: "simulation",
@@ -163,9 +184,21 @@ export default {
       });
     }
 
-    const engine = new WasmEngine(12, 3, 0.1, 24);
-    for (const p of prices) engine.on_tick(p);
-    const snap = JSON.parse(engine.snapshot(0));
+    let snap: any;
+    try {
+      snap = run_roster(prices);
+    } catch (e) {
+      // Enumerating the 1,054 FSMs costs ~0.26s of native CPU per call and
+      // several times that under wasm. When Cloudflare kills a request for
+      // exceeding CPU, the wasm instance is left trapped and every later
+      // call on that isolate aborts with `unreachable` — the run-clustering
+      // of 500s seen in production. Re-instantiating cannot recover it:
+      // wasm-bindgen's init short-circuits on `if (wasm !== undefined)`, so
+      // the dead instance is permanently cached. Fail cleanly instead of
+      // burning a second CPU slice on a retry that provably cannot succeed.
+      console.log(`DECIDE_FAIL ticks=${prices.length} err=${String(e).slice(0, 160)}`);
+      return json({ error: "engine unavailable, retry shortly" }, 503);
+    }
     const machines = (snap.arms ?? []).map((a: {
       name: string; id: string; n_states: number; generation: number;
       sim_edge_bps: number; complexity: number;
