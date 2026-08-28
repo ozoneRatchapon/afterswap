@@ -1,0 +1,18 @@
+{
+  "hash": "0c45c228bb5bee3ffb5e5ee905b7ff90c64be13c210cab7d1a481bbc61aa6ca4",
+  "manifest": {
+    "alpha": 0.05,
+    "benchmark": "TP ladder, 10 rungs of 10 bps, driven from the same entry on the same ticks",
+    "corpora": [
+      "live DFlow BONK/USDC quotes, engine v5.1 pinned binary, window 12, tranche 10%"
+    ],
+    "hypothesis": "On BONK/USDC, the engine's realized exit underperforms a 10x10bps take-profit ladder by at least 0.8 bps per completed cycle",
+    "null_control": "the other four floors (hold, TWAP, trailing, bracket) must remain indistinguishable from zero; if they move together the effect is a measurement artefact, not a ladder-specific result",
+    "target_effect_bps": 0.8,
+    "target_power": 0.8,
+    "test_windows": 722,
+    "train_windows": 539
+  },
+  "power_check": "adequate: 80.0% power",
+  "status": "OPEN — exploratory signal seen in 539 prior cycles; this manifest fixes the test before the confirming data exists"
+}
