@@ -76,9 +76,11 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [x] Functional prototype (public URL) — `https://afterswap.solana-thailand.workers.dev`
       returns 200 (125 ms); the rail at
       `…-rail.solana-thailand.workers.dev/rail/stats` returns 200 (362 ms).
-      Re-verified 2026-08-28 10:42 UTC. `POST /decide` was serving a failing
-      pre-fix build; the FSM-table fix was deployed 2026-08-28 (version
-      `4f69c750`) and re-measured at 40/40, p50 76 ms, p95 134 ms — see
+      Re-verified again immediately before submission, 2026-08-28: app 200
+      (90 ms), rail `/rail/stats` 200 (416 ms), public repo 200 (933 ms).
+      `POST /decide` was serving a failing pre-fix build; the FSM-table fix was
+      deployed 2026-08-28 (version `4f69c750`) and re-measured at 80/80 across
+      two independent 40-call runs, p50 76/69 ms, p95 134/125 ms — see
       `.plans/003_post_deploy_doc_edits.md`. All three surfaces are healthy.
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
       Everything except the recording is prepared in

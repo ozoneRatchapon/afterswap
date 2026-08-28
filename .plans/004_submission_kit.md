@@ -89,7 +89,8 @@ Show the bench table or the README section.
   flat or the network is unreliable during recording. It guarantees the same
   visuals every take.
 - **`POST /decide` is now safe to demo** (deployed 2026-08-28, version
-  `4f69c750`; measured 40/40, p50 76 ms, p95 134 ms). The earlier "do not demo
+  `4f69c750`; measured 80/80 over two independent 40-call runs, p50 76/69 ms,
+  p95 134/125 ms). The earlier "do not demo
   it" note applied to the pre-fix build and no longer holds. It is still
   optional: the in-browser WASM path remains the better story, and a live curl
   costs seconds of runtime you may not have in a 2-minute cut.
@@ -137,8 +138,11 @@ from here, so this is the raw material rather than a field-by-field fill.
 > The hosted `POST /decide` endpoint runs on the Workers free plan, whose
 > 2,010 ms CPU ceiling used to kill about half of cold starts. That is fixed —
 > the 1,054-machine enumeration is precomputed into a 2,108-byte table, and the
-> endpoint now measures 40/40 with a p95 of 134 ms (2026-08-28). The in-browser
-> WASM path has no such ceiling at all.
+> endpoint now measures 80 of 80 across two independent 40-call runs, p95 134 ms
+> and 125 ms (2026-08-28). It was measured twice on purpose: the pre-fix build's
+> rate swung run to run (20/40, then 25/40), so one clean run could not have
+> distinguished a fix from a lucky draw. The in-browser WASM path has no such
+> ceiling at all.
 
 ## Checklist
 
