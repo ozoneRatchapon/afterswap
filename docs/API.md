@@ -48,8 +48,9 @@ curl -X POST https://afterswap.solana-thailand.workers.dev/decide \
 
 It is CPU-bound on the free Workers plan, so treat it as a preview rather
 than a throughput path — the local WASM route above has no such ceiling.
-Measured 2026-08-28 over 40 consecutive calls: **40 ok, 0 failed**, p50
-76 ms / p95 134 ms. (The pre-fix build was unstable run to run — two
+Measured 2026-08-28 over two independent 40-call runs: **80 ok, 0 failed**,
+p50 76/69 ms, p95 134/125 ms. The two runs matter because the pre-fix build
+was unstable run to run — two
 40-call runs on 2026-08-28 gave 20 ok / 20 failed and 25 ok / 15 failed, with
 a p95 of 1,694 ms against a 2,010 ms ceiling. The difference is the
 precomputed FSM table, below.)

@@ -211,9 +211,45 @@ slightly (63 → 76 ms), which is not a regression of interest: the pre-fix p50
 was computed over successful calls only, i.e. over a survivor-biased sample of
 the fastest warm hits.
 
-Caveat kept deliberately: this is one 40-call run. The pre-fix build proved the
-rate can vary run to run, so a single clean run is evidence the ceiling no
-longer binds, not proof of a permanent 100%.
+Caveat kept deliberately at the time: that was one 40-call run, and the pre-fix
+build had proved the rate can vary run to run, so a single clean run was
+evidence the ceiling no longer binds rather than proof of a permanent 100%.
+
+### Replication — 2026-08-28, second post-deploy run
+
+That caveat was the weakest claim in the shipped docs, so the same procedure was
+run a second time against the same deployed version, unchanged:
+
+```
+n=40 ok=40 fail=0 rate=100.0% p50=69ms p95=125ms max=151ms codes=200:40
+```
+
+**80/80 across two independent runs**, and the tail was *tighter* the second
+time (p95 134 → 125 ms, max 189 → 151 ms). This is the check the pre-fix
+instability demanded: a build whose rate swings 20/40 → 25/40 → 0/7 does not
+produce two consecutive clean 40s, so replication distinguishes a fix from a
+lucky draw in a way one run cannot. README / API / ROADMAP were updated from
+"40 consecutive requests" to the two-run figure.
+
+The honest residual: two runs bound the variance far better than one, but both
+were taken within minutes of each other from one client location. They do not
+speak to behaviour under concurrency or from other Cloudflare colos.
+
+### Other prod endpoints — checked for the same failure mode
+
+`/decide` was fixed; the question is whether any sibling route sits near the
+same 2,010 ms free-plan ceiling. `worker/index.ts` exposes only two others:
+
+- `/api/score` — Durable Object read, no wasm engine. Probed 10x: **10/10 200**,
+  80–217 ms, no ceiling exposure.
+- `/api/commit-policy` — ed25519 signing only; bounded, constant work, no
+  enumeration. **Deliberately not probed.** Each call consumes one of a limited
+  set of demo position slots and signs a real devnet transaction, so spending
+  slots on a latency measurement days before the demo costs more than the
+  measurement is worth. The code path is short enough to rule out by reading.
+
+Neither runs the 1,054-machine enumeration that broke `/decide`, so the fix
+closed the only instance of that failure mode in the deployed surface.
 
 ### Follow-on edits made beyond the prepared text
 

@@ -296,8 +296,9 @@ Returns the tournament roster (names, blake3 fingerprints, simulated
 edges) or, with `open_at`, a full simulated exit with fills and the
 honest edge vs holding. Same input → byte-identical output (G1/G6).
 
-**Status: measured 2026-08-28 over 40 consecutive requests — 40 returned a
-real roster, 0 failed (p50 76 ms, p95 134 ms).** The free-plan CPU
+**Status: measured 2026-08-28 over two independent 40-request runs — 80 of
+80 returned a real roster, 0 failed (p50 76/69 ms, p95 134/125 ms).** The
+free-plan CPU
 ceiling that used to kill cold starts — a 1,694 ms p95 against a 2,010 ms
 limit — is no longer reached: the 1,054-machine enumeration is precomputed and
 shipped as a 2,108-byte table, so a cold call costs ~7 ms instead of 752 ms.

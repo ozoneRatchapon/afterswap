@@ -296,10 +296,12 @@ arithmetic to rebuild them.
   count no table covers.
 
 Re-measured on the hosted endpoint after deploy, 2026-08-28, same 40-call
-procedure (`scripts/decide_measure.sh`): **40 ok, 0 failed**, p50 76 ms /
-p95 134 ms. The pre-fix build did not have one stable rate — two 40-call runs
-the same day gave **20 ok / 20 failed** and **25 ok / 15 failed** — so the
-comparison is against that range, not a single number.
+procedure (`scripts/decide_measure.sh`), run twice: **80 ok, 0 failed**, p50
+76/69 ms, p95 134/125 ms. It was run twice on purpose — the pre-fix build did
+not have one stable rate (two 40-call runs the same day gave **20 ok / 20
+failed** and **25 ok / 15 failed**), so a single clean post-fix run would not
+have been enough to distinguish a fix from a lucky draw. The comparison is
+against that pre-fix range, not a single number.
 
 Remaining for revenue: pay.sh registry onboarding, 402 challenge.
 
