@@ -106,3 +106,51 @@ fn worked_example_from_the_reference() {
     assert!((power - 0.0900).abs() < 0.001, "power = {power}");
     assert!((1.0 - power - 0.910).abs() < 0.001, "type II = {}", 1.0 - power);
 }
+
+/// The soak report is a shell script, so it cannot call `mde_from_se` — it
+/// re-declares the two z constants inline. That duplication is how the script
+/// drifted once already: it shipped `1.96 * se * 2` (3.92·SE) as the MDE while
+/// this crate defined 2.8016·SE, a 40% overstatement that went unnoticed
+/// because nothing compared them. This test is that comparison.
+#[test]
+fn soak_report_script_agrees_with_power_module() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../scripts/soak_report.sh");
+    let src = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+
+    // The script must carry both constants verbatim, at full precision.
+    for (name, value) in [("Z_ALPHA", 1.959_963_985_f64), ("Z_POWER80", Z_POWER_80)] {
+        let literal = format!("{value}");
+        assert!(
+            src.contains(&literal),
+            "scripts/soak_report.sh no longer contains {name} = {literal}; \
+             it must match crates/afterswap-engine/src/power.rs"
+        );
+    }
+
+    // And it must apply them as (z_alpha + z_power) * se, not any other shape.
+    assert!(
+        src.contains("(Z_ALPHA + Z_POWER80) * se"),
+        "scripts/soak_report.sh MDE is no longer (Z_ALPHA + Z_POWER80) * se; \
+         mde_from_se(se, Z_POWER_80) is the single source of truth"
+    );
+
+    // Guard the specific regression: the pre-amendment formula must not return.
+    // Comment lines are stripped first — the amendment header quotes the old
+    // formula on purpose to explain what was wrong, and that prose is not a
+    // reintroduction of it.
+    let code_only: String = src
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !code_only.contains("1.96 * se * 2"),
+        "scripts/soak_report.sh reintroduced the 3.92*SE MDE bug"
+    );
+
+    // Sanity: the shape the script computes equals what this crate computes.
+    let se = 1.137_3;
+    let script_mde = (1.959_963_985_f64 + Z_POWER_80) * se;
+    assert!((script_mde - mde_from_se(se, Z_POWER_80)).abs() < 1e-12);
+}

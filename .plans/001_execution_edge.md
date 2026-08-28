@@ -141,6 +141,44 @@ volatile tokens, measured against trailing stops out-of-sample.
       (the broken output is archived outside the repo at
       `/tmp/bonk_soak_paired.BROKEN_1cycle.jsonl`). Restarted as PID 25782.
 
+      **Analysis-script amendment, 2026-08-28 10:28 UTC — disclosed, made
+      while blind to the data.** Auditing `scripts/soak_report.sh` before the
+      run finished (soak at tick ~2823/4500; the paired file was NOT read —
+      not a row, not a summary) turned up two arithmetic faults. Both are
+      corrections, not design changes: the primary endpoint, the secondary
+      list, the reported order and the stopping rule are all untouched.
+
+      1. **MDE was wrong by 40%.** The script computed `1.96 * se * 2`
+         (3.92·SE) and labelled it the minimum detectable effect at 80% power.
+         The correct quantity — and this repo's own audited definition, in
+         `crates/afterswap-engine/src/power.rs::mde_from_se` — is
+         `(z_α + z_power)·SE` = 2.8016·SE. The script had been contradicting
+         the crate it is meant to report on. That module exists precisely
+         because this project already shipped two ~9%-power experiments, so an
+         inflated MDE here is a repeat of the exact failure it was written to
+         prevent. On a worked example the reported MDE drops 4.5 → 3.2 bps.
+      2. **Significance assumed n was large.** The verdict used a hardcoded
+         normal cutoff of 1.96, justified in-comment by "n here is large
+         enough" — an assertion about n written before n was known, and wrong
+         if the 4,500-tick cap binds before 300 cycles. It now computes the
+         exact two-sided Student-t p-value on n−1 df (regularized incomplete
+         beta, Lentz continued fraction), verified against published critical
+         values at df = 10, 20, 49, 86, 1000 and the normal limit — all
+         return p = 0.05000. The report now prints p alongside t.
+
+      Also hardened: the script fails with a named-field error instead of a
+      `KeyError` traceback if the paired schema drifts from
+      `afterswap-server::shadow::PairedCycle`, and it states explicitly that
+      the secondary rows are uncorrected for multiplicity.
+
+      The duplication that allowed fault 1 to persist — a shell script
+      re-declaring constants the crate already owns — is now covered by
+      `tests/power.rs::soak_report_script_agrees_with_power_module`, which
+      asserts the script carries both z constants at full precision, applies
+      them in the `(Z_ALPHA + Z_POWER80) * se` shape, and has not
+      reintroduced the 3.92·SE form. Mutation-tested: reverting the live line
+      to the old formula makes it fail, restoring it makes it pass.
+
 ## Adjacent results while the recorder fills
 
 - [x] **Execution-cost model** (`fill_cost_bps`, cost-aware floors) — shipped,
