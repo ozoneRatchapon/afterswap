@@ -82,6 +82,21 @@ numeric still parses.
       the bucket would breach it for no capability the rail lacks today. This
       is a resolved decision, not outstanding work — re-open only if the
       project leaves the free tier.
+
+      **Re-affirmed 2026-08-28, with a second reason.** Binding the bucket
+      also arms the trim `DELETE` (`sequencer.rs:266`), whose only recovery
+      path is the R2 read-back in `proof` — and that read-back had a latent
+      framing bug: a body with a literal newline (pretty-printed JSON parses
+      and verifies exactly like compact) shreds when the segment is split on
+      `\n`, failing every proof in it, unrecoverably once the rows are gone.
+      Fixed by an ingest guard (commit `e254e50`, deployed to prod version
+      `fd0f3278`, both branches probed live) and pinned by two tests in
+      `crates/afterswap-rail/tests/rail.rs`. `RING_KEEP = 512` against 140
+      records means nothing would be trimmed for a long while regardless, so
+      waiting costs nothing. **Precondition for re-opening: exercise the
+      archived-proof round-trip end-to-end first** — the guard makes the
+      framing safe, but the R2 write→trim→read-back path is still unproven
+      against a live bucket.
 - [x] **Point the real executor at production ingest** (§7.5) —
       `--rail-ingest <origin>` and `crates/afterswap-server/src/rail_ship.rs`.
       70 live cycles: **70 accepted, 0 rejected, 0 failed, 0 seq gaps** against
