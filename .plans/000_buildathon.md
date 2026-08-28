@@ -74,20 +74,37 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 ## Submission checklist
 
 - [x] Functional prototype (public URL) — `https://afterswap.solana-thailand.workers.dev`
-      returns 200; the rail at `…-rail.solana-thailand.workers.dev/rail/stats`
-      does too (verified 2026-08-28)
+      returns 200 (125 ms); the rail at
+      `…-rail.solana-thailand.workers.dev/rail/stats` returns 200 (362 ms).
+      Re-verified 2026-08-28 10:42 UTC. Caveat that belongs next to this box:
+      the dashboard and rail are healthy, but `POST /decide` is still serving
+      the pre-fix build and failing — see `.plans/003_post_deploy_doc_edits.md`.
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
+      Everything except the recording is prepared in
+      `.plans/004_submission_kit.md`: a shot-by-shot script timed to 0:00–2:00,
+      recording notes (use `?replay` if live quotes are flat; do **not** demo
+      `/decide` on camera, it is still the failing pre-fix build), and a stated
+      framing decision — lead with the rigor, not with the BONK number, because
+      the README's own finding is that there is no durable edge.
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
-      both published. Verified 2026-08-28 late: `origin/develop` is at
-      `4ab36df` and `main` at `origin/main`, both 0 ahead / 0 behind. The
-      /decide FSM-table fix (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661`) is
-      pushed. Note this is source-only — it is NOT deployed to prod.
+      both published. Verified 2026-08-28 10:42 UTC against the real remote:
+      `develop` and `origin/develop` are both at `82fb509` (0 ahead / 0
+      behind), `main` and `origin/main` both at `bf98edf`. The /decide
+      FSM-table fix (`cd75dcd`, `424c998`, `68bb7e0`, `27a3661`) is pushed.
+      Note this is source-only — it is NOT deployed to prod.
+      (This entry has now gone stale three times by naming a specific commit.
+      Re-verify with `git rev-parse --short develop origin/develop` before
+      trusting the hash above; the checkbox is about the repo being public and
+      current, which it is.)
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
       is the engine's only input) and **actuator** (every sell-tranche maps to
       a /order), with the data-flow diagram
 - [ ] Application via Google Form on stth-buildathon.vercel.app — **user-only**
+      Answer text assembled in `.plans/004_submission_kit.md`, including a
+      limitations answer. **Closes 23:59 ICT Sun 31 Aug 2026** — highest-value
+      remaining item in the project.
 
 ## Status 2026-08-26 (v1.9)
 - SHIPPED: engine (enum+tournament+UCB1+evolution+renoise+gate), dflow

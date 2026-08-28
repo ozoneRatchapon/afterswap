@@ -90,7 +90,7 @@ compete for the right to scale you out.
    the commitment transaction carries `afterswap:quote sha-256=…` in a memo
    beside it. So "this fill followed a policy committed in advance, at a price
    the venue really offered" is three cryptographic facts, not a claim.
-6. **There is no backend.** The whole engine compiles to a 473 KB WASM binary
+6. **There is no backend.** The whole engine compiles to a 476 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.
