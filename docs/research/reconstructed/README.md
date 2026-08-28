@@ -1,6 +1,6 @@
 # Reconstructed research documents
 
-Lossless reconstructions of the three external research documents. Every
+Lossless reconstructions of the four external research documents. Every
 formula and numeric table cell in the sources is an embedded image; the plain
 `.txt` exports one directory up drop all of them silently. Here each image is
 transcribed and substituted back at its original position, written `{like
@@ -11,6 +11,7 @@ this}`, so the documents read as the continuous prose they are.
 | `2026-08-27_epistemic_governance.merged.txt` | 70 | 70 |
 | `2026-08-27_nondirectional_execution.merged.txt` | 194 | 194 |
 | `2026-08-27_statistical_foundations.merged.txt` | 116 | 116 |
+| `2026-08-29_empirical_validation_taxonomy.merged.txt` | 227 | 227 |
 
 Committing these is round three's own instruction: *"a rigorous adoption
 protocol requires automated pre-ingestion visual asset audits, numeric
