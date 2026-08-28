@@ -11,9 +11,11 @@
   // rail.html stays on this origin and targets the rail worker cross-origin
   // via ?rail=<base>.
   // NOTE: this account is on the Workers Free plan, which rejects a `limits`
-  // block (API 100328). /decide re-enumerates 1,054 FSMs per call (~0.26s
-  // native CPU, several times that under wasm), so it cannot be made
-  // reliable here by raising the CPU ceiling — see docs/API.md.
+  // block (API 100328), so the 2,010ms CPU ceiling here is fixed. /decide
+  // used to re-enumerate 1,054 FSMs per call and blew that ceiling on cold
+  // isolates; it now decodes a precomputed table shipped in the wasm
+  // (crates/afterswap-engine/src/fsm_table*.bin), so a cold call costs ~7ms.
+  // Do not reintroduce runtime enumeration here — see docs/API.md.
   "durable_objects": {
     "bindings": [{ "name": "SCOREBOARD", "class_name": "Scoreboard" }]
   },
