@@ -76,14 +76,16 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 - [x] Functional prototype (public URL) — `https://afterswap.solana-thailand.workers.dev`
       returns 200 (125 ms); the rail at
       `…-rail.solana-thailand.workers.dev/rail/stats` returns 200 (362 ms).
-      Re-verified 2026-08-28 10:42 UTC. Caveat that belongs next to this box:
-      the dashboard and rail are healthy, but `POST /decide` is still serving
-      the pre-fix build and failing — see `.plans/003_post_deploy_doc_edits.md`.
+      Re-verified 2026-08-28 10:42 UTC. `POST /decide` was serving a failing
+      pre-fix build; the FSM-table fix was deployed 2026-08-28 (version
+      `4f69c750`) and re-measured at 40/40, p50 76 ms, p95 134 ms — see
+      `.plans/003_post_deploy_doc_edits.md`. All three surfaces are healthy.
 - [ ] 2-minute demo video — **user-only**, cannot be produced from here
       Everything except the recording is prepared in
       `.plans/004_submission_kit.md`: a shot-by-shot script timed to 0:00–2:00,
-      recording notes (use `?replay` if live quotes are flat; do **not** demo
-      `/decide` on camera, it is still the failing pre-fix build), and a stated
+      recording notes (use `?replay` if live quotes are flat; `/decide` is now
+      deployed and measures 40/40, so it is safe but optional to demo), and a
+      stated
       framing decision — lead with the rigor, not with the BONK number, because
       the README's own finding is that there is no durable edge.
 - [x] Public repo (this one) — push to GitHub — `origin` is

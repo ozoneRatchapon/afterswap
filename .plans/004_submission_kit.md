@@ -88,9 +88,11 @@ Show the bench table or the README section.
 - `?replay` gives a recorded deterministic segment: use it if live quotes are
   flat or the network is unreliable during recording. It guarantees the same
   visuals every take.
-- **Do not demo `POST /decide` on camera.** It is still serving the pre-fix
-  build and currently fails; the in-browser WASM path is the one that works and
-  is the better story anyway.
+- **`POST /decide` is now safe to demo** (deployed 2026-08-28, version
+  `4f69c750`; measured 40/40, p50 76 ms, p95 134 ms). The earlier "do not demo
+  it" note applied to the pre-fix build and no longer holds. It is still
+  optional: the in-browser WASM path remains the better story, and a live curl
+  costs seconds of runtime you may not have in a 2-minute cut.
 - Record 1440p or better if the roster table is on screen — fingerprints need
   to be legible for the "not designed by us" point to land.
 
@@ -132,14 +134,17 @@ from here, so this is the raw material rather than a field-by-field fill.
 > — not alpha.
 
 **Known caveat to state if asked about the API:**
-> The hosted `POST /decide` endpoint is a preview on the Workers free plan and
-> is currently unreliable; the in-browser WASM path has no such limit.
+> The hosted `POST /decide` endpoint runs on the Workers free plan, whose
+> 2,010 ms CPU ceiling used to kill about half of cold starts. That is fixed —
+> the 1,054-machine enumeration is precomputed into a 2,108-byte table, and the
+> endpoint now measures 40/40 with a p95 of 134 ms (2026-08-28). The in-browser
+> WASM path has no such ceiling at all.
 
 ## Checklist
 
 - [x] Video script written to time, with a shot list and a stated framing
       decision (lead with rigor, not with a number).
-- [x] Recording notes covering the `?replay` fallback and the `/decide` trap.
+- [x] Recording notes covering the `?replay` fallback and `/decide` status.
 - [x] Form fact sheet assembled from defensible figures only, including an
       explicit limitations answer.
 - [ ] **Record the 2-minute video** — user-only.

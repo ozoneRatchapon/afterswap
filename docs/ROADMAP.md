@@ -249,7 +249,7 @@ Article 78 best-execution compliance artifact. That product does not depend on
 the machine being good — only on the record being provable, which it is.
 
 
-**Preview ✅ built (v2.2), deployed but unreliable:** `POST /decide` runs
+**Preview ✅ built (v2.2), deployed:** `POST /decide` runs
 the same wasm binary server-side, roster + full simulated exit, verified
 deterministic under `wrangler dev`.
 
@@ -260,20 +260,21 @@ plan upgrade "has happened." It has not — the account is on the Workers
 and the failures were misattributed to CPU-exceeded 1102 responses when
 most were in fact 1101 — uncaught Rust panics.
 
-Measured over 40 consecutive requests: **20 ok, 20 failed.** The free-plan
-CPU ceiling is **2,010 ms**; the cold 1,054-machine enumeration costs
-**1.0–2.0 s** under wasm, so roughly half of cold starts are killed.
-Enumeration is process-cached (`enumerate_cached`), so warm calls cost
-**1 ms**. A killed request leaves the wasm instance trapped, and the
-instance is cached per isolate, so every later call there aborts until
-the isolate is recycled — the failures cluster in runs.
+**How it used to fail.** Measured over 40 consecutive requests: **20 ok, 20
+failed** (a second 40-call run the same day gave 25 ok / 15 failed — the rate
+had no single stable value). The free-plan CPU ceiling is **2,010 ms**; the
+cold 1,054-machine enumeration cost **1.0–2.0 s** under wasm, so cold starts
+were killed. Enumeration was process-cached (`enumerate_cached`), so warm
+calls cost **1 ms**. A killed request left the wasm instance trapped, and the
+instance is cached per isolate, so every later call there aborted until
+the isolate was recycled — the failures clustered in runs.
 
 Fixed on that path: `enumerate_cached` aborted on a poisoned mutex
 (`.expect`) instead of recovering into it, and the worker leaked its
 `WasmEngine` handle every request. Both `/decide` modes now degrade to a
 clean 503 rather than a raw 1101 crash page. Success went ~40% → ~50%.
 
-**Ceiling removed at the source (2026-08-28, not yet re-measured in prod).**
+**Ceiling removed at the source (2026-08-28, re-measured in prod below).**
 The precompute option above is done. `FsmEnumerator::enumerate(3)` spends
 its time behaviourally fingerprinting 5,832 raw machines over 2^11 input
 sequences to find the 1,054 distinct ones; since it is pure and
@@ -294,9 +295,11 @@ arithmetic to rebuild them.
   source of truth. Live enumeration remains the fallback for any state
   count no table covers.
 
-The 20/40 success figure above is **pre-fix**. It will be re-measured on
-the hosted endpoint after the next deploy, and this entry updated with the
-result rather than an expectation.
+Re-measured on the hosted endpoint after deploy, 2026-08-28, same 40-call
+procedure (`scripts/decide_measure.sh`): **40 ok, 0 failed**, p50 76 ms /
+p95 134 ms. The pre-fix build did not have one stable rate — two 40-call runs
+the same day gave **20 ok / 20 failed** and **25 ok / 15 failed** — so the
+comparison is against that range, not a single number.
 
 Remaining for revenue: pay.sh registry onboarding, 402 challenge.
 

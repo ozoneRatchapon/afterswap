@@ -179,5 +179,53 @@ fixed, because the record of having overclaimed is the point.
       same measurement (`scripts/decide_measure.sh`, validated end-to-end).
 - [x] Replacement text written for all three files, before the result is known,
       with both a success and a failure variant.
-- [ ] `npx wrangler deploy` — **gating, needs the user** (harness-blocked here).
-- [ ] Run `scripts/decide_measure.sh 40` and substitute the tokens.
+- [x] `npx wrangler deploy` — done by the user 2026-08-28. Version
+      `4f69c750-f06e-44f6-981e-81cd4c48233a`. One asset changed:
+      `/pkg/afterswap_wasm_bg.wasm` — the artifact verified pre-deploy to carry
+      all three FSM tables byte-for-byte.
+- [x] Run `scripts/decide_measure.sh 40` and substitute the tokens. Done; the
+      **success** variant shipped.
+
+## Result — 2026-08-28, post-deploy
+
+```
+n=40 ok=40 fail=0 rate=100.0% p50=76ms p95=134ms max=189ms codes=200:40
+```
+
+Against the two pre-fix runs of the same procedure (20/40 and 25/40):
+
+| | pre-fix | post-fix |
+|---|---|---|
+| ok / 40 | 20, then 25 | **40** |
+| p50 | 63 ms | 76 ms |
+| p95 | 1,694 ms | **134 ms** |
+| max | 1,817 ms | **189 ms** |
+
+**Both pre-registered conditions are met, not just the headline.** The
+criterion written before the deploy was that `ok=40` alone would not count as
+success — the latency tail had to collapse too, since 40/40 with a ~1.7 s p95
+would mean the 2,010 ms ceiling was merely no longer being crossed rather than
+the enumeration work being gone. The p95 fell 1,694 ms → 134 ms and the max
+189 ms now sits ~10x under the ceiling, so the work is genuinely gone. p50 rose
+slightly (63 → 76 ms), which is not a regression of interest: the pre-fix p50
+was computed over successful calls only, i.e. over a survivor-biased sample of
+the fastest warm hits.
+
+Caveat kept deliberately: this is one 40-call run. The pre-fix build proved the
+rate can vary run to run, so a single clean run is evidence the ceiling no
+longer binds, not proof of a permanent 100%.
+
+### Follow-on edits made beyond the prepared text
+
+Substituting the tokens left three sentences that had become false, all fixed:
+
+- `README.md` — the causal account was in present tense ("about half of cold
+  starts **are** killed") and one sentence still claimed "the numbers above are
+  the *pre-fix* measurement." Retitled **How it used to fail**, put in past
+  tense, and the claim corrected. The history itself was kept.
+- `docs/ROADMAP.md` — same present-tense problem, plus the header
+  "**Ceiling removed at the source (2026-08-28, not yet re-measured in prod)**"
+  was stale. The "Correction (2026-08-28)" retraction block was **not** touched.
+- `.plans/004_submission_kit.md` / `.plans/000_buildathon.md` — the recording
+  note said "do **not** demo `/decide` on camera, it is still the failing
+  pre-fix build." No longer true; corrected to safe-but-optional.
