@@ -71,5 +71,6 @@ are *paired* comparisons: every strategy is replayed on the identical
 price path, so path noise cancels. That is a much lower-variance
 measurement than this soak's unpaired absolute edge vs holding, and
 those results reproduce deterministically with one command
-(`benches/012_goat/report.md`). This file measures a different, noisier
-quantity — and says so.
+(latest report for the shipped default: `benches/039_goat/report.md`;
+this soak was run against the then-current `012_goat`). This file
+measures a different, noisier quantity — and says so.

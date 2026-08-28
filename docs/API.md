@@ -1,8 +1,8 @@
 # Using the engine from your agent — the free path
 
-The engine is a 208 KB WASM binary served publicly. You don't need our
-API (it's CPU-gated on the free Workers plan anyway) — run the engine
-yourself, locally, for free, forever. Node 18+:
+The engine is a 473 KB WASM binary (152 KB gzipped over the wire) served
+publicly. You don't need any API key — run the engine yourself, locally,
+for free, forever. Node 18+:
 
 ```js
 // agent.mjs — decisions in your process, sub-millisecond, deterministic
@@ -25,5 +25,27 @@ console.log(`edge vs hold: ${sim.edge_vs_hold_bps.toFixed(1)} bps, fills: ${sim.
 ```
 
 Determinism contract: same prices → byte-identical output (GOAT G1/G6).
-Hosted `POST /decide` (same responses, zero setup) activates with the
-Workers Paid plan; pay-per-decision via pay.sh 402 is the roadmap (7b).
+
+## Hosted endpoint (live, no key)
+
+`POST /decide` runs the same engine server-side — zero setup, same
+determinism contract. It takes 30..10,000 positive prices and returns the
+roster a tournament would seat:
+
+```bash
+curl -X POST https://afterswap.solana-thailand.workers.dev/decide \
+  -H 'content-type: application/json' \
+  -d '{"prices":[/* >=30 numbers */]}'
+```
+
+```json
+{ "mode": "roster", "ticks": 40, "strategies_enumerated": 1054,
+  "machines": [ { "name": "Humble Viper",
+                  "fingerprint_blake3_64": "ecc9d22c5dbc6a0a",
+                  "states": 3, "generation": 0,
+                  "sim_edge_bps": 2.99 } ] }
+```
+
+It is CPU-bound on the free Workers plan, so treat it as a preview rather
+than a throughput path — the local WASM route above has no such ceiling.
+Pay-per-decision via pay.sh 402 is the roadmap (7b).

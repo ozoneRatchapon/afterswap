@@ -90,7 +90,7 @@ compete for the right to scale you out.
    the commitment transaction carries `afterswap:quote sha-256=…` in a memo
    beside it. So "this fill followed a policy committed in advance, at a price
    the venue really offered" is three cryptographic facts, not a claim.
-6. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
+6. **There is no backend.** The whole engine compiles to a 473 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.
@@ -231,7 +231,7 @@ DFlow /quote ──► tick ──► FSM population ──► UCB1 bandit ─�
 ## Run it
 
 **Zero-install:** open the [live demo](https://afterswap.solana-thailand.workers.dev)
-— engine compiled to WASM (208 KB), no server anywhere, your browser polls
+— engine compiled to WASM (473 KB, 152 KB gzipped), no server anywhere, your browser polls
 DFlow directly (their dev API allows CORS). Falls back to the bundled
 recording automatically if DFlow is unreachable.
 
@@ -276,7 +276,7 @@ performance claim without a named floor
 | **G3 arm-cap ablation** | PASS — 24-arm cap costs at worst **−0.6 bps** vs the uncapped front (chop; 0.0 on four of six corpora), against a −10 bps budget |
 | **G4 latency** (release) | PASS — **686 ns** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **111 µs**. Budgets 1 ms / 1 s |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+113.7 bps vs TP-ladder**, **+79.9 bps vs TP/SL bracket**, **+10.3 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
+| **Ecosystem floors** (report) | 6-corpus mean: **+113.7 bps vs TP-ladder**, **+79.9 bps vs TP/SL bracket**, **+10.3 bps vs Jupiter-style trailing stop**. **That mean is an upper bound, not a result** — it is carried by the 4 synthetic regimes; on the **2 recorded DFlow corpora alone the engine loses** (trailing **−21.1**, ladder **−7.9**, bracket **−8.9**), though one of the two is a win (+29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
@@ -296,11 +296,14 @@ Returns the tournament roster (names, blake3 fingerprints, simulated
 edges) or, with `open_at`, a full simulated exit with fills and the
 honest edge vs holding. Same input → byte-identical output (G1/G6).
 
-**Status:** fully working under `wrangler dev` and on Workers Paid; the
-free tier's 10 ms CPU budget cannot fit an honest 1,054-machine
-enumeration and we don't ship degraded modes, so the public endpoint
-returns 503 until the plan upgrade. Pay-per-decision via pay.sh HTTP-402
-is the roadmap (7b).
+**Status:** live on the public URL — verified 2026-08-28 returning a real
+roster and a full simulated exit. It is **not yet a throughput path**: a
+cold isolate has to pay the 1,054-machine enumeration, and when that
+overruns the CPU budget Cloudflare returns a **503 (error 1102)**;
+retrying succeeds once the process-cached enumeration is warm. We measured
+this rather than hiding it — treat `/decide` as a preview and use the
+local WASM path (`docs/API.md`) when you need it to always answer.
+Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 
 ## Architecture
 

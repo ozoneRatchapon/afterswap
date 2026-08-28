@@ -18,6 +18,11 @@ Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 direction, then off-peak ≥30 bps) — zero upstream changes needed. Result:
 trailing-stop gap closed (−24.5 → **+2.0 bps**), TWAP floor +60.0 → +87.4,
 TP-ladder +95.4 → +122.8, bracket +53.3 → +80.7. G1–G6 re-validated.
+(Those are the bench-`005_goat` endpoint values, recorded here as the
+result of *this* change. The shipped default now measures TWAP **+75.73**,
+trailing **+10.26**, ladder **+113.74**, bracket **+79.93** on the
+6-corpus mean — bench `039_goat` — and loses on the 2 recorded DFlow
+corpora alone; see §3a and Retraction 1.)
 Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench `008_goat`)
 — at 5 bps threshold every floor degraded and G2b FAILED (−7.3: the bit
 sits in the noise band and burns 3-state capacity); at 10 bps G2b
@@ -244,14 +249,18 @@ Article 78 best-execution compliance artifact. That product does not depend on
 the machine being good — only on the record being provable, which it is.
 
 
-**Preview ✅ built (v2.2), gated on plan:** `POST /decide` deployed —
-same wasm binary server-side, roster + full simulated exit, verified
-deterministic under `wrangler dev`. Free-tier Workers caps CPU at 10 ms;
-honest full enumeration needs more, and degraded modes are against the
-project's discipline → public endpoint 503s until Workers Paid ($5/mo,
-30 s CPU — also unlocks Durable Objects for #5). Enumeration is now
-process-cached (`enumerate_cached`) either way. Remaining for revenue:
-plan upgrade, pay.sh registry onboarding, 402 challenge.
+**Preview ✅ built (v2.2), now live:** `POST /decide` deployed — same
+wasm binary server-side, roster + full simulated exit, verified
+deterministic under `wrangler dev`. The plan upgrade this item was gated
+on has happened (the same upgrade unlocks the Durable Objects the rail
+uses), and the public endpoint answers: **verified 2026-08-28**, n=40
+roster and n=200/1,000/10,000 simulations all returned 200. It is still
+CPU-tight — a cold isolate paying the 1,054-machine enumeration can
+exceed the budget and Cloudflare returns 503 (error 1102); 1 of 3
+back-to-back n=1,000 calls did, the other two succeeded warm. Enumeration
+is process-cached (`enumerate_cached`), which is why warm calls are fine.
+Remaining for revenue: pay.sh registry onboarding, 402 challenge — plus
+smoothing the cold-start 503 before this can be sold as an SLA.
 
 pay.sh (Solana Foundation) lets AI agents pay per API call with no
 accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
