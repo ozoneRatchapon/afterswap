@@ -69,6 +69,22 @@ Show the devnet explorer link for a fresh commitment.
 > is three cryptographic facts, not a claim. And it happens to you just by
 > opening the demo — no wallet needed."
 
+*Recording note (verified live 2026-08-28).* This shot needs **no wallet and
+no live mode**. `commitDemoPolicy` (`index.html:963`) fires on its own once a
+live arm exists while the `livemode` checkbox is **off**; the Worker signs at
+`/api/commit-policy` and the page broadcasts to devnet, so Phantom never
+appears and its new-domain heuristic never applies. Do **not** tick `livemode`
+for this shot — that is the other path (`commitPolicy`, `index.html:579`),
+which is mainnet, spends real SOL, and does pop the wallet.
+Two gotchas: the commit is rate-limited to **one per browser per hour** via
+`localStorage["afterswap-demo-commit-at"]`, so clear that key (or use a fresh
+profile) before the take; and it is capped at **380 total** across all
+visitors (`Scoreboard.MAX_DEMO_COMMITS`) — 11 spent as of 2026-08-28.
+Fallback if nothing commits on camera: open the already-verified PDA
+`5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` on the devnet explorer
+(fingerprint `0x165ef4aabbcc`, 3 states, 10% tranches) and narrate the same
+line — the claim is the commitment existing, not it being made on camera.
+
 **1:32–1:55 — The honest result. Do not skip this.**
 Show the bench table or the README section.
 > "Does it beat a trailing stop? No. We tuned on the first 60% of eleven real

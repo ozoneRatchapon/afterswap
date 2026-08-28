@@ -92,6 +92,27 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       support, and a stated
       framing decision — lead with the rigor, not with the BONK number, because
       the README's own finding is that there is no durable edge.
+      **Memo-shot risk retired, 2026-08-28 (verified live, not reasoned).** An
+      earlier note warned the 1:10–1:32 commitment shot needs
+      `signAndSendTransaction` and could trip Phantom's new-domain heuristics
+      on workers.dev. That was wrong: it described the *live-mode* path
+      (`commitPolicy`, `index.html:579`, `CHAIN = "solana:mainnet"`, real SOL,
+      reachable only with the `livemode` checkbox on). The shot uses
+      `commitDemoPolicy` (`index.html:963`), which fires automatically when
+      live mode is **off**, is signed server-side by `/api/commit-policy`, and
+      is broadcast to devnet by the page — no wallet, no popup, no heuristic.
+      The script's "no wallet needed" line was already correct.
+      Exercised end-to-end against production on 2026-08-28: `/api/commit-policy`
+      → 200 with `signed_tx` + `policy_pda`, broadcast to devnet, PDA
+      `ExiLSj7CGwFF1bknhJ6h48s1L5RZf8bKec1Nc2hZYcnt` created owned by
+      `GEz2tF…8bD8`, 60 bytes decoding to position_id 10, fingerprint
+      `0x165ef4aabbcc`, 3 states, tranche 1000 bps, committed_at
+      2026-08-28T16:05:21Z. Cost: 1 of the 380-commit demo budget
+      (`Scoreboard.MAX_DEMO_COMMITS`) and ~5000 devnet lamports.
+      Fallback still available if the live take misbehaves: the original PDA
+      `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` re-verified the same day —
+      same fingerprint/states/tranche, commit tx succeeded (`err: None`,
+      slot 488168150, fee 5000).
 - [x] Public repo (this one) — push to GitHub — `origin` is
       `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
       both published. The /decide FSM-table fix (`cd75dcd`, `424c998`,
