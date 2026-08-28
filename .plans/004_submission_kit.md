@@ -241,6 +241,27 @@ subject to the 403 that a plain Python client can hit.
 > survivors. The product is a disciplined, verifiable, zero-cost automated exit
 > — not alpha.
 
+**If asked how you know the pipeline is not leaking (look-ahead / overfit):**
+> We ran our own selection pipeline against a synthetic null. Bench 036 sweeps
+> an AR(1) parameter with unconditional volatility pinned at 8 bps per tick, so
+> `phi` is the only thing that varies, and its `phi = +0.0` arm is a series with
+> no predictability at all (realised rho_1 = +0.0025, 20 seeds, 200 windows of
+> 120 ticks, all 1,054 machines, picked on the first 60% and scored on the rest).
+> A pipeline with look-ahead leakage would still report a positive selection
+> differential there. Ours reports **Delta = -0.365 bps** — negative, and well
+> inside its own -8.7 to +12.9 seed spread, i.e. indistinguishable from zero,
+> which is the only honest answer on an unpredictable series. The companion
+> number moves the right way too: **PBO peaks at 0.564 at phi = 0** and falls to
+> ~0.36 at |phi| = 0.4, so the selection is a coin flip exactly where there is
+> nothing to find and better where there is.
+
+Why this belongs in the form answer: it is the one result that shows the *method*
+was tested, not just the strategy. The honest-limitations answer says we found no
+edge; this says the machinery that failed to find one is also incapable of
+inventing one. Source: `benches/036_reversion_causal/report.md` (control sweep),
+with `benches/037_reversion_power/report.md` narrowing the sweep to the band our
+real assets occupy.
+
 **Known caveat to state if asked about the API:**
 > The hosted `POST /decide` endpoint runs on the Workers free plan, whose
 > 2,010 ms CPU ceiling used to kill about half of cold starts. That is fixed —
@@ -313,5 +334,8 @@ subject to the 403 that a plain Python client can hit.
       returns **403 to a plain Python client** (reproduced 12/12; not our
       code — Cloudflare edge bot management on the account). Mitigated with
       a paste-ready `curl` in the answer table.
+- [x] **Synthetic-null / leakage answer added**, sourced from bench 036's
+      `phi = +0.0` arm (Delta = -0.365 bps, PBO 0.564). Figures read from
+      `benches/036_reversion_causal/report.md`, not from memory.
 - [ ] **Record the 2-minute video** — user-only.
 - [ ] **Submit the Google Form before 23:59 ICT Sun 31 Aug 2026** — user-only.
