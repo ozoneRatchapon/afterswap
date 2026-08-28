@@ -20,9 +20,9 @@ testing exactly that is still running.
 
 So the video sells what is actually defensible and rare:
 
-> An exit that runs without you, follows a policy committed on-chain **before**
-> it sells, costs nothing per decision, and is honest about not beating a
-> trailing stop — because it was measured well enough to know.
+> An exit that runs on its own in your browser, follows a policy committed
+> on-chain **before** it sells, costs nothing per decision, and is honest about
+> not beating a trailing stop — because it was measured well enough to know.
 
 Judges see optimistic backtests all day. A team that built a harness good enough
 to catch itself, and then published the negative result, is the differentiated
@@ -78,9 +78,9 @@ Show the bench table or the README section.
 > profitable — and we published that instead of burying it."
 
 **1:55–2:00 — The close.**
-> "What's left is worth having: an exit that runs without you, commits before it
-> sells, costs nothing, and reports its result honestly. That's the bar most
-> retail exits don't even attempt."
+> "What's left is worth having: an exit that runs on its own in your tab,
+> commits before it sells, costs nothing, and reports its result honestly.
+> That's the bar most retail exits don't even attempt."
 
 ### Recording notes
 - Use the **BONK** pair for visual activity (it moves), but do **not** narrate
@@ -96,6 +96,40 @@ Show the bench table or the README section.
   costs seconds of runtime you may not have in a 2-minute cut.
 - Record 1440p or better if the roster table is on screen — fingerprints need
   to be legible for the "not designed by us" point to land.
+
+### Do not say — claims the build does not support
+
+Verified against the source 2026-08-28. Each of these is a real feature of some
+*other* product, and saying it invites a judge to open the program and find it
+missing.
+
+- **"Keepers execute the exits."** The string `keeper` appears **nowhere in the
+  source or the docs** — the only hits in the tree are inside this guardrail.
+  There is no keeper, no crank, no off-chain executor.
+- **"Gasless tranche exits."** Nothing is gasless. The user signs the policy
+  commitment and pays that fee plus PDA rent. Outside this guardrail, `gasless`
+  occurs exactly once in the tree — `docs/OPPORTUNITIES.md`, listing sponsored
+  swaps as an *unbuilt* opportunity ("a visitor **could** run…").
+- **"On-chain policy delegation" / "sign once and it trades for you."** The
+  Pinocchio program (`crates/afterswap-policy/src/lib.rs`) has exactly **one**
+  instruction, `CommitPolicy`, which writes an immutable PDA. It has no exit
+  instruction and no delegate authority. Its own doc comment says "Phase B
+  (delegated execution) builds on this" — i.e. delegated execution is not
+  built. `docs/ROADMAP.md` §4 marks it post-buildathon work.
+
+**What to say instead** — the commitment story, which is fully shipped and is
+the stronger claim anyway:
+
+> "You sign once to commit the policy on-chain — an immutable PDA holding the
+> blake3 fingerprint of the exact exit machine that governs the position,
+> written *before* any fill follows it. That commitment is what makes every
+> later fill auditable against a rule fixed in advance. Delegated execution
+> against that commitment is Phase B, and it is not in this build."
+
+The engine itself does run unattended — in the browser tab, with no wallet
+popup per decision, because it is simulating and deciding rather than signing.
+Say "runs on its own in your tab", not "runs without you", so the difference
+between *deciding* and *custodially executing* stays visible.
 
 ## Google Form fact sheet — copy-paste answers
 
@@ -144,11 +178,33 @@ from here, so this is the raw material rather than a field-by-field fill.
 > distinguished a fix from a lucky draw. The in-browser WASM path has no such
 > ceiling at all.
 
+**Known caveat to state if asked about regulation / MiCA:**
+> The verifiable rail produces best-execution artifacts **aligned with MiCA
+> Article 78** — every venue quoted per execution, a pre-committed decision
+> rule, a second venue captured beside the primary, immediate public reads, and
+> hash-chained records whose segment roots are anchored on-chain (devnet). We
+> deliberately do **not** say "compliant": that is a determination for a
+> regulator and counsel, not for a codebase. `docs/RAIL.md` §0 states this
+> ceiling in the repo itself.
+
+**If asked how strong the audit trail is — do not flatten the two venues:**
+> DFlow signs its quotes (RFC 9421, ed25519) so anyone can re-verify forever
+> that DFlow *offered* that price. Jupiter does not sign anything, so its leg is
+> self-attested: we record the full body and digest and sign the observation,
+> which proves we saw it, not that Jupiter offered it. Recording that asymmetry
+> honestly rather than flattening it is the point.
+
 ## Checklist
 
 - [x] Video script written to time, with a shot list and a stated framing
       decision (lead with rigor, not with a number).
 - [x] Recording notes covering the `?replay` fallback and `/decide` status.
+- [x] **"Do not say" guardrail** — keeper / gasless / delegated-execution
+      claims audited against the source and ruled out, with the shipped
+      commitment story written as the replacement line.
+- [x] **MiCA answer held at "aligned with", not "compliant"**, plus a
+      DFlow-signed vs Jupiter-self-attested answer so the evidence asymmetry
+      is not flattened under questioning.
 - [x] Form fact sheet assembled from defensible figures only, including an
       explicit limitations answer.
 - [ ] **Record the 2-minute video** — user-only.

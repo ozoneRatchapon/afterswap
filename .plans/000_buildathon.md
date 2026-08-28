@@ -86,8 +86,10 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       Everything except the recording is prepared in
       `.plans/004_submission_kit.md`: a shot-by-shot script timed to 0:00–2:00,
       recording notes (use `?replay` if live quotes are flat; `/decide` is now
-      deployed and measures 40/40, so it is safe but optional to demo), and a
-      stated
+      deployed and measures 80/80 across two independent 40-call runs, so it is
+      safe but optional to demo), a **"do not say" guardrail** listing the
+      keeper / gasless / delegated-execution claims the program does not
+      support, and a stated
       framing decision — lead with the rigor, not with the BONK number, because
       the README's own finding is that there is no durable edge.
 - [x] Public repo (this one) — push to GitHub — `origin` is

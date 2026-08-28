@@ -244,9 +244,12 @@ conclusion from the cost side — "positioning an execution engine primarily as
 an alpha-generating trading system is commercially fragile".
 
 The surviving version sells **verifiability, not alpha**: the signed quote →
-on-chain policy commitment → verified fill chain (#7h, shipped) as a MiCA
-Article 78 best-execution compliance artifact. That product does not depend on
-the machine being good — only on the record being provable, which it is.
+on-chain policy commitment → verified fill chain (#7h, shipped) as a
+best-execution compliance artifact **aligned with MiCA Article 78**. Per the
+claims discipline in `docs/RAIL.md` §0, "aligned with" is the ceiling: whether
+an artifact *is* compliant is a determination for a regulator and counsel, not
+for a codebase. That product does not depend on the machine being good — only
+on the record being provable, which it is.
 
 
 **Preview ✅ built (v2.2), deployed:** `POST /decide` runs
