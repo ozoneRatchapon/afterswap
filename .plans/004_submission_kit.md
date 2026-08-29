@@ -518,5 +518,12 @@ real assets occupy.
       **`python-requests` all return 200**. Decision: **change nothing, ship the
       `curl`** — there is most likely no toggle anyway, since `workers.dev` is
       not a zone in this account.
+- [x] **Final pre-submission link check, 2026-08-30.** Every URL in this kit
+      probed live: the app (200), `/decide` (200, 89 ms), the repo (200
+      unauthenticated, so still public), `/rail` (200). Rail host healthy:
+      tip seq 139, closed through 127, `seq_gaps: 0`, and proofs for the
+      demo range serve — `/rail/proof/120`, `/121`, `/127` all 200. Prod is
+      `91e6771` exactly (sha-matched, 73-assertion harness green against the
+      fetched page). Nothing the video or the form points at is dead.
 - [ ] **Record the 2-minute video** — user-only.
 - [ ] **Submit the Google Form before 23:59 ICT Sun 31 Aug 2026** — user-only.
