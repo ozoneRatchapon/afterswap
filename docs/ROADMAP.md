@@ -350,6 +350,17 @@ against that pre-fix range, not a single number.
 
 Remaining for revenue: pay.sh registry onboarding, 402 challenge.
 
+**Read the next paragraph as delivery, not product (2026-08-29).** It was
+written before the re-scope above and still describes the *decision* as the
+sellable good — which is exactly what the re-scope retired. The metering rail
+survives the re-scope intact; the thing metered over it does not. Priced per
+call, `/decide` sells the machine's edge, and bench 035 cannot show that edge
+is non-zero on ten of eleven assets. Priced per call, a **signed receipt** for
+an execution the caller already intended to make sells the record, which is
+provable regardless of whether the machine is any good. Same 402 challenge,
+same registry entry, same endpoint — different line item. Where the paragraph
+below says "decision API", read "receipt API".
+
 pay.sh (Solana Foundation) lets AI agents pay per API call with no
 accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
 fit: trading agents are proliferating and share the human weakness —
@@ -359,8 +370,9 @@ per call over 402. Everything an agent-facing decision API needs, we
 already have: determinism (reproducible), µs latency, on-chain-auditable
 policies, and the GOAT report as the sales page. The browser demo stays
 free (marketing); agents pay for the hosted endpoint + evolved-machine
-leaderboards + corpora. This is the most concrete revenue path on this
-list — pairs with #5 (the DO host becomes the paid endpoint).
+leaderboards + corpora. This is the most concrete *delivery* path on this
+list — see the correction above for what is actually sold over it. Pairs
+with #5 (the DO host becomes the paid endpoint).
 
 ## 7c. Paired online evaluation ✅ SHIPPED (v2.6)
 
