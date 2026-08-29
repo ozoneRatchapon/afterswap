@@ -35,6 +35,13 @@
     --delta-bad:   #d03b3b;
     --status-warn: #fab219;
     --field-off:   #3f3f3a;   /* unlit machine in the field */
+    /* On-line value pills (last price, race edge). One pair for both themes:
+       white on #1d5fb0 is 6.33:1, and the fill clears 3:1 against either
+       page. Dark mode previously used near-black --page text on #3987e5 —
+       5.34:1 on paper, but the text matched the page behind the chart and
+       read as a hole in the pill. */
+    --pill-fill:   #1d5fb0;
+    --pill-ink:    #ffffff;
   }
   /* Demo Day is a projected room and judges screenshot into light documents,
      so the page follows the OS instead of forcing dark. Every value below was
@@ -534,8 +541,8 @@ function renderChart(s) {
   const pillW = Math.max(34, String(px(lastP)).length * 7 + 10);
   const pillX = W - 2 - pillW;
   g += `<rect x="${pillX}" y="${Y(lastP) - 9}" width="${pillW}" height="18" rx="4"
-          fill="var(--series-1)"/>`
-     + `<text x="${pillX + pillW / 2}" y="${Y(lastP) + 4}" text-anchor="middle" fill="var(--page)">${px(lastP)}</text>`;
+          fill="var(--pill-fill)"/>`
+     + `<text x="${pillX + pillW / 2}" y="${Y(lastP) + 4}" text-anchor="middle" fill="var(--pill-ink)">${px(lastP)}</text>`;
   g += `<line id="xhair" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
   svg.innerHTML = g;
   svg.onmousemove = (ev) => {
@@ -812,8 +819,8 @@ function renderRace(s) {
           stroke-linejoin="round" stroke-linecap="round"/>`;
   const txt = `${now >= 0 ? "+" : ""}${now.toFixed(1)}`;
   const w = txt.length * 7 + 12;
-  g += `<rect x="${W - P.r + 2}" y="${pillY - 9}" width="${w}" height="18" rx="4" fill="var(--series-1)"/>`
-     + `<text x="${W - P.r + 2 + w / 2}" y="${pillY + 4}" text-anchor="middle" fill="var(--page)" font-weight="600">${txt}</text>`;
+  g += `<rect x="${W - P.r + 2}" y="${pillY - 9}" width="${w}" height="18" rx="4" fill="var(--pill-fill)"/>`
+     + `<text x="${W - P.r + 2 + w / 2}" y="${pillY + 4}" text-anchor="middle" fill="var(--pill-ink)" font-weight="600">${txt}</text>`;
   g += `<line id="racex" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
   svg.innerHTML = g;
   // Same hover contract as the price chart: a crosshair plus one tooltip with
