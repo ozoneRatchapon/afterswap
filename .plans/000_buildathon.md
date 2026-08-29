@@ -578,8 +578,8 @@ them would put a false claim in the plan.
   and judged the storytelling complete — the dashboard is **done**; further
   "improvement" would cross the owner's own clutter line.
 
-- **Deploy-gated:** prod verified at `40b56ac` on 2026-08-30 (HTML sha-match,
-  full harness green against the fetched page, wasm/glue byte-match, `/rail`
-  byte-match). `91e6771` is pushed but **not on prod** — one more
-  `wrangler deploy`, then re-run the 73-assertion prod harness and the
-  geometry check against the fetched page.
+- **Deploy gap closed 2026-08-30.** The owner deployed `91e6771`; prod
+  verified by fetching, not assumed — HTML sha-matches the commit exactly,
+  the 73-assertion harness and the geometry check both pass against the
+  fetched page, and the wasm, JS glue and `/rail` all byte-match the tree.
+  Nothing code-side remains: the form and the video are the whole list.
