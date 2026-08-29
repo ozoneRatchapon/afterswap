@@ -560,6 +560,26 @@ them would put a false claim in the plan.
   machine, sim edge and pull count, via one delegated listener rather than
   1,054. And `FIELD_ROWS`, which `26fcb84` declared and never read, is gone.
 
-- **Deploy-gated:** `7ae050e` is pushed but **not on prod**. The 2026-08-29 redeploy shipped everything up to `393cbfa`, verified
-  by fetching both pages and re-running the 22-assertion harness against the
-  live HTML; `26fcb84` needs one more `wrangler deploy`.
+- **Race end labels + hover** (`91e6771`, 2026-08-30). Two comprehension
+  defects in the race chart, found on an owner-asked "what else" pass:
+  1. The four reference end labels printed at each line's final y with no
+     layout, and the references *converge* in every real race (they agree once
+     the position closes) — so the labels stacked unreadably at exactly the
+     moment the chart matters most. A relaxation pass now sorts labels by y and
+     pushes them ≥15 px apart (forward + backward sweep, clamped to the plot);
+     the machine pill rides in the same pass so nothing hides under it. Lines
+     still end at their true y — only labels move.
+  2. The race was the only chart without hover. It now has the same crosshair
+     + tooltip idiom as the price chart: all five values at the hovered tick,
+     ranked, machine bolded, "bps vs hold" header.
+  Harness grew 65 → 73 assertions, including a forced-convergence case that
+  mutates `raceState()` so all five series end equal and asserts the label
+  gaps. The same pass re-validated both palettes (all six checks, both modes)
+  and judged the storytelling complete — the dashboard is **done**; further
+  "improvement" would cross the owner's own clutter line.
+
+- **Deploy-gated:** prod verified at `40b56ac` on 2026-08-30 (HTML sha-match,
+  full harness green against the fetched page, wasm/glue byte-match, `/rail`
+  byte-match). `91e6771` is pushed but **not on prod** — one more
+  `wrangler deploy`, then re-run the 73-assertion prod harness and the
+  geometry check against the fetched page.
