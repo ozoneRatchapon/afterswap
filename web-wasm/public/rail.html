@@ -121,10 +121,13 @@ import init, {
   rail_verify_record, rail_record_hash, rail_merkle_verify,
 } from "./pkg/afterswap_wasm.js";
 
-// The rail lives on its own pure-Rust Worker; same-origin by default,
-// cross-origin via ?rail=https://afterswap-rail.<account>.workers.dev
-// (every rail endpoint sends access-control-allow-origin: *).
-const BASE = new URLSearchParams(location.search).get("rail") ?? "";
+// The rail lives on its own pure-Rust Worker, NOT on the app host — the app
+// host 404s on /rail/*. So the default points at the production rail worker;
+// ?rail=https://host overrides it for local dev / a different rail.
+// (every rail endpoint sends access-control-allow-origin: *, so cross-origin
+// fetches from the app host or a file:// page both work.)
+const DEFAULT_RAIL = "https://afterswap-rail.solana-thailand.workers.dev";
+const BASE = new URLSearchParams(location.search).get("rail") ?? DEFAULT_RAIL;
 const $ = (s) => document.querySelector(s);
 const el = (t, cls, text) => {
   const e = document.createElement(t);
