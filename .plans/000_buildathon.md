@@ -543,7 +543,23 @@ them would put a false claim in the plan.
   and 6.33:1 light. This is a change to approved palette *usage*, not to the
   palette, and it is worth a look on the recording.
 
-- **Deploy-gated:** `0ba3650`, `1f23653`, `f2caf68` and `26fcb84` are pushed but **not on
-  prod**. The 2026-08-29 redeploy shipped everything up to `393cbfa`, verified
+- **The race** (`7ae050e`). "Paired against every standard exit" was a
+  three-column table of running means; the per-tick values behind it already
+  existed in `shadowValues` and were simply never plotted. The scoreboard panel
+  now leads with a live chart: the machine against TWAP, trailing stop, TP
+  ladder and TP+SL bracket, all in bps against holding, zero = doing nothing.
+  Sampling happens in `render()` rather than the tick loop so the machine and
+  the references are read off the **same** tick — that identity is the whole
+  basis of the paired comparison, and sampling in the tick loop would have read
+  the machine one tick stale. References share one ink and separate by dash
+  pattern plus a direct end label, rather than four hues the palette does not
+  have. Guarded against double-sampling (`render()` fires again on button
+  actions) and resets on a new `opened_at_tick` so two positions never
+  concatenate into one line.
+- **The field is now inspectable** (`7ae050e`) — hover any lit mark for its
+  machine, sim edge and pull count, via one delegated listener rather than
+  1,054. And `FIELD_ROWS`, which `26fcb84` declared and never read, is gone.
+
+- **Deploy-gated:** `7ae050e` is pushed but **not on prod**. The 2026-08-29 redeploy shipped everything up to `393cbfa`, verified
   by fetching both pages and re-running the 22-assertion harness against the
   live HTML; `26fcb84` needs one more `wrangler deploy`.
