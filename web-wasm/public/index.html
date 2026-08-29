@@ -30,7 +30,7 @@
     --series-1:    #3987e5;   /* price line, active FSM state */
     --series-2:    #d95926;   /* tranche-fill markers */
     --seq-400:     #3987e5;   /* meter fill */
-    --seq-600:     #184f95;   /* meter track (lighter step of same ramp, dark mode) */
+    --seq-600:     #184f95;   /* meter track (deeper step of same ramp, dark mode) */
     --delta-good:  #0ca30c;
     --delta-bad:   #d03b3b;
     --status-warn: #fab219;
@@ -771,6 +771,7 @@ function renderRace(s) {
     svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">${
       s.position ? "measuring…" : "open a position to start the race"}</text>`;
     svg.setAttribute("aria-label", "The race has not started; no position is open");
+    svg.onmousemove = null; svg.onmouseleave = null;
     return;
   }
   const keys = ["machine", ...RACE_REFS.map(r => r[0])];
@@ -782,21 +783,57 @@ function renderRace(s) {
   const X = (t) => P.l + (t - t0) / Math.max(1, t1 - t0) * (W - P.l - P.r);
   const Y = (b) => P.t + (hi - b) / (hi - lo) * (H - P.t - P.b);
   const path = (k) => raceHist.map(p => `${X(p.t)},${Y(p[k])}`).join(" ");
+  const last = raceHist[raceHist.length - 1], now = last.machine;
+  // Every right-edge label sits at its line's last y, and the reference exits
+  // agree almost exactly for the first stretch of any race — without layout
+  // they print on top of each other. One relaxation pass: sort by target y,
+  // push apart, clamp to the plot. The machine pill rides in the same pass so
+  // no reference label ends up underneath it.
+  const GAP = 15;
+  const items = RACE_REFS.map(([k, label]) => ({ label, y: Y(last[k]) }));
+  items.push({ pill: true, y: Y(now) });
+  items.sort((a, b) => a.y - b.y);
+  items[0].y = Math.max(items[0].y, P.t + 5);
+  for (let i = 1; i < items.length; i++)
+    items[i].y = Math.max(items[i].y, items[i - 1].y + GAP);
+  items[items.length - 1].y = Math.min(items[items.length - 1].y, H - P.b - 4);
+  for (let i = items.length - 2; i >= 0; i--)
+    items[i].y = Math.min(items[i].y, items[i + 1].y - GAP);
+  const labelY = new Map(items.filter((it) => !it.pill).map((it) => [it.label, it.y]));
+  const pillY = items.find((it) => it.pill).y;
   let g = `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3 3"/>`
         + `<text x="${P.l}" y="${Y(0) - 5}">doing nothing</text>`;
   for (const [k, label, dash] of RACE_REFS) {
     g += `<polyline points="${path(k)}" fill="none" stroke="var(--muted)" stroke-width="1.2"
             stroke-dasharray="${dash}" opacity="0.85"/>`
-       + `<text x="${W - P.r + 5}" y="${Y(raceHist[raceHist.length - 1][k]) + 3.5}">${label}</text>`;
+       + `<text x="${W - P.r + 5}" y="${labelY.get(label) + 3.5}">${label}</text>`;
   }
   g += `<polyline points="${path("machine")}" fill="none" stroke="var(--series-1)" stroke-width="2.5"
           stroke-linejoin="round" stroke-linecap="round"/>`;
-  const now = raceHist[raceHist.length - 1].machine;
   const txt = `${now >= 0 ? "+" : ""}${now.toFixed(1)}`;
   const w = txt.length * 7 + 12;
-  g += `<rect x="${W - P.r + 2}" y="${Y(now) - 9}" width="${w}" height="18" rx="4" fill="var(--series-1)"/>`
-     + `<text x="${W - P.r + 2 + w / 2}" y="${Y(now) + 4}" text-anchor="middle" fill="var(--page)" font-weight="600">${txt}</text>`;
+  g += `<rect x="${W - P.r + 2}" y="${pillY - 9}" width="${w}" height="18" rx="4" fill="var(--series-1)"/>`
+     + `<text x="${W - P.r + 2 + w / 2}" y="${pillY + 4}" text-anchor="middle" fill="var(--page)" font-weight="600">${txt}</text>`;
+  g += `<line id="racex" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
   svg.innerHTML = g;
+  // Same hover contract as the price chart: a crosshair plus one tooltip with
+  // all five values at that tick, ranked, so nobody has to trace a dashed
+  // line back to its end label.
+  svg.onmousemove = (ev) => {
+    const xh = $("racex");
+    if (!xh) return hideTip();
+    const r = svg.getBoundingClientRect();
+    const frac = (ev.clientX - r.left - P.l) / (W - P.l - P.r);
+    const i = Math.round(frac * (raceHist.length - 1));
+    if (i < 0 || i >= raceHist.length) return hideTip();
+    const p = raceHist[i], x = X(p.t);
+    xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("visibility", "visible");
+    const fmt = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}`;
+    const rows = [["<b>machine</b>", p.machine], ...RACE_REFS.map(([k, label]) => [label, p[k]])]
+      .sort((a, b) => b[1] - a[1]).map(([n, v]) => `${n} ${fmt(v)}`).join("<br>");
+    showTip(ev.clientX, ev.clientY, `tick <b>${p.t}</b> · bps vs hold<br>${rows}`);
+  };
+  svg.onmouseleave = () => { hideTip(); const xh = $("racex"); if (xh) xh.setAttribute("visibility", "hidden"); };
   const beaten = RACE_REFS.filter(([k]) => now > raceHist[raceHist.length - 1][k]).length;
   svg.setAttribute("aria-label",
     `Live race over ${raceHist.length} ticks. The machine is ` +
