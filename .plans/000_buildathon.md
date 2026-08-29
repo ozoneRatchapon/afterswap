@@ -182,6 +182,24 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       `git rev-parse --short develop origin/develop` — equal means published.
       The checkbox is about the repo being public and
       current, which it is.)
+      **Stale again, 2026-08-29 (second occurrence).** `origin/develop`
+      = `94c4c85`, local `develop` = `df9b6dd` — the plain-language framing
+      commit is unpushed, so a judge opening the repo right now still reads
+      the old "exhaustively enumerated exit machines" masthead, which is the
+      exact sentence the framing work was written to replace. Two further
+      commits sit on `feature/receipt-modal` (`2c923e6` receipt modal,
+      `fc40896` one-liner + ROADMAP §7b), unmerged and unpushed at the
+      owner's explicit request. **Owner action before submitting the form:**
+      push `develop`, and decide whether the receipt modal ships for judging.
+      This is the second time this entry went stale by the same mechanism —
+      the checkbox is still `[x]` because the repo is public, but "current"
+      must be re-checked live, not read from here.
+      **RESOLVED later the same day.** `develop` pushed (`94c4c85..df9b6dd`),
+      `feature/receipt-modal` pushed, then merged into `develop` with
+      `--no-ff` (merge `cba0cfc`) and pushed. The public repo now carries the
+      plain-language masthead, the new one-liner on every surface, the
+      ROADMAP §7b correction and the receipt modal. Re-check live before the
+      form goes in — that is the whole point of not recording a hash here.
 - [x] "How DFlow integrates" writeup (README section) — README
       §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
       is the engine's only input) and **actuator** (every sell-tranche maps to
@@ -409,3 +427,39 @@ Two items, both requiring a human, neither preparable any further:
 2. **Submit the Google Form** — **closes 23:59 ICT Sun 31 Aug 2026**.
    Every field is paste-ready in `.plans/004_submission_kit.md`. Unsubmitted
    is zero regardless of everything above.
+
+### Follow-on work, 2026-08-29 (after the framing pass)
+
+Neither of the two boxes above moved — both still need a human, and marking
+them would put a false claim in the plan.
+
+- **`docs/ROADMAP.md` §7b contradiction closed** (`fc40896`). The section
+  re-scopes away from selling decisions ("selling a *decision* prices the
+  machine's edge"), then a pre-re-scope paragraph still called a per-call
+  `/decide` API "the most concrete revenue path". A dated correction now
+  separates **delivery** (402 challenge, pay.sh registry, same endpoint — all
+  survives the re-scope) from **product** (a signed receipt, not a decision).
+
+- **Form one-liner swapped to plain language** (`fc40896`), owner-approved,
+  five sites — `docs/PITCH.md`, `docs/SUBMISSION.md`,
+  `.plans/004_submission_kit.md`, `web/index.html`, and
+  `web-wasm/public/index.html`. That last one was not in the original
+  four-site list and is the **deployed** demo banner. Body prose that
+  describes the enumeration accurately (`docs/SUBMISSION.md:8`) was left
+  alone; only the headline changed.
+
+  > Cruise control plus a dashcam, for selling — your exit runs to a rule,
+  > and every fill leaves a receipt anyone can check. Live on DFlow.
+
+- **Deploy + publish gap closed 2026-08-29.** The owner redeployed; the live
+  banner was then verified by fetching the page, not assumed —
+  `afterswap.solana-thailand.workers.dev` serves "cruise control plus a
+  dashcam, for selling … running entirely in your tab". Repo side: `develop`
+  pushed, `feature/receipt-modal` merged `--no-ff` (`cba0cfc`) and pushed.
+  Live site, README, `docs/SUBMISSION.md`, `docs/PITCH.md` and both demo
+  banners now state the same one-liner.
+
+- **Not fixed, flagged only:** line 8 of this file says "~956 exhaustively
+  enumerated" where every user-facing surface says 1,054. Nothing published
+  depends on the 956 figure, and guessing which is meant would be worse than
+  leaving it visible.
