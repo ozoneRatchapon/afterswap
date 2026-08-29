@@ -140,8 +140,9 @@ keys, no custody — the exact UX failure observed in live testing
 (a wallet prompt on every tranche, plus Phantom's new-domain heuristics
 blocking the request) dissolves.
 
-Status: steps 1 and 2 built and tested (2026-08-29); `AnchorFill`, devnet
-deploy and audit remain. The table records what those repos state they do.
+Status: steps 1, 2 and 3 built and tested (2026-08-29) — every
+instruction in the design, `AnchorFill` (tag 6) included, is now built.
+Devnet deploy and audit remain. The table records what those repos state they do.
 Integration is post-buildathon work and Phase B still needs an audit before
 mainnet.
 **Phase A status: ✅ DEPLOYED ON DEVNET (v2.4).** Rewritten in Pinocchio
@@ -168,8 +169,20 @@ revoke clears crank, revoke idempotent). Binary 18 KB → **23.8 KB** (still
 `ValidateAndSell` (tag 2) — the gate, and the only instruction that moves
 tokens — plus the vault path it needs: `DepositToVault` (tag 4) and
 `CloseVault` (tag 5). 16 further LiteSVM tests in `tests/vault.rs`, so the
-crate now runs **26 tests, all green** (`policy.rs` 2, `execution.rs` 7,
-`vault.rs` 17). Binary **35,736 bytes (34.9 KB)**, rent-exempt minimum **0.2496 SOL** — both inside the < 60 KB / < 0.4 SOL budget.
+crate now runs **34 tests, all green** (`policy.rs` 2, `execution.rs` 7,
+`vault.rs` 17, `anchor.rs` 8 — the last added with step 3 below). Binary
+**42,368 bytes (41.4 KB)**, rent-exempt minimum **0.29577216 SOL** (devnet
+RPC, 2026-08-29) — both inside the < 60 KB / < 0.4 SOL budget. Before
+`AnchorFill` the same figures were 35,736 bytes and 0.2496 SOL.
+
+**Phase B step 3 status: ✅ BUILT AND TESTED (2026-08-29).** `AnchorFill`
+(tag 6) publishes each fill as an SPL memo — the sell-side counterpart of the
+shipped `afterswap:quote` commit-side memo, and the third link
+`OPPORTUNITIES.md` §3.2 lists as missing. It moves no tokens and writes no
+account state. Every field but the quote digest is read from the policy and
+execution PDAs, so a caller cannot anchor a fill that did not happen or
+misreport which tranche it was; the digest is necessarily caller-supplied,
+which is why the signer is restricted to the authorized crank or the owner.
 
 Two caveats, stated because they change what may be claimed. The design is
 **vault-sourced**, so the program *does* take custody between deposit and
@@ -178,8 +191,10 @@ available as a claim for this design. And an earlier draft of the design doc
 justified the vault over an SPL delegate by asserting that a delegate cannot
 transfer to an arbitrary destination; **that is false**, and the
 delegate-on-owner-ATA alternative is still open. See
-`PHASE_B_DELEGATED_EXECUTION.md` §1 and §8. Next: `AnchorFill` (tag 6), then
-devnet deploy — but settle vault-vs-delegate first.
+`PHASE_B_DELEGATED_EXECUTION.md` §1 and §8. `AnchorFill` (tag 6) is now
+built (34 tests green, 42,368 B, 0.2958 SOL rent). Next: devnet deploy — but
+settle vault-vs-delegate first, because deploying makes the vault design the
+one demoed and written about.
 
 **Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
 the endgame of the trust ladder. Delegate the position/policy PDA into an

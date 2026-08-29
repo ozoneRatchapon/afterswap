@@ -348,7 +348,7 @@ Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 | `afterswap-dflow` | DFlow Trading API client (`/quote`, `/order`), price poller. Types verified against live captures. |
 | `afterswap-server` | Paper loop + axum server, SSE snapshot stream, vanilla-JS/SVG dashboard. |
 | `afterswap-wasm` | Browser build of the engine (wasm-bindgen) — powers the serverless live demo on Cloudflare Workers static assets. |
-| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions (34.9 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
+| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions, all seven tags including `AnchorFill` (41.4 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
 
 Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The

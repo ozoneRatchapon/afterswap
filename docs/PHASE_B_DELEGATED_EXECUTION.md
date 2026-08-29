@@ -119,7 +119,7 @@ they drifted:
 | 3 | `RevokeAuthorization` | built + tested, **not deployed** |
 | 4 | `DepositToVault` | built + tested, **not deployed** |
 | 5 | `CloseVault` | built + tested, **not deployed** |
-| 6 | `AnchorFill` | **designed only, not built** — tag reserved |
+| 6 | `AnchorFill` | built + tested (2026-08-29), **not deployed** |
 
 `DepositToVault` and `CloseVault` are the vault-sourced custody path (§1) and
 have no subsection below because they postdate this document's §4.
@@ -216,16 +216,56 @@ no other cranker can. Once revoked, `ValidateAndSell` fails at step 2
 for any cranker; only the owner override (step 2, second branch) can
 still move tokens, and only if the owner re-authorizes.
 
-### 4.4 `AnchorFill` — tag 6 (designed, not built)
+### 4.4 `AnchorFill` — tag 6 (built + tested 2026-08-29)
 
-Accounts: `any (signer, fee payer)`, `execution PDA (readonly)`, `memo`.
+Accounts as built: `signer (fee payer)`, **`policy PDA (readonly)`**,
+`execution PDA (readonly)`, `memo program`. Instruction data: tag(1) +
+`quote_digest`(32) = 33 bytes.
 
-Emits a memo: `afterswap:fill fp=<blake3-64> pos=<position_id>
-tranche=<index> slot=<tick_slot> quote=sha256:<digest>` — the identical
-pattern to the shipped `afterswap:quote` memo, now on the *sell* side.
-This is the third link of the verifiable chain, on the fill transaction
-itself, which `OPPORTUNITIES.md` §3.2 lists as "remaining to make it
-end-to-end for mainnet fills."
+Emits `afterswap:fill fp=<blake3-64> pos=<position_id> tranche=<index>
+slot=<tick_slot> quote=sha256:<digest>` — the identical pattern to the
+shipped `afterswap:quote` memo, now on the *sell* side. This is the third
+link of the verifiable chain, on the fill transaction itself, which
+`OPPORTUNITIES.md` §3.2 lists as "remaining to make it end-to-end for
+mainnet fills."
+
+**Two departures from the sketch above, both deliberate:**
+
+- **The policy PDA is an account, and the caller supplies almost nothing.**
+  The sketch passed only the execution PDA, which implies the fingerprint
+  came from the instruction data — i.e. from the caller. A memo whose
+  contents the caller chooses proves nothing. As built, the fingerprint is
+  read from the policy PDA, and the tranche index (`tranches_filled - 1`)
+  and tick slot are read from the execution PDA. The **quote digest is the
+  only caller-supplied field**, and it has to be: it names an off-chain
+  quote the chain never saw.
+- **Not "any signer."** Because the quote digest *is* caller-supplied, an
+  open instruction would let any fee-payer bind a false quote to a real
+  fill. The signer is restricted to the authorized crank or the owner — the
+  same two parties `ValidateAndSell` accepts.
+
+Both PDAs are derived from `exec_owner + position_id` and owner-checked
+before their contents are trusted, for the reason recorded in §7b finding 1:
+a look-alike account would otherwise let a crank publish a chain link naming
+a machine that never governed the position. `anchor_fill_rejects_a_
+substituted_policy_account` is that attack, aimed at the memo.
+
+**Measured cost (LiteSVM, 2026-08-29):** 57,041 CU for the whole
+transaction, of which **51,717 CU is SPL Memo itself** — the AfterSwap half
+is ~5.3k CU, and the memo program dominates. Well inside the 200k default,
+so no compute-budget instruction is needed; but note that batching a memo
+into the `ValidateAndSell` transaction rather than sending it separately
+would put a 52k-CU dependency on the critical path, which is why this is a
+separate instruction.
+
+Rejections: no fill yet → `Custom(3)` (also prevents `tranches_filled - 1`
+wrapping to 255); signer neither crank nor owner → `Custom(1)`; memo program
+not SPL Memo v3 → `IncorrectProgramId`; substituted PDA → `InvalidSeeds`.
+
+**Rendering caveat for verifiers.** The on-chain `fp=` field is zero-padded
+to a fixed 16 hex digits; the off-chain renderers (`worker/index.ts`, the
+demo page) print the same value via `BigInt(...).toString(16)`, which strips
+leading zeros. Compare the two **numerically, not as strings.**
 
 ### 4.5 `ClosePosition` — superseded by `CloseVault` (tag 5, built)
 
@@ -301,9 +341,13 @@ This is a real security surface. The audit scope, stated explicitly:
 ## 7. Test plan (LiteSVM, same style as `tests/policy.rs`)
 
 **Status: done, and exceeded.** The plan below asked for 10 cases; the build
-landed **26 tests, all green** against the compiled SBF binary —
-`tests/policy.rs` 2, `tests/execution.rs` 7, `tests/vault.rs` 17. Cases 1–8
-and 10 are covered. **Case 9 is not**, because `AnchorFill` is not built.
+landed **34 tests, all green** against the compiled SBF binary —
+`tests/policy.rs` 2, `tests/execution.rs` 7, `tests/vault.rs` 17,
+`tests/anchor.rs` 8. **All 10 cases are now covered**; case 9 closed on
+2026-08-29 when `AnchorFill` was built. The shared LiteSVM environment moved
+to `tests/common/mod.rs` at the same time — `vault.rs` had already outgrown
+the 1024-line limit, and a second copy of a thirteen-account builder is
+exactly the drift that broke its call sites once before.
 The vault path (`DepositToVault` / `CloseVault`) is tested beyond this plan:
 deposit creates and tops up, non-signer and wrong-PDA rejects, sell rejects
 amounts exceeding the vault balance and zero amounts, close reclaims, close
@@ -327,7 +371,8 @@ The original plan, kept for the record:
    4th sell fails (exceeds `n_states`). `executed_lamports` equals
    `3 × tranche_bps` of position.
 9. `AnchorFill` emits the memo; the memo contains the correct fingerprint,
-   position id, tranche index, slot, and quote digest.
+   position id, tranche index, slot, and quote digest. **Covered** by
+   `tests/anchor.rs`, plus five rejection cases the plan did not ask for.
 10. **Immutability regression:** `CommitPolicy` still refuses a second
     commit for the same (owner, position) — the existing test in
     `tests/policy.rs` must still pass unchanged.
@@ -391,11 +436,12 @@ clean autofixer run as a security review; it is not one, and neither is this.
 - It does not replace the Worker. The Worker still runs the engine, makes
   the decision, and submits the `hydra` schedule. The program is the
   enforcement point, not the decision point.
-- **`AnchorFill` is designed but not built.** The shipped tags are 0
-  `CommitPolicy`, 1 `AuthorizeExecution`, 2 `ValidateAndSell`, 3
-  `RevokeAuthorization`, 4 `DepositToVault`, 5 `CloseVault` — tag 4 is the
-  vault deposit, *not* `AnchorFill` as an earlier draft of this line stated.
-  The fill-side memo has no instruction yet.
+- **`AnchorFill` is built as of 2026-08-29** (an earlier version of this
+  line said it was not). The shipped tags are 0 `CommitPolicy`, 1
+  `AuthorizeExecution`, 2 `ValidateAndSell`, 3 `RevokeAuthorization`, 4
+  `DepositToVault`, 5 `CloseVault`, 6 `AnchorFill` — tag 4 is the vault
+  deposit, *not* `AnchorFill` as an earlier draft stated. All seven are
+  built and tested; **none of tags 1–6 is deployed.**
 - It does not close the mainnet anchor gap by itself. The `RAIL.md` §3.3
   Merkle-root anchoring is a separate mechanism on the Worker side. Both are
   needed for the end-to-end claim; this document covers the program-side
@@ -406,12 +452,18 @@ clean autofixer run as a security review; it is not one, and neither is this.
 1. ~~Implement `AuthorizeExecution` + `RevokeAuthorization` (tags 1, 3). Test.~~ **DONE.**
 2. ~~Implement `ValidateAndSell` (tag 2). Test (cases 2–8 above).~~ **DONE**,
    plus the unplanned `DepositToVault` (4) and `CloseVault` (5).
-3. Implement `AnchorFill` (tag 6 — tags 4 and 5 went to the vault path). Test
-   (case 9). **NOT DONE** — the only unbuilt instruction.
+3. ~~Implement `AnchorFill` (tag 6 — tags 4 and 5 went to the vault path).
+   Test (case 9).~~ **DONE 2026-08-29** — 8 tests in `tests/anchor.rs`.
+   Every instruction in the table above is now built.
 4. ~~Re-run the existing `tests/policy.rs` suite (case 10).~~ **DONE** — 2/2,
    and the whole workspace is green.
 5. ~~Re-measure binary size; confirm < 60 KB (rent budget < 0.4 SOL).~~
-   **DONE, measured 2026-08-29:** `afterswap_policy.so` is **35,736 bytes (34.9 KB)**, and `getMinimumBalanceForRentExemption(35736)` returns **0.2496 SOL**. Both targets met.
+   **DONE, measured 2026-08-29:** `afterswap_policy.so` was **35,736 bytes
+   (34.9 KB)** at 0.2496 SOL rent before `AnchorFill`, and **42,368 bytes
+   (41.4 KB)** after it. `getMinimumBalanceForRentExemption(42368)` on devnet
+   returns **295,772,160 lamports = 0.29577216 SOL** (queried 2026-08-29).
+   Both targets still met: 41.4 KB < 60 KB, 0.2958 SOL < 0.4 SOL. The
+   0.2496 SOL figure above is the pre-`AnchorFill` measurement.
 6. Devnet deploy; run the demo against the new program. **NOT DONE** — devnet
    still runs the Phase A `CommitPolicy`-only program.
 7. Audit (external). Mainnet deploy post-audit. **NOT DONE.**
