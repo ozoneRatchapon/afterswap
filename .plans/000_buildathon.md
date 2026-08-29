@@ -459,7 +459,27 @@ them would put a false claim in the plan.
   Live site, README, `docs/SUBMISSION.md`, `docs/PITCH.md` and both demo
   banners now state the same one-liner.
 
-- **Not fixed, flagged only:** line 8 of this file says "~956 exhaustively
-  enumerated" where every user-facing surface says 1,054. Nothing published
-  depends on the 956 figure, and guessing which is meant would be worse than
-  leaving it visible.
+- **956-vs-1,054 resolved** (`1f23653`). Ground truth is **1,054**, asserted
+  by `crates/afterswap-engine/tests/fsm_table.rs::production_table_holds_1054_machines`
+  and independently confirmed from the shipped tables, which pack one machine
+  per `u16` with no header: `fsm_table_3.bin` is 2,108 bytes = 1,054 machines
+  (`_2.bin` 52 = 26, `_1.bin` 4 = 2). Two stale sites corrected: line 8 of this
+  file, and the `EngineConfig::n_fsm_states` doc comment in
+  `crates/afterswap-engine/src/types.rs`, which claimed "2 → ~22, 3 → ~956" —
+  both counts were wrong, not just rounded.
+
+- **`?rail=` hardened to an allowlist** (`1f23653`). `web-wasm/public/rail.html`
+  took an arbitrary origin from the query string, so `/rail?rail=https://evil…`
+  would render third-party records under our origin wearing our seals — a
+  direct contradiction of the page's only claim. The override now resolves to
+  the production rail origin or loopback (`wrangler dev`) and otherwise falls
+  back to the default with a visible "ignored ?rail= override" notice.
+  `?cluster=` is likewise pinned to `devnet | testnet | mainnet-beta` before it
+  is interpolated into the explorer link. Eleven cases exercised in node
+  (`/tmp/rail_allow_test.mjs`), including `javascript:`, `//evil.example`,
+  scheme-relative and the suffix-match `…workers.dev.evil.example` — all pass.
+
+- **Deploy-gated:** `0ba3650` (the `/rail` default) and `1f23653` are pushed
+  but **not on prod** — the live page still serves `get("rail") ?? ""`,
+  verified by fetching it. Until the owner redeploys, do not demo bare `/rail`;
+  append `?rail=https://afterswap-rail.solana-thailand.workers.dev`.
