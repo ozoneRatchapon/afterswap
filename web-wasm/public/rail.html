@@ -22,6 +22,48 @@
   .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
   .win { text-decoration: underline; }
   #stats { color: var(--ink-2); margin-top: .6rem; }
+
+  /* --- execution receipt modal --- */
+  tr.rec { cursor: pointer; }
+  tr.rec:hover { background: var(--surface-1); }
+  tr.rec td:first-child::after { content: " ↗"; color: var(--muted); }
+  dialog.receipt {
+    background: var(--surface-1); color: var(--ink); border: 1px solid var(--grid);
+    border-radius: 8px; padding: 0; max-width: 62ch; width: calc(100% - 2rem);
+    font: inherit;
+  }
+  dialog.receipt::backdrop { background: rgba(0,0,0,.72); }
+  dialog.receipt header { padding: 1rem 1.1rem .8rem; border-bottom: 1px solid var(--grid); }
+  dialog.receipt h2 { font-size: 1rem; margin: .5rem 0 .2rem; }
+  dialog.receipt .sub { color: var(--muted); font-size: .85em; }
+  .seal { display: inline-block; padding: .15em .6em; border-radius: 999px; font-size: .85em; }
+  .seal[data-state="verified"] { background: #1d3a1e; color: var(--ok); }
+  .seal[data-state="attested"] { background: #3a2f1d; color: var(--warn); }
+  .seal[data-state="pending"]  { background: var(--surface-2); color: var(--muted); }
+  .seal[data-state="failed"]   { background: #3a1d1d; color: var(--bad); }
+  .check { padding: .85rem 1.1rem; border-bottom: 1px solid var(--grid); }
+  .check h3 { font-size: .85em; color: var(--muted); font-weight: normal; margin: 0 0 .5rem;
+              display: flex; justify-content: space-between; gap: 1rem; }
+  .check .row { display: flex; justify-content: space-between; gap: 1rem; padding: .12rem 0; }
+  .check .row .k { color: var(--ink-2); }
+  .check .row .v { text-align: right; word-break: break-all; }
+  .check .why { color: var(--muted); font-size: .85em; margin-top: .45rem; max-width: 52ch; }
+  .tag { display: inline-block; padding: 0 .4em; border-radius: 3px; font-size: .8em;
+         background: var(--surface-2); color: var(--muted); }
+  .tag.built { color: var(--warn); }
+  dialog.receipt footer { padding: .85rem 1.1rem; display: flex; gap: .6rem;
+                          align-items: center; flex-wrap: wrap; }
+  dialog.receipt a.explorer { color: var(--ok); }
+  dialog.receipt button {
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--grid);
+    border-radius: 4px; padding: .3rem .7rem; font: inherit; font-size: .85em; cursor: pointer;
+  }
+  dialog.receipt button:hover { color: var(--ink); }
+  dialog.receipt pre { background: var(--page); border: 1px solid var(--grid); border-radius: 4px;
+                       padding: .6rem; margin: 0 1.1rem 1rem; max-height: 30vh; overflow: auto;
+                       font-size: .8em; color: var(--ink-2); white-space: pre-wrap;
+                       word-break: break-all; }
+  #tamper-out { font-size: .85em; }
 </style>
 </head>
 <body>
@@ -43,6 +85,37 @@ compiled <code>afterswap-rail</code> the executor and the ingest gate use</small
   </tr></thead>
   <tbody></tbody>
 </table>
+<p class="note" id="rowhint" hidden>Click any row for its execution receipt.</p>
+<dialog class="receipt" id="receipt">
+  <header>
+    <span class="seal" id="r-seal" data-state="pending">◷ checking</span>
+    <h2 id="r-title">Execution receipt</h2>
+    <p class="sub" id="r-sub"></p>
+  </header>
+  <section class="check" data-check="market">
+    <h3>1 · Market comparison <span class="seal" id="r-market-seal" data-state="pending">◷</span></h3>
+    <div id="r-market"></div>
+    <p class="why" id="r-market-why"></p>
+  </section>
+  <section class="check" data-check="policy">
+    <h3>2 · Policy compliance <span class="seal" id="r-policy-seal" data-state="pending">◷</span></h3>
+    <div id="r-policy"></div>
+    <p class="why" id="r-policy-why"></p>
+  </section>
+  <section class="check" data-check="anchor">
+    <h3>3 · Solana anchor <span class="seal" id="r-anchor-seal" data-state="pending">◷</span></h3>
+    <div id="r-anchor"></div>
+    <p class="why" id="r-anchor-why"></p>
+  </section>
+  <footer>
+    <a class="explorer" id="r-explorer" target="_blank" rel="noopener" hidden>View anchor on Solana ↗</a>
+    <button id="r-raw">Show raw record + proof</button>
+    <button id="r-tamper">Tamper test</button>
+    <span id="tamper-out" class="muted"></span>
+    <button id="r-close" style="margin-left:auto">Close</button>
+  </footer>
+  <pre id="r-rawbox" hidden></pre>
+</dialog>
 <script type="module">
 import init, {
   rail_verify_record, rail_record_hash, rail_merkle_verify,
@@ -68,13 +141,42 @@ $("#stats").textContent =
   `${stats.seq_gaps} gap(s)  ·  ${stats.segments_closed} segment(s), ` +
   `${stats.segments_anchored} anchored  ·  attest key ${String(pubkey).slice(0, 16)}…`;
 
+// ---- receipt state model -------------------------------------------------
+// The seal reports the WEAKEST link, never the average: a record whose chosen
+// venue signs nothing is not "verified" just because its Merkle proof checks.
+const STATE_RANK = { failed: 0, pending: 1, attested: 2, verified: 3 };
+const STATE_TEXT = {
+  failed: "\u2715 Failed", pending: "\u25f7 Anchoring",
+  attested: "\u26a0 Attested only", verified: "\ud83d\udee1 Verified",
+};
+const worst = (...xs) => xs.reduce((a, b) => (STATE_RANK[a] <= STATE_RANK[b] ? a : b));
+const setSeal = (node, state, text) => {
+  node.dataset.state = state;
+  node.textContent = text ?? STATE_TEXT[state];
+};
+const kv = (k, v, cls) => {
+  const d = el("div", "row");
+  d.append(el("span", "k", k));
+  d.append(el("span", cls ? `v ${cls}` : "v", v));
+  return d;
+};
+const CLUSTER = new URLSearchParams(location.search).get("cluster") ?? "devnet";
+
+// Segments carry the anchor signature; a record with no closed segment is
+// legitimately "pending", not failed.
+let SEGMENTS = [];
+try { SEGMENTS = await (await fetch(`${BASE}/rail/segments`)).json(); } catch { SEGMENTS = []; }
+const segmentFor = (seq) => SEGMENTS.find((g) => seq >= g.from_seq && seq <= g.to_seq) ?? null;
+
 const since = Math.max(-1, (stats.tip_seq ?? 0) - 25);
 const records = await (await fetch(`${BASE}/rail/records?since=${since}&limit=25`)).json();
 const tbody = $("#tbl tbody");
 $("#tbl").hidden = false;
+$("#rowhint").hidden = false;
 
 for (const r of records) {
-  const row = el("tr");
+  const row = el("tr", "rec");
+  row.addEventListener("click", () => open_receipt(r));
   row.append(el("td", null, String(r.seq)));
   row.append(el("td", "muted", r.instrument));
 
@@ -110,6 +212,166 @@ for (const r of records) {
   });
   tbody.append(row);
 }
+
+// ---- execution receipt ----------------------------------------------------
+// Every verdict below is computed in this tab from the raw record. The server
+// is asked only for bytes (record, proof, segment list); it is never asked
+// whether those bytes are good.
+async function open_receipt(r) {
+  const dlg = $("#receipt");
+  const body = JSON.stringify(r);
+  let proof = null;
+
+  for (const id of ["r-market", "r-policy", "r-anchor",
+                    "r-market-why", "r-policy-why", "r-anchor-why"]) {
+    $(`#${id}`).textContent = "";
+  }
+  $("#r-rawbox").hidden = true;
+  $("#tamper-out").textContent = "";
+  $("#r-explorer").hidden = true;
+  $("#r-title").textContent = `Execution receipt · seq ${r.seq}`;
+  setSeal($("#r-seal"), "pending", "◷ checking");
+  dlg.showModal();
+
+  // Cryptographic work is timed on its own; network time is excluded on
+  // purpose, so the number describes the verifier and not the wifi.
+  let wasm_ms = 0;
+
+  // -- 1 - market comparison ------------------------------------------------
+  const chosen = r.quotes.find((q) => q.venue === r.decision.chosen_venue);
+  const chosen_signed = chosen?.evidence?.kind === "provider_signed";
+  const slots = new Set(r.quotes.map((q) => q.context_slot).filter((x) => x != null));
+  const mk = $("#r-market");
+  for (const q of r.quotes) {
+    const win = q.venue === r.decision.chosen_venue;
+    const signed = q.evidence?.kind === "provider_signed";
+    mk.append(kv(`${win ? "→ " : "  "}${q.venue}`,
+                 `${q.out_amount}  ${signed ? "🛡 signed" : "⚠ observed"}`,
+                 signed ? "ok" : "muted"));
+  }
+  if (slots.size === 1) mk.append(kv("context slot", `${[...slots][0]}  (same slot)`, "ok"));
+  else if (slots.size > 1) mk.append(kv("context slot", `${[...slots].join(", ")}  (differ)`, "bad"));
+
+  // Gap to the runner-up, in bps, so "chose the better price" is a number.
+  const ranked = [...r.quotes].sort((a, b) => (BigInt(b.out_amount) > BigInt(a.out_amount) ? 1 : -1));
+  let tie = false;
+  if (ranked.length > 1 && BigInt(ranked[1].out_amount) > 0n) {
+    const top = BigInt(ranked[0].out_amount), next = BigInt(ranked[1].out_amount);
+    tie = top === next;
+    const bps = Number(((top - next) * 1000000n) / next) / 100;
+    mk.append(kv("gap to runner-up",
+                 tie ? "0.00 bps — exact tie" : `${bps.toFixed(2)} bps`,
+                 tie ? "muted" : null));
+  }
+
+  let market = slots.size > 1 ? "attested" : (chosen_signed ? "verified" : "attested");
+  if (!chosen) market = "failed";
+  setSeal($("#r-market-seal"), market, market === "verified" ? "🛡" : (market === "failed" ? "✕" : "⚠"));
+  $("#r-market-why").textContent = !chosen
+    ? "The chosen venue is not present among the quotes. That is a malformed record."
+    : tie && chosen_signed
+      ? "Both venues quoted the same price to the lamport. The tie was broken toward the venue that signs its quotes — the only defensible way to break it, and the reason this one is green."
+      : tie
+        ? "The venues tied, and the tie was broken toward a venue that signs nothing. That is the wrong way round: on equal prices there is no cost to preferring the signed quote."
+        : chosen_signed
+          ? "The venue we executed against signed its own quote (RFC 9421), so this price is re-checkable against the venue's key forever."
+          : "The venue we chose does not sign its quotes. Our attestation is the only warrant for this price — exactly as strong as our key, no stronger. That is why this receipt is amber, not green.";
+  if (slots.size > 1) {
+    $("#r-market-why").textContent +=
+      " Quotes were also taken at different slots, so this is not a like-for-like comparison.";
+  }
+
+  // -- 2 - policy compliance ------------------------------------------------
+  let t0 = performance.now();
+  const attest = rail_verify_record(body, pubkey);
+  wasm_ms += performance.now() - t0;
+  const policy = attest === "ok" ? "verified" : "failed";
+  const pol = $("#r-policy");
+  pol.append(kv("policy fingerprint", r.policy_fingerprint ?? "—"));
+  pol.append(kv("attestation", attest === "ok" ? "✓ covers this record" : attest,
+                attest === "ok" ? "ok" : "bad"));
+  pol.append(kv("bounds enforcement", "built, not deployed", "muted"));
+  setSeal($("#r-policy-seal"), policy, policy === "verified" ? "🛡" : "✕");
+  $("#r-policy-why").innerHTML =
+    "The attestation signs the whole record, so the policy fingerprint cannot be swapped after the fact. " +
+    "On-chain enforcement of the policy's <em>bounds</em> (ValidateAndSell) is " +
+    "<span class=\"tag built\">BUILT</span> and tested, but not yet deployed — this row does not claim it.";
+
+  // -- 3 - solana anchor ----------------------------------------------------
+  t0 = performance.now();
+  const leaf = rail_record_hash(body);
+  wasm_ms += performance.now() - t0;
+  const an = $("#r-anchor");
+  an.append(kv("leaf", `${leaf.slice(0, 16)}…`));
+
+  const seg = segmentFor(r.seq);
+  let anchor = "pending";
+  const resp = await fetch(`${BASE}/rail/proof/${r.seq}`);
+  if (resp.status === 409) {
+    an.append(kv("inclusion proof", "segment still open", "muted"));
+  } else if (!resp.ok) {
+    anchor = "failed";
+    an.append(kv("inclusion proof", `proof ${resp.status}`, "bad"));
+  } else {
+    proof = await resp.json();
+    t0 = performance.now();
+    const v = rail_merkle_verify(leaf, JSON.stringify(proof.proof), proof.segment_root);
+    wasm_ms += performance.now() - t0;
+    an.append(kv("inclusion proof", v === "ok" ? `✓ ${proof.proof.length} nodes` : v,
+                 v === "ok" ? "ok" : "bad"));
+    an.append(kv("segment root", `${proof.segment_root.slice(0, 16)}…`));
+    if (v !== "ok") anchor = "failed";
+    else if (seg?.anchor_sig) {
+      anchor = "verified";
+      an.append(kv("segment", `seq ${seg.from_seq}..${seg.to_seq}  (${seg.count} records)`));
+      an.append(kv("memo", `afterswap:rail blake3=${seg.root.slice(0, 12)}… seq=${seg.from_seq}..${seg.to_seq}`, "ok"));
+      const link = $("#r-explorer");
+      link.href = `https://explorer.solana.com/tx/${seg.anchor_sig}?cluster=${CLUSTER}`;
+      link.hidden = false;
+    } else {
+      an.append(kv("anchor", "segment closed, not yet anchored", "muted"));
+    }
+  }
+  setSeal($("#r-anchor-seal"), anchor,
+          anchor === "verified" ? "🛡" : (anchor === "failed" ? "✕" : "◷"));
+  $("#r-anchor-why").textContent = anchor === "verified"
+    ? "The leaf, the proof and the root were checked here, in this tab. The root is on Solana in a memo you can read on any block explorer with no tooling at all."
+    : anchor === "pending"
+      ? "Records are anchored one memo per closed segment. This one is not in a closed, anchored segment yet — pending, not failed."
+      : "The inclusion proof did not verify. This record cannot be shown to be part of the anchored root.";
+
+  // -- seal + footer --------------------------------------------------------
+  const overall = worst(market, policy, anchor);
+  setSeal($("#r-seal"), overall);
+  $("#r-sub").textContent =
+    `${r.instrument} · verified in-browser via WASM in ${wasm_ms.toFixed(1)} ms ` +
+    `(cryptography only, excludes network) · no server was asked`;
+
+  $("#r-raw").onclick = () => {
+    const box = $("#r-rawbox");
+    box.hidden = !box.hidden;
+    box.textContent = JSON.stringify({ record: r, proof, segment: seg }, null, 1);
+  };
+
+  // A verifier that cannot show you a red is not a verifier.
+  $("#r-tamper").onclick = () => {
+    const clone = JSON.parse(body);
+    const q = clone.quotes.find((x) => x.venue === clone.decision.chosen_venue) ?? clone.quotes[0];
+    q.out_amount = String(BigInt(q.out_amount) + 1n);
+    const verdict = rail_verify_record(JSON.stringify(clone), pubkey);
+    const out = $("#tamper-out");
+    const caught = verdict !== "ok";
+    out.textContent = caught
+      ? `out_amount +1 → ${verdict} ✓ detected`
+      : "NOT DETECTED — the verifier is broken";
+    out.className = caught ? "ok" : "bad";
+  };
+}
+
+$("#r-close").onclick = () => $("#receipt").close();
+$("#receipt").addEventListener("click", (e) => {
+  if (e.target === $("#receipt")) $("#receipt").close();
+});
 </script>
 </body>
 </html>
