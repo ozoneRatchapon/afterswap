@@ -140,9 +140,10 @@ keys, no custody — the exact UX failure observed in live testing
 (a wallet prompt on every tranche, plus Phantom's new-domain heuristics
 blocking the request) dissolves.
 
-Status: design only. Nothing here is tested by us; the table records what
-those repos state they do. Integration is post-buildathon work and Phase B
-still needs an audit before mainnet.
+Status: steps 1 and 2 built and tested (2026-08-29); `AnchorFill`, devnet
+deploy and audit remain. The table records what those repos state they do.
+Integration is post-buildathon work and Phase B still needs an audit before
+mainnet.
 **Phase A status: ✅ DEPLOYED ON DEVNET (v2.4).** Rewritten in Pinocchio
 (Anza) after evaluating Quasar (beta, unaudited — parked) and Anchor
 (Phase B candidate): binary 74 KB → **18 KB**, autofixer 0 issues, same
@@ -153,6 +154,32 @@ LiteSVM tests byte-for-byte. Live artifacts:
   (fingerprint 0x165ef4aabbcc, 3 states, 10% tranches — decoded and
   verified on-chain), tx `2WHpDfMD3K5DNMheEdHKGm8djxKZPGeRLiYHyMmrVkzQKoykjz9iAQUBFEPquk8F3fdSRwow4BeDVqKgXqp4RLA5`
 - Mainnet deploy ≈ 0.13 SOL rent at this size — post-audit.
+
+**Phase B step 1 status: ✅ BUILT AND TESTED (2026-08-29).**
+`AuthorizeExecution` (tag 1) and `RevokeAuthorization` (tag 3) implemented
+in `crates/afterswap-policy/src/lib.rs`, 7 new LiteSVM tests in
+`tests/execution.rs` (authorize sets crank + expiry, double-authorize
+rejected, non-owner / wrong-PDA / non-signer / past-expiry all rejected,
+revoke clears crank, revoke idempotent). Binary 18 KB → **23.8 KB** (still
+< 60 KB rent budget). `CommitPolicy` (tag 0) unchanged; existing tests in
+`tests/policy.rs` still pass.
+
+**Phase B step 2 status: ✅ BUILT AND TESTED (2026-08-29).**
+`ValidateAndSell` (tag 2) — the gate, and the only instruction that moves
+tokens — plus the vault path it needs: `DepositToVault` (tag 4) and
+`CloseVault` (tag 5). 16 further LiteSVM tests in `tests/vault.rs`, so the
+crate now runs **26 tests, all green** (`policy.rs` 2, `execution.rs` 7,
+`vault.rs` 17). Binary **35,736 bytes (34.9 KB)**, rent-exempt minimum **0.2496 SOL** — both inside the < 60 KB / < 0.4 SOL budget.
+
+Two caveats, stated because they change what may be claimed. The design is
+**vault-sourced**, so the program *does* take custody between deposit and
+sell — `CloseVault` is the owner-only exit, but "no custody" is not
+available as a claim for this design. And an earlier draft of the design doc
+justified the vault over an SPL delegate by asserting that a delegate cannot
+transfer to an arbitrary destination; **that is false**, and the
+delegate-on-owner-ATA alternative is still open. See
+`PHASE_B_DELEGATED_EXECUTION.md` §1 and §8. Next: `AnchorFill` (tag 6), then
+devnet deploy — but settle vault-vs-delegate first.
 
 **Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
 the endgame of the trust ladder. Delegate the position/policy PDA into an

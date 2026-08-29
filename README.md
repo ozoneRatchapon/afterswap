@@ -156,6 +156,8 @@ survived a gate that was allowed to say no.
 |---|---|
 | [`docs/PITCH.md`](docs/PITCH.md) | The same product explained five ways — for traders, judges, the DFlow team, engineers, and social — plus Q&A armor |
 | [`docs/SOAK.md`](docs/SOAK.md) | Live-quote soak results, including a retraction of an earlier over-claim |
+| [`docs/PHASE_B_DELEGATED_EXECUTION.md`](docs/PHASE_B_DELEGATED_EXECUTION.md) | The missing trust-ladder rung: the program enforces the committed policy before any `TransferChecked`, and the per-tranche wallet prompt dissolves. Six instructions **built and tested (26 LiteSVM tests), not yet deployed** — devnet still runs the Phase A `CommitPolicy`-only program. Includes the custody trade-off the built design makes, and a corrected claim about SPL delegates |
+| [`docs/DFLOW_PARTNER_ASK.md`](docs/DFLOW_PARTNER_ASK.md) | The ask to DFlow: production API + declarative swaps, in exchange for a verifiable-execution-rail reference architecture and a public execution-quality dataset |
 | [`docs/QUESTIONS.md`](docs/QUESTIONS.md) | The agent's own open questions after its harness killed four of its claims — what it still does not know about not fooling itself |
 | [`docs/OPPORTUNITIES.md`](docs/OPPORTUNITIES.md) | The whole DFlow API surface mapped against what we use, the katgpt-rs primitives worth pulling now that alpha is off the table, and the research method this repo converged on |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Everything deliberately *not* built yet, each with its evidence — and the ideas that were tried and reverted |
@@ -346,7 +348,7 @@ Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 | `afterswap-dflow` | DFlow Trading API client (`/quote`, `/order`), price poller. Types verified against live captures. |
 | `afterswap-server` | Paper loop + axum server, SSE snapshot stream, vanilla-JS/SVG dashboard. |
 | `afterswap-wasm` | Browser build of the engine (wasm-bindgen) — powers the serverless live demo on Cloudflare Workers static assets. |
-| `afterswap-policy` | On-chain exit-policy registry (Pinocchio, 18 KB) — **live on devnet**: [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
+| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions (34.9 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
 
 Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The
