@@ -479,7 +479,42 @@ them would put a false claim in the plan.
   (`/tmp/rail_allow_test.mjs`), including `javascript:`, `//evil.example`,
   scheme-relative and the suffix-match `…workers.dev.evil.example` — all pass.
 
-- **Deploy-gated:** `0ba3650` (the `/rail` default) and `1f23653` are pushed
-  but **not on prod** — the live page still serves `get("rail") ?? ""`,
-  verified by fetching it. Until the owner redeploys, do not demo bare `/rail`;
-  append `?rail=https://afterswap-rail.solana-thailand.workers.dev`.
+- **Dashboard UI/UX pass** (`f2caf68`), six items, owner-requested. Verified by
+  driving the page's own render functions over linkedom against the real
+  `index.html` DOM — 22 assertions, all pass (`/tmp/dash_ux_test.mjs`).
+  1. `/rail` had **no inbound link from `/`** and no link back, so the
+     "dashcam" half of the pitch was undiscoverable. Header pill + footer link
+     + a return link on `rail.html`.
+  2. Cold start showed five simultaneous empty states. The Machines tile now
+     counts down ("first tournament in N ticks") off a shared `WINDOW_LEN`
+     constant that also feeds `new WasmEngine(...)`, so the two cannot drift;
+     Simulation gate / Activity / Fills tape stay hidden until they have data.
+  3. "Open position" left the row it shared with two ghost buttons and two
+     checkboxes; the toggles are now a second row and the button is larger.
+  4. New `#proofstrip` under the stat row carries the honest headline (quotes
+     signed, build bit-reproducible, edge not yet significant) and anchors to
+     the full panel, which stays in place.
+  5. Both SVGs had fixed `aria-label`s naming the widget and no data. They now
+     restate price/range/entry/fills and machine/state/confidence per render,
+     with a guard so a non-driving arm does not announce "state Sundefined".
+  6. `data-theme="dark"` was hardcoded; a contrast-checked light palette now
+     follows `prefers-color-scheme`. Worst text pair 4.89:1.
+
+- **Deliberately not done in (6): caching `/pkg/*`.** Those files serve
+  `max-age=0, must-revalidate`, so every repeat visit spends a revalidation
+  round trip before the engine boots. The filenames are not content-hashed, so
+  any real `max-age` risks serving a stale glue/wasm pair against fresh HTML —
+  a mismatch during judging costs far more than the ~60 ms saved. The correct
+  fix is hashed asset names, which is a build change, not a header change, and
+  not one to make two days out.
+
+- **Known and unchanged:** `--series-1` and `--series-2` are near-equal
+  luminance in *both* palettes (1.07 dark, 1.03 light). The price line and the
+  tranche markers are separated by hue and mark shape, with both named in the
+  legend, so the encoding is redundant — but a luminance-blind viewer reads
+  them as one family. Pre-existing, flagged rather than silently re-hued.
+
+- **Deploy-gated:** `0ba3650`, `1f23653` and `f2caf68` are pushed but **not on
+  prod** — the live page still serves `get("rail") ?? ""`, verified by fetching
+  it. Until the owner redeploys, do not demo bare `/rail`; append
+  `?rail=https://afterswap-rail.solana-thailand.workers.dev`.
