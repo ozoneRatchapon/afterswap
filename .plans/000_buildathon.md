@@ -5,7 +5,7 @@
 
 ## Pitch
 
-**AfterSwap** — the moment your DFlow swap fills, ~956 exhaustively enumerated
+**AfterSwap** — the moment your DFlow swap fills, 1,054 exhaustively enumerated
 finite-state machines start competing for the right to manage your exit.
 Wolfram-style ruliology (via `katgpt-ruliology` from katgpt-rs): enumerate ALL
 simple exit programs, tournament them on rolling windows of live DFlow quotes,

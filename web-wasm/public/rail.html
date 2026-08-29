@@ -122,12 +122,25 @@ import init, {
 } from "./pkg/afterswap_wasm.js";
 
 // The rail lives on its own pure-Rust Worker, NOT on the app host — the app
-// host 404s on /rail/*. So the default points at the production rail worker;
-// ?rail=https://host overrides it for local dev / a different rail.
+// host 404s on /rail/*, so the default points at the production rail worker.
 // (every rail endpoint sends access-control-allow-origin: *, so cross-origin
 // fetches from the app host or a file:// page both work.)
 const DEFAULT_RAIL = "https://afterswap-rail.solana-thailand.workers.dev";
-const BASE = new URLSearchParams(location.search).get("rail") ?? DEFAULT_RAIL;
+// ?rail= is an operator/dev convenience, not an open redirect: this page's
+// only claim is "these receipts came from THE rail", so a link like
+// /rail?rail=https://evil.example would let a third party render forged
+// records under our origin and our seals. Accept the production rail and
+// loopback (local `wrangler dev`) only; anything else falls back and says so.
+const rail_allowed = (raw) => {
+  try {
+    const u = new URL(raw, location.href);
+    if (u.origin === new URL(DEFAULT_RAIL).origin) return u.origin;
+    const loopback = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+    return loopback && (u.protocol === "http:" || u.protocol === "https:") ? u.origin : null;
+  } catch { return null; }
+};
+const RAIL_PARAM = new URLSearchParams(location.search).get("rail");
+const BASE = (RAIL_PARAM && rail_allowed(RAIL_PARAM)) || DEFAULT_RAIL;
 const $ = (s) => document.querySelector(s);
 const el = (t, cls, text) => {
   const e = document.createElement(t);
@@ -143,6 +156,9 @@ $("#stats").textContent =
   `tip seq ${stats.tip_seq}  ·  ${stats.total_accepted} records  ·  ` +
   `${stats.seq_gaps} gap(s)  ·  ${stats.segments_closed} segment(s), ` +
   `${stats.segments_anchored} anchored  ·  attest key ${String(pubkey).slice(0, 16)}…`;
+if (RAIL_PARAM && !rail_allowed(RAIL_PARAM)) {
+  $("#stats").textContent += `  ·  ignored ?rail= override, showing ${BASE}`;
+}
 
 // ---- receipt state model -------------------------------------------------
 // The seal reports the WEAKEST link, never the average: a record whose chosen
@@ -163,7 +179,11 @@ const kv = (k, v, cls) => {
   d.append(el("span", cls ? `v ${cls}` : "v", v));
   return d;
 };
-const CLUSTER = new URLSearchParams(location.search).get("cluster") ?? "devnet";
+// Interpolated into an explorer URL; keep it to the clusters that exist so a
+// crafted ?cluster= cannot append arbitrary query state to the outbound link.
+const CLUSTERS = ["devnet", "testnet", "mainnet-beta"];
+const CLUSTER_PARAM = new URLSearchParams(location.search).get("cluster");
+const CLUSTER = CLUSTERS.includes(CLUSTER_PARAM) ? CLUSTER_PARAM : "devnet";
 
 // Segments carry the anchor signature; a record with no closed segment is
 // legitimately "pending", not failed.

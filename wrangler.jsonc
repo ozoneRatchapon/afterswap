@@ -9,7 +9,7 @@
   // The rail moved to its own pure-Rust Worker: crates/afterswap-worker
   // (its DO migration was never deployed from here, so removing it is safe).
   // rail.html stays on this origin and targets the rail worker cross-origin
-  // via ?rail=<base>.
+  // by default; ?rail=<base> only accepts that host or loopback.
   // NOTE: this account is on the Workers Free plan, which rejects a `limits`
   // block (API 100328), so the 2,010ms CPU ceiling here is fixed. /decide
   // used to re-enumerate 1,054 FSMs per call and blew that ceiling on cold
