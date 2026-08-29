@@ -514,7 +514,36 @@ them would put a false claim in the plan.
   legend, so the encoding is redundant — but a luminance-blind viewer reads
   them as one family. Pre-existing, flagged rather than silently re-hued.
 
-- **Deploy-gated:** `0ba3650`, `1f23653` and `f2caf68` are pushed but **not on
-  prod** — the live page still serves `get("rail") ?? ""`, verified by fetching
-  it. Until the owner redeploys, do not demo bare `/rail`; append
-  `?rail=https://afterswap-rail.solana-thailand.workers.dev`.
+- **Hero visualisation pass** (`26fcb84`), owner-asked for "wow". 51 assertions
+  plus a geometry check, all pass (`/tmp/dash_ux_test.mjs`, `/tmp/geom_check.mjs`).
+  - **The field.** 1,054 factors as exactly 62x17, so the enumeration draws as
+    a clean lattice with no ragged row. Lit marks are seated arms, the pulsing
+    orange one is driving. Marks are built once and mutated in place — a
+    thousand nodes per second would cost more than the rest of the page and
+    would kill the transition that makes a seat change legible. Cells are
+    assigned by `id mod 1054` with linear probing so they stay put; **the
+    caption states outright that position is arbitrary**, because the engine
+    does not publish per-machine coordinates and inventing them would be the
+    one thing this project cannot do.
+  - **Pareto scatter.** Real axes: `sim_edge_bps` against `complexity`, radius
+    by pulls, orange step = the frontier. "Pareto-prune (payoff x complexity)"
+    is in the pitch and was drawn nowhere. Dots are reused across renders, so a
+    tournament reshuffle animates instead of teleporting.
+  - **Five-beat ribbon** — enumerate / tournament / prune / drive / receipt,
+    lit by what has actually happened, last-reached marked `.now`, receipt beat
+    links to `/rail`.
+  - Chart: gradient area, entry as a ruled line (the lone dot used to scroll
+    off and take the reference with it), haloed fill markers, price pill.
+  - `prefers-reduced-motion` disables every animation; none encodes data.
+
+- **Fixed in passing:** the price label was hardcoded to `toFixed(2)`, wrong for
+  BONK at 9 dp. And `button { color: #fff }` on `--series-1` is **3.64:1** in
+  dark mode, under the 4.5:1 floor for 15px semibold — on the control that arms
+  live sells. Both fixed; buttons now use `var(--page)`, which is 5.19:1 dark
+  and 6.33:1 light. This is a change to approved palette *usage*, not to the
+  palette, and it is worth a look on the recording.
+
+- **Deploy-gated:** `0ba3650`, `1f23653`, `f2caf68` and `26fcb84` are pushed but **not on
+  prod**. The 2026-08-29 redeploy shipped everything up to `393cbfa`, verified
+  by fetching both pages and re-running the 22-assertion harness against the
+  live HTML; `26fcb84` needs one more `wrangler deploy`.
