@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,7 +11,8 @@
      487 KB WASM download. Deliberately not preloading the .wasm itself: the
      `as="fetch"` credentials mode has to match wasm-bindgen's own fetch or the
      file is downloaded twice, and that is not something this change can
-     measure here. -->
+     measure here. The 487 KB figure is the uncompressed module; the edge
+     serves it brotli-compressed at ~152 KB, measured 2026-08-29. -->
 <link rel="modulepreload" href="./pkg/afterswap_wasm.js">
 <style>
   /* Reference dark palette (validated: #3987e5,#d95926 on #1a1a19 — all checks pass) */
@@ -33,6 +34,40 @@
     --delta-good:  #0ca30c;
     --delta-bad:   #d03b3b;
     --status-warn: #fab219;
+  }
+  /* Demo Day is a projected room and judges screenshot into light documents,
+     so the page follows the OS instead of forcing dark. Every value below was
+     contrast-checked against --page, --surface-1 and --surface-2: the lowest
+     text pair is --delta-good on --surface-2 at 4.89:1, above the 4.5:1 floor.
+     The two series hues keep their blue/orange identity but move to darker
+     steps, because in dark mode they only ever had to clear 3:1 as marks
+     while in light mode they also carry small text (.chip, .up/.down).
+     Known and unchanged from the dark palette: --series-1 and --series-2 sit
+     at nearly equal luminance (1.03 here, 1.07 in dark), so the price line and
+     the tranche markers are told apart by hue plus mark shape — a stroked line
+     against filled dots, each named in .markerkey — not by lightness. The
+     meter track is a compromise: 1.67 against the panel it sits on, but 3.54
+     against its own fill, which is the pair that has to stay readable. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --page:        #ffffff;
+      --surface-1:   #f7f7f5;
+      --surface-2:   #eeeeec;
+      --ink:         #1a1a19;
+      --ink-2:       #4a4a45;
+      --muted:       #63625c;
+      --grid:        #d8d8d3;
+      --baseline:    #bdbdb7;
+      --border:      rgba(0,0,0,0.12);
+      --series-1:    #1d5fb0;
+      --series-2:    #a8410f;
+      --seq-400:     #1d5fb0;
+      --seq-600:     #a9c4e6;
+      --delta-good:  #067806;
+      --delta-bad:   #b32020;
+      --status-warn: #8a5a00;
+    }
   }
   * { box-sizing: border-box; margin: 0; }
   body {
@@ -56,6 +91,11 @@
   .up   { color: var(--delta-good); }
   .down { color: var(--delta-bad); }
   .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  /* "Open position" is the one thing a first-time visitor must do, and it was
+     tied for fifth place in a single flex row with two ghost buttons and two
+     checkboxes. The toggles are now a second row and this one is bigger. */
+  #open { font-size: 15px; padding: 10px 20px; }
+  .controls.toggles { margin-top: 8px; gap: 14px; flex-wrap: wrap; }
   input[type=number] {
     background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
     border-radius: 6px; padding: 6px 8px; width: 90px; font: inherit;
@@ -93,6 +133,22 @@
   .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   footer a { color: var(--ink-2); }
+  /* /rail is the "dashcam" half of the pitch and nothing on this page linked
+     to it, so the receipts were effectively undiscoverable. */
+  .navlink {
+    color: var(--ink-2); text-decoration: none; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+    background: var(--surface-2);
+  }
+  .navlink:hover { color: var(--ink); }
+  /* The most credible claim on the page sat below the fold in 12.5px body
+     text. This lifts one line of it to where a skimming judge lands. */
+  #proofstrip {
+    font-size: 12.5px; color: var(--ink-2); margin: -4px 0 14px;
+    padding: 9px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-1);
+  }
+  #proofstrip a { color: var(--series-1); }
 
   /* Buttons set border:0, which in some engines drops the default focus ring.
      One of these controls arms live sells through a connected wallet, so where
@@ -138,6 +194,7 @@
   <h1>AfterSwap</h1>
   <span class="tag">cruise control plus a dashcam, for selling — your exit runs to a rule, every fill leaves a receipt anyone can check — live on DFlow, running entirely in your tab</span>
   <span class="conn">
+    <a class="navlink" href="/rail">Receipts ↗</a>
     <span style="position:relative">
       <select id="pair" title="quote pair" style="background:var(--surface-2); color:var(--ink-2); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font:inherit; font-size:12px">
       <option value="sol">SOL / USDC</option>
@@ -166,6 +223,8 @@
       <button id="open">Open position</button>
       <button id="close" class="ghost">Close</button>
       <button id="share" class="ghost" style="display:none">Share this fight</button>
+    </div>
+    <div class="controls toggles">
       <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
@@ -178,6 +237,13 @@
   <div class="stat"><div class="label">Hold value</div><div class="value" id="vhold">—</div><div class="sub">× entry if never sold</div></div>
   <div class="stat"><div class="label">Remaining</div><div class="value" id="vrem">—</div><div class="sub" id="vfills">no fills yet</div></div>
   <div class="stat"><div class="label">Machines</div><div class="value" id="varms">—</div><div class="sub" id="vwind">enumerating…</div></div>
+</div>
+
+<div id="proofstrip">
+  Checkable, not asserted: DFlow signs every quote your browser acts on
+  (RFC 9421) · this build is byte-identical to the audited native engine
+  · and our own harness says the edge is <b>not</b> yet statistically
+  significant — <a href="#proof">the evidence ↓</a>
 </div>
 
 <div class="panel" style="margin-bottom:14px">
@@ -205,7 +271,7 @@
         benchmarks use, running live in front of you.
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" id="proof" tabindex="-1">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
         <div><b style="color:var(--ink)">No durable edge — our own harness says so.</b>
@@ -237,15 +303,15 @@
       <svg id="fsm" width="100%" height="190" role="img" aria-label="FSM state diagram"></svg>
       <div class="sub" style="color:var(--muted); font-size:12px" id="fsmhint">reads 2 bits/tick: direction, then off-peak · orange badge = sell state</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="gatepanel" style="display:none">
       <h2>Simulation gate</h2>
       <div id="gate" class="empty">no tournament yet</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="feedpanel" style="display:none">
       <h2>Activity</h2>
       <div id="feed" class="empty">quiet so far</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="tapepanel" style="display:none">
       <h2>Fills tape</h2>
       <div id="tape" class="empty">no fills yet</div>
     </div>
@@ -257,11 +323,15 @@
 </div>
 
 <div id="tooltip"></div>
-<footer>DFlow Trading API (dev, quotes fetched by your browser) · engine compiled to WASM — no server anywhere · primitives: <a href="https://github.com/katopz/katgpt-rs">katgpt-ruliology</a> (@katopz, MIT) · <a href="https://github.com/ozoneRatchapon/afterswap">source</a> · paper mode — quotes real, fills simulated</footer>
+<footer>DFlow Trading API (dev, quotes fetched by your browser) · engine compiled to WASM — no server anywhere · primitives: <a href="https://github.com/katopz/katgpt-rs">katgpt-ruliology</a> (@katopz, MIT) · <a href="https://github.com/ozoneRatchapon/afterswap">source</a> · <a href="/rail">receipt rail</a> · paper mode — quotes real, fills simulated</footer>
 
 <script type="module">
 "use strict";
 const $ = (id) => document.getElementById(id);
+// Ticks per evaluation window. Kept next to its only other use — the
+// `new WasmEngine(...)` call below — so the countdown cannot drift from the
+// engine it is counting down to.
+const WINDOW_LEN = 12;
 const hexTag = (idStr) => "#" + BigInt(idStr).toString(16).slice(0, 4);
 const fmt = (x, d = 4) => x == null ? "—" : x.toFixed(d);
 const px = (v) => v == null ? "—" : v.toFixed(PAIRS[pair]?.dp ?? 4);
@@ -311,7 +381,14 @@ function renderStats(s) {
   $("vrem").textContent = ap ? `${(ap.remaining_frac * 100).toFixed(0)}%` : "—";
   $("vfills").textContent = ap ? `${ap.fills.length} tranche fills` : "no open position";
   $("varms").textContent = s.arms.length ? `${s.arms.length} arms` : "—";
-  $("vwind").textContent = `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`;
+  // Before the first window closes there is nothing to report, and "0 windows"
+  // reads as broken. Count down instead, so the wait is legible as progress.
+  // recent_prices is capped at 240 but this branch only runs for the first
+  // WINDOW_LEN ticks, where its length is exactly the ticks seen.
+  $("vwind").textContent = s.completed_windows > 0
+    ? `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`
+    : `${s.strategies_enumerated} enumerated · first tournament in ` +
+      `${Math.max(0, WINDOW_LEN - (s.recent_prices?.length ?? 0))} ticks`;
   $("open").disabled = !!s.position;
   $("explainer").style.display = (s.position || s.last_closed) ? "none" : "";
   $("share").style.display = (!s.position && s.last_closed) ? "" : "none";
@@ -335,6 +412,15 @@ function renderChart(s) {
   const P = { l: 54, r: 46, t: 10, b: 22 };
   const prices = s.recent_prices || [];
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  // aria-label was the fixed string "price line chart", which tells a screen
+  // reader the element's type and none of its content. Restate the data.
+  const ap0 = activePos(s);
+  svg.setAttribute("aria-label", prices.length < 2
+    ? `${PAIRS[pair].label} price chart, waiting for quotes`
+    : `${PAIRS[pair].label} price, ${prices.length} ticks. ` +
+      `Now ${px(prices[prices.length - 1])}, low ${px(Math.min(...prices))}, ` +
+      `high ${px(Math.max(...prices))}.` +
+      (ap0 ? ` Entry ${px(ap0.entry_price)}, ${ap0.fills.length} tranche fills marked.` : ""));
   if (prices.length < 2) { svg.innerHTML = ""; return; }
   const t1 = s.tick, t0 = t1 - prices.length + 1;
   let lo = Math.min(...prices), hi = Math.max(...prices);
@@ -425,7 +511,22 @@ function renderFsm(s) {
   const arm = s.arms.find(a => a.index === armIdx);
   $("livechip").textContent = arm
     ? `${arm.name} ${hexTag(arm.id)}${s.live_arm == null ? " (last)" : ""}` : "";
-  if (!arm) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`; return; }
+  if (!arm) {
+    svg.setAttribute("aria-label", "No exit machine is driving yet");
+    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`;
+    return;
+  }
+  // Same problem as the chart: describe the machine, not the widget. When the
+  // arm shown is the *last* one to drive rather than a live one there is no
+  // current state, so say that instead of announcing "state Sundefined".
+  const st_now = s.live_fsm_state;
+  const has_state = Number.isInteger(st_now) && st_now < arm.n_states;
+  svg.setAttribute("aria-label",
+    `Exit machine ${arm.name}, ${arm.n_states} states. ` +
+    (has_state
+      ? `Currently in state S${st_now}, which ${arm.outputs[st_now] === 1 ? "sells a tranche" : "holds"}.`
+      : "Not currently driving.") +
+    (s.live_confidence != null ? ` Confidence ${(s.live_confidence * 100).toFixed(0)} percent.` : ""));
   const n = arm.n_states, cx = W / 2, cy = H / 2, R = n === 1 ? 0 : 58;
   const pos = Array.from({ length: n }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / n;
@@ -461,6 +562,7 @@ function renderFsm(s) {
 }
 
 function renderGate(s) {
+  $("gatepanel").style.display = s.gate ? "" : "none";
   if (!s.gate) return;
   const pct = Math.round(s.gate.compression_ratio * 100);
   $("gate").className = "";
@@ -502,6 +604,7 @@ function feedLine(te, s) {
 
 function renderFeed(s) {
   const evs = s.recent_events || [];
+  $("feedpanel").style.display = evs.length ? "" : "none";
   if (!evs.length) { $("feed").className = "empty"; $("feed").textContent = "quiet so far"; return; }
   $("feed").className = "";
   $("feed").innerHTML = `<div style="display:grid; gap:4px; font-size:12.5px; color:var(--ink-2); max-height:180px; overflow-y:auto">${
@@ -514,6 +617,7 @@ function renderFeed(s) {
 function renderTape(s) {
   const ap = activePos(s);
   const fills = ap ? [...ap.fills].reverse() : [];
+  $("tapepanel").style.display = fills.length ? "" : "none";
   if (!fills.length) { $("tape").className = "empty"; $("tape").textContent = "no fills yet"; return; }
   $("tape").className = "";
   $("tape").innerHTML = `<table><thead><tr><th>tick</th><th>frac</th><th>price</th></tr></thead><tbody>${
@@ -725,7 +829,7 @@ const STORE_KEY = "afterswap-learning-v1";
 
 import("./pkg/afterswap_wasm.js").then(async (mod) => {
   await mod.default();
-  engine = new mod.WasmEngine(12, 3, 0.1, 24);
+  engine = new mod.WasmEngine(WINDOW_LEN, 3, 0.1, 24);
   // Restore what the robots learned in earlier sessions (realized rewards,
   // evolved genomes) BEFORE the first prices, then replay saved prices so
   // the chart and windows have continuity across refreshes.
