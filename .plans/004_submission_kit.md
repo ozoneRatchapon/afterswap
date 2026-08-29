@@ -28,6 +28,56 @@ Judges see optimistic backtests all day. A team that built a harness good enough
 to catch itself, and then published the negative result, is the differentiated
 thing here. Lead with the rigor, not with a number.
 
+## What is this, in one minute — plain-language framing
+
+Written because the existing opening ("exhaustively enumerated exit machines")
+loses a technical listener inside four words, and the video has twelve seconds
+to land before a judge decides what kind of project this is. This is the same
+framing that now opens the README, so the two agree. Say it in this order.
+
+**The one-liner: "Cruise control plus a dashcam, for selling."**
+
+- **Cruise control** — a rule scales you out of the position, every tick,
+  whether you are awake or not, and it cannot change its mind halfway through
+  because the position frightened it.
+- **A dashcam** — the rule is stamped on Solana *before* the first sale, bound
+  to a venue-signed quote, so "it followed the plan" is checkable by a stranger
+  instead of being your word.
+
+Both halves in one breath. Neither of them is "makes you more money" — and the
+gap between those two sentences is the pitch, not a weakness to talk around.
+
+| | How exits work today | With AfterSwap |
+|---|---|---|
+| Who decides when to sell | You, watching a chart, in a mood | A rule fixed before you were in the trade |
+| When it acts | When you happen to be awake and looking | Every tick, with or without you |
+| Can the rule change mid-trade | Yes — that is the whole problem | No; committed on-chain before the first sale |
+| "Did it really follow the plan?" | Your word | Checkable by a stranger, from public data |
+| How it did against just holding | Nobody ever tells you | Reported every time, including when holding wins |
+
+**Why the benefit is hard to feel, and what to do about it.** The product is
+insurance-shaped: it removes two events — panic-selling, and being unable to
+prove you did not front-run the people you sell for — and insurance is
+invisible to anyone who has not had the accident. Do not fight that on camera
+by inflating the benefit. Name the customer instead: **the dashcam half only
+matters when you sell on behalf of someone else** — a fund, a team treasury, a
+DAO, a copy-trade or bot service. Those people cannot say "trust me" today;
+they have a screenshot. For a solo trader selling their own bag, only the
+cruise-control half is real, and saying so out loud costs nothing and buys
+credibility for everything else in the take.
+
+**Usable as the 0:00–0:12 line, if the scripted opening feels too abstract in
+rehearsal:**
+
+> "Every wallet goes silent at the exact moment that decides whether you made
+> money — the exit. AfterSwap is cruise control plus a dashcam for that moment:
+> a rule that sells for you, stamped on-chain before it sells, so afterwards
+> anyone can check it followed the plan."
+
+Both openings are safe against the "do not say" list below. This one trades the
+1,054-machine hook for comprehension; keep the enumeration hook at 0:12 either
+way, where it lands on an audience that now knows what it is looking at.
+
 ## 2-minute video script (0:00–2:00)
 
 Shot list assumes screen recording of `https://afterswap.solana-thailand.workers.dev`

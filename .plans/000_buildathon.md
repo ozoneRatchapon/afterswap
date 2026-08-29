@@ -101,6 +101,28 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
       support, and a stated
       framing decision — lead with the rigor, not with the BONK number, because
       the README's own finding is that there is no durable edge.
+      **Plain-language framing added 2026-08-29** after the opening tested
+      badly on a technical reader who could not see the benefit. New section
+      `## What is this, in one minute — plain-language framing` in
+      `.plans/004_submission_kit.md`: the one-liner "cruise control plus a
+      dashcam, for selling", a today-vs-AfterSwap table, the reason the benefit
+      is hard to feel (it is insurance-shaped), the customer that actually has
+      the problem (anyone selling on behalf of someone else), and an
+      alternative 0:00–0:12 line that trades the 1,054 hook for comprehension.
+      The same framing now opens `README.md`, replacing "exhaustively
+      enumerated exit machines"; the two are worded to agree. While rewriting
+      it, one overclaim was removed from the README masthead — "switch to BONK
+      to watch it in the market where the out-of-sample evidence says exit
+      discipline pays", which contradicts the framing decision above and the
+      README's own reading of BONK as selection.
+      **All shot dependencies re-verified live 2026-08-29** (third pass):
+      `/` 200, `/?replay` 200 at 54,215 B, `POST /decide` 200 returning
+      `fills 7` / `fully_exited false` / `edge_vs_hold_bps 700`, repo 200,
+      rail `/rail/proof/10`, `/rail/proof/100`, `/rail/records` all 200,
+      program `GEz2tF…8bD8` executable on devnet, and both fallback PDAs live
+      under that owner. Note for the day of recording: the rail worker 404s on
+      `/`, `/health` and `/rail/head` — it only serves the documented paths, so
+      a 404 there is not an outage.
       **Memo-shot risk retired, 2026-08-28 (verified live, not reasoned).** An
       earlier note warned the 1:10–1:32 commitment shot needs
       `signAndSendTransaction` and could trip Phantom's new-domain heuristics

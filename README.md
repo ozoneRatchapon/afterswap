@@ -1,23 +1,55 @@
 # AfterSwap
 
-> **Exhaustively enumerated exit machines, fighting over your position — live on DFlow.**
+> **Cruise control plus a dashcam, for selling.**
 >
 > DFlow × Superteam Thailand Buildathon 2026 — *"build what happens after the swap."*
 >
 > **Live demo (no install, no wallet): https://afterswap.solana-thailand.workers.dev**
 > — the entire engine runs in your browser as WASM; quotes come straight
-> from DFlow. Switch the pair to **BONK** to watch it in the market where the
-> out-of-sample evidence says exit discipline pays. Add `?replay` for the
-> recorded deterministic segment.
+> from DFlow. Add `?replay` for the recorded deterministic segment.
 
-You swapped into SOL. Now what? Every wallet goes silent at exactly the moment
-that decides whether you make money: **the exit**. AfterSwap picks up where the
-swap ends — it watches live DFlow quotes and lets a population of tiny machines
-compete for the right to scale you out.
+## What is this, in one minute
+
+Every wallet goes silent at exactly the moment that decides whether you made
+money: **the exit**. You swapped into SOL — now what? Today the answer is you,
+watching a chart, at 3am, in a mood.
+
+AfterSwap replaces that with two things.
+
+**Cruise control.** A rule scales you out of the position, every tick, whether
+you are awake or not. It cannot change its mind halfway through because the
+position frightened it — that is the entire point, and it is the part a human
+cannot do.
+
+**A dashcam.** The rule is stamped on Solana *before* the first sale, bound to
+a venue-signed quote. Afterwards, "this fill followed a policy committed in
+advance, at a price DFlow really offered" is three cryptographic facts rather
+than your word.
+
+| | How exits work today | With AfterSwap |
+|---|---|---|
+| Who decides when to sell | You, watching a chart, in a mood | A rule fixed before you were in the trade |
+| When it acts | When you happen to be awake and looking | Every tick, with or without you |
+| Can the rule change mid-trade | Yes — that is the whole problem | No; it was committed on-chain before the first sale |
+| "Did it really follow the plan?" | Your word | Checkable by a stranger, from public data |
+| How it did against just holding | Nobody ever tells you | Reported every time, including when holding wins |
+
+**It will not make you more money, and we are the ones who proved that.** We
+built the search, then built a harness good enough to catch it, and the harness
+says no: no machine survives correcting for having looked at a thousand
+candidates. The six facts below are mostly the story of establishing that
+honestly instead of shipping a green backtest.
+
+**So who is it for?** The dashcam half only matters when you sell on behalf of
+someone else — a fund, a team treasury, a DAO, a copy-trade or bot service.
+Those people cannot say "trust me" today; they have a screenshot. This gives
+them a receipt that was written *before* the trade. If you are selling your own
+bag and answer to nobody, only the cruise-control half is real for you, and you
+should judge it on that alone.
 
 ![dashboard](docs/dashboard.png)
 
-## What makes this different, in five facts
+## What makes this different, in six facts
 
 1. **Nobody designed these strategies.** We enumerate *every* deterministic
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
