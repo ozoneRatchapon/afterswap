@@ -325,6 +325,13 @@
     </div>
     <div class="panel">
       <h2>Live scoreboard — paired against every standard exit</h2>
+      <svg id="race" width="100%" height="150" role="img"
+           aria-label="live race against reference exits"></svg>
+      <div class="cap" id="racecap" style="margin-bottom:10px">
+        Every line is the same position from the same entry on the same ticks,
+        so the price path cancels and what is left is the exit rule. Zero is
+        doing nothing.
+      </div>
       <div id="scoreboard" class="empty">first cycle in progress…</div>
       <div id="globalscore" style="margin-top:10px"></div>
       <div style="font-size:11.5px; color:var(--muted); margin-top:8px">
@@ -557,9 +564,9 @@ function hideTip() { $("tooltip").style.display = "none"; }
 // last row. The marks are built once and then mutated in place: rebuilding a
 // thousand nodes every second would both cost more than the rest of the page
 // put together and cancel the CSS transition that makes a seat change legible.
-const FIELD_COLS = 62, FIELD_ROWS = 17;
+const FIELD_COLS = 62;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-let fieldCells = null, fieldLit = new Map();
+let fieldCells = null, fieldLit = new Map(), fieldArms = new Map();
 
 function buildField(total) {
   const svg = $("field");
@@ -567,7 +574,7 @@ function buildField(total) {
   svg.setAttribute("viewBox", `0 0 ${cols * 5} ${rows * 5}`);
   svg.innerHTML = Array.from({ length: total }, (_, i) =>
     `<rect x="${(i % cols) * 5}" y="${Math.floor(i / cols) * 5}" width="3" height="3"
-           rx="0.6" fill="var(--field-off)"/>`).join("");
+           rx="0.6" fill="var(--field-off)" data-slot="${i}"/>`).join("");
   fieldCells = [...svg.querySelectorAll("rect")];
   fieldLit = new Map();
 }
@@ -586,7 +593,12 @@ function renderField(s) {
   if (!total) return;
   if (!fieldCells || fieldCells.length !== total) buildField(total);
   const taken = new Set(), want = new Map();
-  for (const a of s.arms) want.set(fieldSlot(a.id, taken, total), a.index === s.live_arm);
+  fieldArms = new Map();
+  for (const a of s.arms) {
+    const slot = fieldSlot(a.id, taken, total);
+    want.set(slot, a.index === s.live_arm);
+    fieldArms.set(String(slot), a);
+  }
   for (const [i, wasLive] of fieldLit) {
     if (want.has(i)) continue;
     fieldCells[i].setAttribute("fill", "var(--field-off)");
@@ -600,7 +612,18 @@ function renderField(s) {
     else fieldCells[i].removeAttribute("class");
   }
   fieldLit = want;
-  $("field").setAttribute("aria-label",
+  // A lattice you cannot interrogate is decoration. Delegated, so the handler
+  // survives the in-place mark updates and costs one listener, not 1,054.
+  const svg = $("field");
+  svg.onmousemove = (ev) => {
+    const a = fieldArms.get(ev.target?.dataset?.slot);
+    if (!a) return hideTip();
+    showTip(ev.clientX, ev.clientY,
+      `<b>${a.name}</b> ${hexTag(a.id)}${a.index === s.live_arm ? " · driving" : ""}<br>` +
+      `sim ${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)} bps · ${a.pulls} pulls`);
+  };
+  svg.onmouseleave = hideTip;
+  svg.setAttribute("aria-label",
     `${total} enumerated exit machines. ` +
     `${plural(s.arms.length, "machine holds", "machines hold")} a bandit seat` +
     (s.live_arm != null ? ", one of which is driving." : "."));
@@ -709,6 +732,76 @@ function renderPareto(s) {
     `simulated edge against complexity. Best simulated edge ` +
     `${bestArm.sim_edge_bps.toFixed(1)} bps from ${bestArm.name}. ` +
     `${plural(front.length, "machine lies", "machines lie")} on the Pareto frontier.`);
+}
+
+// ---- The race -----------------------------------------------------------
+// "Paired against every standard exit" was a three-column table of running
+// means. The per-tick values behind it already exist (shadowValues), they were
+// just never plotted. Sampling happens in render() rather than the tick loop
+// so the machine and the references are read off the SAME tick — which is the
+// entire basis of the paired comparison.
+const RACE_MAX = 400;
+let raceHist = [], raceKey = null;
+
+function sampleRace(s) {
+  if (!s.position) return;                        // keep the last race on screen
+  if (s.position.opened_at_tick !== raceKey) { raceKey = s.position.opened_at_tick; raceHist = []; }
+  if (!shadow || s.last_price == null || s.position_value_norm == null) return;
+  if (raceHist.length && raceHist[raceHist.length - 1].t === s.tick) return;   // render() can fire twice per tick
+  const v = shadowValues(shadow, s.last_price);
+  if (!(v.hold > 0)) return;
+  const bps = (x) => (x - v.hold) / v.hold * 1e4;
+  raceHist.push({ t: s.tick, machine: bps(s.position_value_norm), twap: bps(v.twap),
+                  trailing: bps(v.trailing), ladder: bps(v.ladder), bracket: bps(v.bracket) });
+  if (raceHist.length > RACE_MAX) raceHist.shift();
+}
+
+// References share one ink and are told apart by dash pattern plus a direct
+// end label, rather than by four invented hues the palette does not have.
+const RACE_REFS = [
+  ["twap", "TWAP", "1 0"], ["trailing", "trailing", "5 3"],
+  ["ladder", "ladder", "2 2"], ["bracket", "bracket", "7 2 2 2"],
+];
+
+function renderRace(s) {
+  const svg = $("race"), W = svg.clientWidth || 520, H = 150;
+  const P = { l: 40, r: 66, t: 12, b: 18 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (raceHist.length < 2) {
+    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">${
+      s.position ? "measuring…" : "open a position to start the race"}</text>`;
+    svg.setAttribute("aria-label", "The race has not started; no position is open");
+    return;
+  }
+  const keys = ["machine", ...RACE_REFS.map(r => r[0])];
+  const all = raceHist.flatMap(p => keys.map(k => p[k]));
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * 0.14; lo -= pad; hi += pad;
+  const t0 = raceHist[0].t, t1 = raceHist[raceHist.length - 1].t;
+  const X = (t) => P.l + (t - t0) / Math.max(1, t1 - t0) * (W - P.l - P.r);
+  const Y = (b) => P.t + (hi - b) / (hi - lo) * (H - P.t - P.b);
+  const path = (k) => raceHist.map(p => `${X(p.t)},${Y(p[k])}`).join(" ");
+  let g = `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3 3"/>`
+        + `<text x="${P.l}" y="${Y(0) - 5}">doing nothing</text>`;
+  for (const [k, label, dash] of RACE_REFS) {
+    g += `<polyline points="${path(k)}" fill="none" stroke="var(--muted)" stroke-width="1.2"
+            stroke-dasharray="${dash}" opacity="0.85"/>`
+       + `<text x="${W - P.r + 5}" y="${Y(raceHist[raceHist.length - 1][k]) + 3.5}">${label}</text>`;
+  }
+  g += `<polyline points="${path("machine")}" fill="none" stroke="var(--series-1)" stroke-width="2.5"
+          stroke-linejoin="round" stroke-linecap="round"/>`;
+  const now = raceHist[raceHist.length - 1].machine;
+  const txt = `${now >= 0 ? "+" : ""}${now.toFixed(1)}`;
+  const w = txt.length * 7 + 12;
+  g += `<rect x="${W - P.r + 2}" y="${Y(now) - 9}" width="${w}" height="18" rx="4" fill="var(--series-1)"/>`
+     + `<text x="${W - P.r + 2 + w / 2}" y="${Y(now) + 4}" text-anchor="middle" fill="var(--page)" font-weight="600">${txt}</text>`;
+  svg.innerHTML = g;
+  const beaten = RACE_REFS.filter(([k]) => now > raceHist[raceHist.length - 1][k]).length;
+  svg.setAttribute("aria-label",
+    `Live race over ${raceHist.length} ticks. The machine is ` +
+    `${now >= 0 ? now.toFixed(1) + " basis points ahead of" : (-now).toFixed(1) + " basis points behind"} ` +
+    `doing nothing, and ahead of ${beaten} of the ${RACE_REFS.length} reference exits.`);
 }
 
 // The five beats of the pitch, lit by whichever have actually happened. The
@@ -883,7 +976,8 @@ function renderTape(s) {
 
 function render(s) {
   last = s;
-  renderStats(s); renderBeats(s); renderField(s); renderPareto(s);
+  sampleRace(s);
+  renderStats(s); renderBeats(s); renderField(s); renderPareto(s); renderRace(s);
   renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderFeed(s); renderTape(s);
 }
 
