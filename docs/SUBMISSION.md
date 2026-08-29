@@ -22,8 +22,8 @@
 
 **Project name:** AfterSwap
 
-**One-liner:** Exhaustively enumerated exit machines, fighting over your
-position — live on DFlow.
+**One-liner:** Cruise control plus a dashcam, for selling — your exit runs
+to a rule, and every fill leaves a receipt anyone can check. Live on DFlow.
 
 **Team:** solo — [your name / @handle here]. Third-party: katgpt-ruliology
 (MIT, @katopz) for FSM enumeration primitives.

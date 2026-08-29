@@ -57,7 +57,9 @@ policy tests green. Blocked on the vault-vs-delegate custody decision.
 🔵 **DESIGN, zero code:** everything ZK — selective disclosure, viewing keys,
 confidential amounts. `rg -i 'zero-knowledge|zk-|viewing key|confidential'`
 over the repo returns **nothing**. Also design-only: the domain-agnostic v2
-schema (§2.1), and the receipt modal itself (§1).
+schema (§2.1). **The receipt modal (§1) is now 🟡 BUILT** — implemented in
+`web-wasm/public/rail.html`, executed against live data and real WASM, not yet
+deployed.
 
 ---
 
@@ -143,13 +145,23 @@ Do **not** ship the string "verified in 3ms". Wrap the real calls and render
 the measured value:
 
 ```js
-const t0 = performance.now();
-const rec = JSON.parse(rail_verify_record(recordJson, attestPubkeyHex));
-const leaf = rail_record_hash(recordJson);
-const ok  = JSON.parse(rail_merkle_verify(leaf, proofJson, rootHex));
-const ms  = (performance.now() - t0).toFixed(1);
-// → "verified in-browser via WASM in 2.4 ms — no server was asked"
+// These return a plain "ok" string (or an error string) — not JSON. Network is
+// timed out of the number on purpose, so it describes the verifier, not the wifi.
+let ms = 0;
+let t = performance.now();
+const attest = rail_verify_record(recordJson, attestPubkeyHex);  // "ok" | "err: …"
+const leaf   = rail_record_hash(recordJson);
+ms += performance.now() - t;
+const proof = await (await fetch(`${BASE}/rail/proof/${seq}`)).json();
+t = performance.now();
+const incl = rail_merkle_verify(leaf, JSON.stringify(proof.proof), proof.segment_root);
+ms += performance.now() - t;
+// → "verified in-browser via WASM in 0.4 ms (cryptography only, excludes network)"
 ```
+
+**Measured 2026-08-29**, real WASM against live records: **0.2–0.7 ms warm**,
+**~5.2 ms on the first call** (JIT). Render the live value — it is smaller than
+the round number anyone would have invented, and it cannot become false.
 
 A live number that moves between takes is more convincing than a round one,
 and it cannot become false. The sub-claim that actually matters is **"no server
@@ -177,6 +189,55 @@ was asked"** — that is the zero-trust property, and it is 🟢 LIVE today.
 `seal` state = `min(market, policy, anchor)` over the ordering
 `failed < pending < attested < verified`. Implement that as a helper, not by
 hand, so it cannot drift.
+
+### 1.6 What the live data actually does — measured, not assumed
+
+The modal was executed against the live rail (real WASM, real records, a DOM
+harness) before this section was written. Three findings change the demo:
+
+**a) A green receipt is rare, and that is the honest result.** Of **70**
+multi-venue records, only **10** earn green. A receipt goes green only when the
+quotes share a `context_slot` *and* the chosen venue signed. Sixty are amber —
+either the quotes are a slot apart (not a like-for-like comparison) or the
+chosen venue was Jupiter, which signs nothing.
+
+> Say this on stage: *"Sixty of our seventy comparisons are amber. The receipt
+> is not decoration — most of the time it is telling you the comparison was
+> imperfect, and we ship it anyway."*
+
+**b) When DFlow wins, it is an exact tie — and the tie-break is a feature.**
+Every DFlow win in the live set is equal to the lamport (seq 96:
+107,482,926 vs 107,482,926). The tie breaks toward the venue that **signs**.
+That is the only defensible way to break it, and the modal now says so in
+words. When Jupiter wins it is by a real margin (seq 97: 0.16 bps).
+
+**c) Demo picks, verified rendering 2026-08-29:**
+
+| seq | Renders | Why |
+|---|---|---|
+| **120**, **123** | 🟢 all four green, explorer link live | same slot + DFlow signed + anchored |
+| **121**, **122**, **124** | 🟡 amber overall, anchor green | chosen venue unsigned, or quotes a slot apart |
+| 137 | green market, **pending** anchor | segment 128+ not closed yet |
+
+Both 120 and 123 sit inside the default 25-row view (tip 139 → rows 115–139),
+so the green/amber side-by-side needs **no URL parameters and no scrolling**.
+Open 120, then 121. That is the whole beat.
+
+### 1.7 Verification performed
+
+- Real WASM (`afterswap_wasm_bg.wasm`) loaded in Node against live records:
+  `rail_verify_record` **ok**, `rail_merkle_verify` **ok**, 6-node proofs,
+  anchor `4FHorYfF…`.
+- **Tamper test passes**: `out_amount + 1` → `err: attestation does not verify`.
+  The red state is reachable, which is the only thing that makes the green
+  state mean anything.
+- Full page executed under a linkedom DOM with live data: **25 rows render**,
+  stats line correct, seal states as tabled in 1.6, explorer link populated.
+- `node --check` clean on the extracted module.
+
+**Not verified:** real-browser layout, `<dialog>` visuals, `showModal()`
+behaviour and CSS. The DOM harness stubs `showModal`. Open it in a browser
+before relying on it on stage.
 
 ---
 
@@ -447,11 +508,10 @@ Solana can anchor.*
 Ranked by demo impact per hour. Everything here is additive — **no changes to
 locked code, benchmarks or the submission.**
 
-1. **The receipt modal (§1)** — the only genuinely new build, and it carries
-   slides 4 and most of the live demo. All three checks read data that already
-   exists at `/rail/records`, `/rail/proof/{n}`, `/rail/segments`; the verify
-   functions are already exported to WASM. This is a UI over live endpoints,
-   not new cryptography. **Do this first and stop when it works.**
+1. ~~**The receipt modal (§1)**~~ — ✅ **BUILT 2026-08-29** in
+   `web-wasm/public/rail.html`, verified against live data and real WASM (§1.7).
+   Remaining for the owner: **open it in a real browser** (the DOM harness
+   stubs `showModal`), then **deploy** — `wrangler` is classifier-blocked here.
 2. **Screenshot + record the fallback capture** — insurance for §4.2.
 3. **The four-layer × three-vertical diagram** — slide 6, the whole of §4.3.
 4. **Tag legend on every slide** — mechanical, 30 minutes, and it is what makes

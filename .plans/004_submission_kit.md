@@ -298,7 +298,7 @@ from here, so this is the raw material rather than a field-by-field fill.
 | Field likely asked | Answer |
 |---|---|
 | Project name | AfterSwap |
-| One-liner | Exhaustively enumerated exit machines, fighting over your position — live on DFlow. |
+| One-liner | Cruise control plus a dashcam, for selling — your exit runs to a rule, and every fill leaves a receipt anyone can check. Live on DFlow. |
 | Live URL | https://afterswap.solana-thailand.workers.dev |
 | Repo | https://github.com/ozoneRatchapon/afterswap |
 | Track / theme | "Build what happens after the swap" |

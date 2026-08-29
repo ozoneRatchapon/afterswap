@@ -36,8 +36,9 @@ They said: *usefulness, clarity, execution, originality.*
   ships a leaderboard of *evolved finite-state machines* with a proof
   report.
 
-**One-liner for the form:** "Exhaustively enumerated exit machines,
-fighting over your position — live on DFlow."
+**One-liner for the form:** "Cruise control plus a dashcam, for selling
+— your exit runs to a rule, and every fill leaves a receipt anyone can
+check. Live on DFlow."
 
 ## 3. DFlow team — speak order-flow
 
