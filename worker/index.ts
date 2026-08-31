@@ -16,7 +16,7 @@ import wasmModule from "../web-wasm/public/pkg/afterswap_wasm_bg.wasm";
 
 export { Scoreboard } from "./scoreboard";
 
-import { b58decode, commitPolicy } from "./commit";
+import { b58decode, b58encode, commitPolicy } from "./commit";
 import pdaTable from "./pda_table.json";
 
 let ready: Promise<unknown> | null = null;
@@ -67,6 +67,34 @@ function run_roster(prices: number[]): any {
   }
 }
 
+/// A stable per-visitor key for the demo commit budget.
+///
+/// The raw address never reaches storage: the DO only ever sees 8 bytes of
+/// its SHA-256. That is a key, not anonymisation — the IPv4 space is small
+/// enough to enumerate against this digest — but it keeps plain addresses
+/// out of a table this demo has no reason to hold them in.
+///
+/// Callers behind the same NAT share a key and therefore share the cap.
+/// For a devnet demo that is the right trade: the alternative is no cap.
+async function visitor_key(request: Request): Promise<string> {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip));
+  return [...new Uint8Array(digest).subarray(0, 8)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/// Hand a taken slot back. Every path that takes a slot and then fails
+/// before the transaction is signed goes through here: nothing reached
+/// devnet, so neither the global 380 nor the visitor's cap should be
+/// charged. The DO declines anything but the most recently issued slot.
+async function release_slot(env: Env, slot: number, visitor: string): Promise<void> {
+  await env.SCOREBOARD
+    .get(env.SCOREBOARD.idFromName("global-v1"))
+    .fetch(`https://do/slot/release?slot=${slot}&ip=${visitor}`, { method: "POST" })
+    .catch(() => {});
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -81,6 +109,15 @@ export default {
     if (url.pathname === "/api/commit-policy") {
       if (request.method !== "POST") return json({ error: "POST only" }, 405);
       if (!env.DEMO_KEYPAIR) return json({ error: "demo signer not configured" }, 503);
+      // Check the signer *before* taking a slot. A key that is the wrong
+      // length, or simply not the fee payer the PDA table was derived
+      // against, still produces a signature — one that devnet rejects — so
+      // without this a misconfigured secret spends the whole budget on
+      // transactions that can never land.
+      const secretKey = b58decode(env.DEMO_KEYPAIR);
+      if (secretKey.length !== 64 || b58encode(secretKey.subarray(32)) !== (pdaTable as { owner: string }).owner) {
+        return json({ error: "demo signer misconfigured" }, 503);
+      }
       let body: {
         fingerprint?: unknown;
         n_states?: unknown;
@@ -105,18 +142,28 @@ export default {
         return json({ error: "bad params" }, 400);
       }
 
-      // The DO hands out position slots and enforces the demo budget.
+      // The DO hands out position slots and enforces the demo budget: the
+      // global 380 and, since this endpoint is unauthenticated by design, a
+      // per-visitor cap so one caller cannot spend the whole demo.
+      const visitor = await visitor_key(request);
       const slotRes = await env.SCOREBOARD
         .get(env.SCOREBOARD.idFromName("global-v1"))
-        .fetch("https://do/slot", { method: "POST" });
+        .fetch(`https://do/slot?ip=${visitor}`, { method: "POST" });
       const slot = (await slotRes.json()) as { slot?: number; error?: string };
-      if (slot.slot == null) return json({ error: slot.error ?? "no slots left" }, 429);
+      if (slot.slot == null) {
+        return json({ error: slot.error ?? "no slots left" }, slotRes.status === 400 ? 400 : 429);
+      }
       const policyPda = (pdaTable as { pdas: string[] }).pdas[slot.slot];
-      if (!policyPda) return json({ error: "slot out of range" }, 429);
+      if (!policyPda) {
+        // Unreachable while the table (400) outruns the budget (380), but
+        // the slot is genuinely unspent, so hand it back rather than leak it.
+        await release_slot(env, slot.slot, visitor);
+        return json({ error: "slot out of range" }, 429);
+      }
 
       try {
         const signedTx = await commitPolicy({
-          secretKey: b58decode(env.DEMO_KEYPAIR),
+          secretKey,
           blockhash,
           programId: POLICY_PROGRAM,
           owner: (pdaTable as { owner: string }).owner,
@@ -130,6 +177,10 @@ export default {
         });
         return json({ signed_tx: signedTx, policy_pda: policyPda, cluster: "devnet" });
       } catch (e) {
+        // Signing failed, so nothing reached devnet — hand the slot back
+        // rather than burning one of the 380 against a transaction that
+        // never existed.
+        await release_slot(env, slot.slot, visitor);
         return json({ error: String(e).slice(0, 200) }, 502);
       }
     }
