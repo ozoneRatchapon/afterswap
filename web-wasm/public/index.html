@@ -1348,19 +1348,25 @@ function renderSigChip(v) {
   if (v.ok === true) {
     el.innerHTML = `<span style="color:var(--delta-good)">✓ ${verifiedCount} DFlow-signed quotes verified in your browser</span>`;
   } else if (v.ok === null) {
-    el.textContent = `signed quote · ${v.reason}`;
+    // Digest checked, signature not — this browser has no WebCrypto Ed25519.
+    // Reported separately from `verifiedCount` because a digest alone proves
+    // the body is intact, not that DFlow sent it. Counting these as
+    // "verified" would overstate exactly the claim the chip is making.
+    el.textContent = `${digestOnlyCount} quotes: digest ok, signature unchecked (${v.reason})`;
   } else {
     el.innerHTML = `<span style="color:var(--delta-bad)">signature ${v.reason}</span>`;
   }
 }
 
-let verifiedCount = 0;
+let verifiedCount = 0, digestOnlyCount = 0;
 
 async function fetchPrice() {
-  // Every quote is signed and verified. Measured cost: 0.055 ms per quote —
-  // 0.006% of a core at one quote per second. Sampling would mean the
-  // machines act on prices nobody checked, which is not a property worth
-  // trading for a rounding error of CPU.
+  // Every quote is checked, and none is sampled: measured cost is 0.055 ms
+  // per quote — 0.006% of a core at one quote per second — so there is
+  // nothing to buy by skipping some. Signature verification needs WebCrypto
+  // Ed25519; where the browser lacks it the digest still verifies and the
+  // tick is still traded, but it is counted and displayed as digest-only,
+  // never as signature-verified. Only a *failed* signature discards a tick.
   const requestId = `afterswap-${Date.now()}`;
   const res = await fetch(quoteUrl(), {
     headers: { "x-sign-request": "true", "x-request-id": requestId },
@@ -1372,7 +1378,8 @@ async function fetchPrice() {
     renderSigChip(lastVerified);
     throw new Error(`unverified quote: ${lastVerified.reason}`);
   }
-  verifiedCount += 1;
+  if (lastVerified.ok === true) verifiedCount += 1;
+  else digestOnlyCount += 1;
   renderSigChip(lastVerified);
   const q = JSON.parse(text);
   const rp = q.routePlan;
