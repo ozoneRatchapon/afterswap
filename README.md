@@ -21,10 +21,11 @@ you are awake or not. It cannot change its mind halfway through because the
 position frightened it — that is the entire point, and it is the part a human
 cannot do.
 
-**A dashcam.** The rule is stamped on Solana *before* the first sale, bound to
-a venue-signed quote. Afterwards, "this fill followed a policy committed in
-advance, at a price DFlow really offered" is three cryptographic facts rather
-than your word.
+**A dashcam.** The rule is stamped on Solana *before* the first sale, next to
+the digest of a venue-signed quote. Afterwards, "this fill followed a policy
+committed in advance" is checkable against the chain rather than your word,
+and the quote it was priced off is one anyone can re-verify against DFlow's
+published key.
 
 | | How exits work today | With AfterSwap |
 |---|---|---|
@@ -115,13 +116,28 @@ should judge it on that alone.
    relays the transaction.
 5. **The whole chain is verifiable, and the last link closes on-chain.**
    DFlow signs its API responses (RFC 9421, ed25519); **every** quote is
-   checked in your own tab — body digest *and* signature against DFlow's
-   published key — and a quote that fails verification is discarded rather
-   than traded on (measured cost: 0.055 ms, 0.006% of a core). The machine's
-   policy is then committed to Solana **bound to that exact signed quote**:
-   the commitment transaction carries `afterswap:quote sha-256=…` in a memo
-   beside it. So "this fill followed a policy committed in advance, at a price
-   the venue really offered" is three cryptographic facts, not a claim.
+   checked in your own tab — body digest *and*, on any browser with
+   WebCrypto Ed25519, signature against DFlow's published key — and a quote
+   whose signature fails is discarded rather than traded on (measured cost:
+   0.055 ms, 0.006% of a core). Where the browser has no Ed25519 the digest
+   still verifies and the tick is still traded; the page counts and labels
+   those separately from signature-verified quotes rather than folding them
+   into one number. The machine's
+   policy is then committed to Solana next to that quote's digest: the
+   commitment transaction carries `afterswap:quote sha-256=…` in a memo
+   beside it.
+
+   Be precise about what that memo proves. The digest is computed and
+   RFC 9421-checked **in the visitor's tab**, then relayed to the signing
+   Worker, which checks its shape and not its provenance — so the memo binds
+   the commitment to a quote *the client says* it verified. Two of the three
+   links are unconditional: the policy PDA is immutable and timestamped by
+   the chain, and DFlow's signature over any quote you hold can be re-checked
+   by anyone against its published key. The third — that the memo names the
+   quote the engine actually traded — currently rests on the client, because
+   the engine runs in the client. Carrying DFlow's signature itself in the
+   memo would close it without a backend; that is not built yet
+   (`.plans/009`).
 6. **There is no backend.** The whole engine compiles to a 476 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
@@ -288,6 +304,45 @@ cargo run -p afterswap-server -- --serve 8787 --interval-ms 1000   --window 12 -
 
 Add `--record <file>` to any live run to capture your own segment.
 
+**In Telegram (no wallet, no install, no dashboard):**
+
+The dashboard answers *"what is this engine doing?"* — a state diagram, a
+leaderboard, a gate meter. That is the wrong first question for someone who
+just wants to know when to sell. The bot answers the other one, over the same
+engine and the same DFlow quotes:
+
+```
+/watch SOL 1.0
+> Watching 1 SOL from 102.4636.
+> saw a dip → sell-state S1 → sold 10% of your SOL at 102.4504. 90% left.
+> ...
+> Position fully exited. The plan finished at -0.8 bps versus your entry price.
+```
+
+That transcript is real output from a live DFlow run, not a mockup. Run it
+yourself with no bot token at all — the same loop reads commands from stdin:
+
+```bash
+cargo run -p afterswap-bot -- --dry-run --interval-ms 1000
+```
+
+With a token from [@BotFather](https://t.me/botfather):
+
+```bash
+TELEGRAM_BOT_TOKEN=... cargo run -p afterswap-bot
+```
+
+Commands: `/watch <SOL|BONK> [size]`, `/status`, `/proof`, `/stop`, `/help`.
+Add `--loud` to also narrate tournaments, arm changes and per-window scoring.
+
+The bot adds **no** engine behaviour — same `EngineConfig`, same
+`EngineEvent` stream the dashboard renders, same shipped constants. What is
+new is only the phrasing, and that is tested as strictly as the numbers are:
+`crates/afterswap-bot/tests/phrase.rs` asserts that losing windows are
+reported as losses, that the position value never appears without its
+hold baseline, that the onboarding message states the negative result, and
+that no message contains a word promising the reader money.
+
 Terminal-only e2e (no dashboard):
 
 ```bash
@@ -380,7 +435,7 @@ Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 | `afterswap-dflow` | DFlow Trading API client (`/quote`, `/order`), price poller. Types verified against live captures. |
 | `afterswap-server` | Paper loop + axum server, SSE snapshot stream, vanilla-JS/SVG dashboard. |
 | `afterswap-wasm` | Browser build of the engine (wasm-bindgen) — powers the serverless live demo on Cloudflare Workers static assets. |
-| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions, all seven tags including `AnchorFill` (41.4 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
+| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions, all seven tags including `AnchorFill` (44.5 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
 
 Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The
@@ -431,6 +486,6 @@ Durable-Object world, prediction-market outcome tokens:
   price (no slippage/fee model beyond DFlow's own quoted amounts).
 - Live mode sells real tranches but is deliberately minimal (throwaway keypair,
   no retry logic) — it is a buildathon proof, not custody software.
-- Built during the buildathon (Aug 21–31, 2026); not previously released.
+- Built during the buildathon (Aug 21 – Sep 2, 2026); not previously released.
 
 MIT.

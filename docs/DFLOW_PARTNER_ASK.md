@@ -13,13 +13,18 @@ AfterSwap is a post-swap exit engine that runs in the user's browser,
 consumes DFlow `GET /quote` as its only sensor, and acts through
 `GET /order` as its actuator. Every quote is RFC 9421-verified in the
 user's own tab before the engine acts on it. The engine's exit policy is
-committed to a Solana PDA *before* any sell follows it. The fill is
-anchored to the exact signed quote it followed.
+committed to a Solana PDA *before* any sell follows it, carrying the digest
+of the quote it was priced off.
 
-This is the "Verifiable Execution Rail" — a chain of three cryptographic
-facts (signed quote → committed policy → verified fill) that, as of
-today, **no project in this space can produce end-to-end for mainnet
-fills**. We have the program, the verification, and the anchoring. What
+This is the "Verifiable Execution Rail" — signed quote → committed policy →
+verified fill — which, as of today, **no project in this space can produce
+end-to-end for mainnet fills**. Two of those three links hold
+unconditionally today: the PDA is immutable and chain-timestamped, and
+DFlow's signature over a quote re-verifies against your published key for
+anyone who holds it. The third — that the on-chain memo names the quote the
+engine actually traded — rests on the client today, because the engine *is*
+the client. Carrying your signature in the memo closes it, and is part of
+what the interfaces below are for. We have the program, the verification, and the anchoring. What
 we do not have is the production API surface that makes the last link
 (mainnet fills) as clean as the first two (signed quotes, policy
 commitment).

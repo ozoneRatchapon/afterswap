@@ -169,11 +169,35 @@ revoke clears crank, revoke idempotent). Binary 18 KB → **23.8 KB** (still
 `ValidateAndSell` (tag 2) — the gate, and the only instruction that moves
 tokens — plus the vault path it needs: `DepositToVault` (tag 4) and
 `CloseVault` (tag 5). 16 further LiteSVM tests in `tests/vault.rs`, so the
-crate now runs **34 tests, all green** (`policy.rs` 2, `execution.rs` 7,
-`vault.rs` 17, `anchor.rs` 8 — the last added with step 3 below). Binary
-**42,368 bytes (41.4 KB)**, rent-exempt minimum **0.29577216 SOL** (devnet
-RPC, 2026-08-29) — both inside the < 60 KB / < 0.4 SOL budget. Before
-`AnchorFill` the same figures were 35,736 bytes and 0.2496 SOL.
+crate now runs **42 tests, all green** (`policy.rs` 2, `execution.rs` 9,
+`vault.rs` 23, `anchor.rs` 8 — the last added with step 3 below). Binary
+**45,600 bytes (44.5 KB)** after the 2026-09-01 gate fixes; it was 42,368
+bytes at rent-exempt minimum **0.29577216 SOL** (devnet RPC, 2026-08-29),
+and rent has not been re-queried since nothing is deployed. Both inside the
+< 60 KB / < 0.4 SOL budget. Before `AnchorFill` the same figures were
+35,736 bytes and 0.2496 SOL.
+
+**Gate hardening (2026-09-01).** A read of `validate_and_sell` against its
+own docstring turned up four gaps, all now closed and covered by 8 new
+tests. (1) The destination ATA was never verified — the vault PDA signs
+every transfer, so an authorized crank could name its own ATA and drain the
+vault at a legal tranche size. The payout account is now bound at
+authorization time (`execution.settlement_ata`, non-zero required). (2) The
+token program account was unpinned while the CPI carried the vault PDA's
+signature, handing vault signing authority to caller-chosen code; it is now
+pinned to SPL Token across tags 2, 4 and 5. (3) The `tranche_bps` bound the
+docstring promised was never enforced — the code read the field into
+`_tranche_bps` and discarded it. It is now enforced against `vault.deposited`,
+a new monotone field, so the denominator is the position as deposited rather
+than a shrinking remainder. (4) The tranche *count* was bounded by
+`n_states`, which `CommitPolicy` caps at 4 — meaning a 10% tranche policy
+could never sell more than 40% of a position. It is now
+`ceil(10_000 / tranche_bps)`. Separately, `AuthorizeExecution` returned
+`AccountAlreadyInitialized` for any existing account, so revoking once
+permanently ended the owner's ability to delegate that position; a revoked
+PDA is now re-authorizable in place. The header claim that the cranker "can
+never move funds on their own" was false when written and is now true.
+Since Phase B is undeployed, these layout changes cost no migration.
 
 **Phase B step 3 status: ✅ BUILT AND TESTED (2026-08-29).** `AnchorFill`
 (tag 6) publishes each fill as an SPL memo — the sell-side counterpart of the
@@ -192,9 +216,12 @@ justified the vault over an SPL delegate by asserting that a delegate cannot
 transfer to an arbitrary destination; **that is false**, and the
 delegate-on-owner-ATA alternative is still open. See
 `PHASE_B_DELEGATED_EXECUTION.md` §1 and §8. `AnchorFill` (tag 6) is now
-built (34 tests green, 42,368 B, 0.2958 SOL rent). Next: devnet deploy — but
-settle vault-vs-delegate first, because deploying makes the vault design the
-one demoed and written about.
+built (42 tests green, 45,600 B). Next: devnet deploy — but settle
+vault-vs-delegate first, because deploying makes the vault design the one
+demoed and written about. The 2026-09-01 hardening above is a further
+argument for settling it now: the vault path needed four fixes to make its
+own docstring true, and each one is a check the delegate path would not
+need in the same form.
 
 **Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
 the endgame of the trust ladder. Delegate the position/policy PDA into an

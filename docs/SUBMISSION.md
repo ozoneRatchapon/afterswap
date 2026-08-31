@@ -52,6 +52,21 @@ local keypair, and submits it. Small, repeated, uninformed tranches are
 exactly the flow DFlow's declarative/conditional-liquidity design prices
 well.
 
+**Two front doors, one engine:**
+- **Dashboard** (https://afterswap.solana-thailand.workers.dev) — the whole
+  fight visible: live DFlow price, tranche fills, leaderboard, the driving
+  machine's state diagram, in-browser verification of every signed quote.
+- **Telegram bot** — for the person who does not want any of that. `/watch SOL
+  1.0` and the same engine narrates its exits in one sentence each: *"saw a
+  dip → sell-state S1 → sold 10% of your SOL at 102.4504. 90% left."* No
+  wallet, no install, no chart. It adds zero engine behaviour — identical
+  config, identical events — and its phrasing is unit-tested against the same
+  claim discipline as the numbers: losing windows must be reported as losses,
+  the position value never appears without its hold baseline, and no message
+  may promise the reader money. Runs without a bot token via
+  `cargo run -p afterswap-bot -- --dry-run`, so a judge can reproduce the
+  transcript in one command.
+
 **Repo:** https://github.com/ozoneRatchapon/afterswap
 
 **Demo video:** [link after recording — script in docs/DEMO.md]
@@ -88,7 +103,7 @@ evidence-ladder linter that fails the build when a claim outruns its evidence,
 and four negative results recorded rather than deleted. Latest floors report:
 `benches/039_goat/report.md`.
 
-**Status:** built entirely during the buildathon (Aug 21–31); never released
+**Status:** built entirely during the buildathon (Aug 21 – Sep 2); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
 sells real tranches via DFlow orders.
 
@@ -119,7 +134,7 @@ position → machine reads DFlow tick direction → sell-state fills tranche
 at DFlow quote (live: signed /order tx) → windows score machine vs hold →
 losers benched, mutants challenge → hero number = your edge.
 
-**Built Aug 21–31:** everything, empty dir → v2.4 — incl. an on-chain
+**Built Aug 21 – Sep 2:** everything, empty dir → v2.4 — incl. an on-chain
 policy-registry program (Pinocchio, deployed on devnet, first policy
 committed and verified) → engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise

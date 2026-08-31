@@ -84,7 +84,9 @@ execution     PDA ["execution", owner, position_id]   (new)
                 the gate's mutable state:
                 { authorized_crank (32), tranches_filled (u8),
                   executed_lamports (u64), last_tick_slot (u8),
-                  expires_unix (u8), bump }
+                  expires_unix (u8), bump, settlement_ata (32) }
+                `settlement_ata` is the one account a sell may pay into,
+                named by the owner at authorization time.
 
 owner_ata     SPL Token ATA for (owner, mint)         (existing pattern)
                 source of every transfer; the owner's tokens, not the
@@ -129,8 +131,13 @@ have no subsection below because they postdate this document's §4.
 Accounts: `owner (signer)`, `execution PDA`, `crank pubkey (readonly)`,
 `system`.
 
-Sets `execution.authorized_crank = <pubkey>` and
-`execution.expires_unix`. Called once per position. The authorised crank
+Sets `execution.authorized_crank = <pubkey>`,
+`execution.expires_unix`, and `execution.settlement_ata` — the single
+token account `ValidateAndSell` may pay into. The owner names the payout
+destination in the same act that names the crank, so the crank chooses
+*when* and *how much*, never *where*. A zero `settlement_ata` is rejected
+(it is the value revocation writes to the crank field). Called once per
+position, and again after a revocation to rebind. The authorised crank
 is the `hydra` crank PDA (or equivalent), **not** a hot wallet — and it
 is an *authorization* our program records, not an SPL Token delegation.
 In the built design the **vault PDA**, not the crank, signs each
@@ -183,16 +190,39 @@ tag(1=2)
 5. **State consistency:** the cranker supplies `expected_state`; the program
    does not re-run the FSM (it cannot — the machine genome is not on-chain).
    Instead it enforces the *invariant* the committed policy implies:
-   tranche size ≤ `tranche_bps` of the position, tranche index < n_states
-   (a 3-state machine has at most 3 distinct exit actions; the exact
-   transition table is the auditor's job, verified off-chain against the
-   fingerprint). The on-chain guarantee is bounded loss + monotonic progress;
-   the off-chain guarantee is policy fidelity. This split is stated because
+   `amount * 10_000 ≤ tranche_bps * vault.deposited` (tranche size never
+   exceeds the committed budget, measured against the position as
+   deposited — a fixed denominator, so ten 10% tranches exit the position
+   exactly rather than chasing a shrinking remainder), and
+   `tranche_index < ceil(10_000 / tranche_bps)` (no more fills than the
+   committed tranche size divides the position into). The exact transition
+   table is the auditor's job, verified off-chain against the fingerprint.
+   The on-chain guarantee is bounded loss + monotonic progress; the
+   off-chain guarantee is policy fidelity. This split is stated because
    it is the honest limit of what 18 KB of program can enforce.
-6. Move `tranche_bps` of the position from `owner ATA` to the destination
-   (the DFlow route's output ATA), via the Token program `TransferChecked`,
-   signed by the authorised crank PDA. The owner is the source; the crank
-   PDA is the signer; the program is neither custodian nor counterparty.
+
+   *Corrected 2026-09-01.* The tranche index was bounded by `n_states`,
+   the FSM's state count — an unrelated quantity that `CommitPolicy` caps
+   at 4, so a 10% tranche policy could sell at most 40% of a position and
+   the gate had no path to a full exit. And the `tranche_bps` bound was
+   documented but never enforced: the code read the field into `_tranche_bps`
+   and discarded it, leaving `amount ≤ vault_balance` as the only size
+   limit. Both now come from the field that means them.
+6. **Destination binding:** the destination ATA must equal
+   `execution.settlement_ata`. The vault PDA signs the transfer, so without
+   this check an authorized crank could name its own ATA and drain the
+   vault one legal tranche at a time — being on the account list is not a
+   permission. *Added 2026-09-01; the destination was previously
+   unverified.*
+7. Move the amount from the `vault ATA` to that destination via
+   `TransferChecked` on the SPL Token program, signed by the vault PDA.
+   The token program account is pinned to
+   `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`: the CPI carries the vault
+   PDA's signature, so an unpinned token program would extend the vault's
+   signing authority into caller-chosen code. Token-2022 is not accepted —
+   its transfer hooks and fees change what `TransferChecked` means, and
+   these bounds are written against the classic semantics. *Pin added
+   2026-09-01; applies to tags 2, 4 and 5.*
    (`TransferChecked`, not `Transfer`, because amounts are raw integers
    with decimals — the same ground rule as `RAIL.md` §3.1.)
 
@@ -202,7 +232,7 @@ On success: `execution.tranches_filled += 1`, `execution.executed_lamports +=
 On any failure: no tokens move, `tranches_filled` unchanged, the failed
 attempt is the cranker's loss of fee. No partial state.
 
-**This is the enforcement.** A sell that violates step 5 or 6 cannot
+**This is the enforcement.** A sell that violates steps 5–7 cannot
 succeed, because the program refuses to sign the `Transfer`. The witness
 becomes the gate.
 
@@ -210,8 +240,13 @@ becomes the gate.
 
 Accounts: `owner (signer)`, `execution PDA`, `system`.
 
-Zeros `execution.authorized_crank`. Idempotent. The owner is the only
-party who can call it — the authorised crank cannot revoke itself, and
+Zeros `execution.authorized_crank`. Idempotent. A zeroed crank is also
+the re-authorizable state: revoke keeps the account alive, so
+`AuthorizeExecution` rebinds crank, expiry and settlement destination in
+place. (It previously returned `AccountAlreadyInitialized` for any
+existing account, which made revocation a one-way door — the owner could
+never delegate that position again. Fixed 2026-09-01.) The owner is the
+only party who can call it — the authorised crank cannot revoke itself, and
 no other cranker can. Once revoked, `ValidateAndSell` fails at step 2
 for any cranker; only the owner override (step 2, second branch) can
 still move tokens, and only if the owner re-authorizes.
@@ -341,8 +376,8 @@ This is a real security surface. The audit scope, stated explicitly:
 ## 7. Test plan (LiteSVM, same style as `tests/policy.rs`)
 
 **Status: done, and exceeded.** The plan below asked for 10 cases; the build
-landed **34 tests, all green** against the compiled SBF binary —
-`tests/policy.rs` 2, `tests/execution.rs` 7, `tests/vault.rs` 17,
+landed **42 tests, all green** against the compiled SBF binary —
+`tests/policy.rs` 2, `tests/execution.rs` 9, `tests/vault.rs` 23,
 `tests/anchor.rs` 8. **All 10 cases are now covered**; case 9 closed on
 2026-08-29 when `AnchorFill` was built. The shared LiteSVM environment moved
 to `tests/common/mod.rs` at the same time — `vault.rs` had already outgrown
@@ -352,6 +387,25 @@ The vault path (`DepositToVault` / `CloseVault`) is tested beyond this plan:
 deposit creates and tops up, non-signer and wrong-PDA rejects, sell rejects
 amounts exceeding the vault balance and zero amounts, close reclaims, close
 is idempotent when empty, and close rejects a non-owner.
+
+**Account-substitution cases (added 2026-09-01).** The plan above tested
+what the caller *says* (instruction data) far more thoroughly than what the
+caller *supplies* (accounts), which is where all four gate bugs lived. Each
+case below substitutes one account and asserts rejection *and* that no
+tokens moved: a sell to any destination other than the bound settlement
+ATA, and a foreign token program on each of the three transfer paths (sell,
+deposit, close). Two more cover the tranche budget — one base unit over is
+rejected while exactly the budget is allowed, and ten 10% tranches exit the
+position exactly, which is what proves the denominator is deposits and not
+the remainder. Two on the authorize side: a zero settlement ATA is
+rejected, and re-authorizing after a revoke rebinds crank, expiry and
+destination.
+
+The generalization worth building next: for every instruction × every
+account it takes, a case that substitutes an attacker-controlled account
+and asserts rejection. That matrix is enumerable the same way the FSM space
+is (~7 instructions × 6–8 accounts), and it would have caught all four of
+these without anyone reading the code.
 
 The original plan, kept for the record:
 
@@ -462,7 +516,10 @@ clean autofixer run as a security review; it is not one, and neither is this.
    (34.9 KB)** at 0.2496 SOL rent before `AnchorFill`, and **42,368 bytes
    (41.4 KB)** after it. `getMinimumBalanceForRentExemption(42368)` on devnet
    returns **295,772,160 lamports = 0.29577216 SOL** (queried 2026-08-29).
-   Both targets still met: 41.4 KB < 60 KB, 0.2958 SOL < 0.4 SOL. The
+   The 2026-09-01 gate fixes (destination binding, token-program pin, real
+   tranche bound) take it to **45,600 bytes (44.5 KB)**; rent scales with
+   size and has not been re-queried, since nothing is deployed yet.
+   Both targets still met: 44.5 KB < 60 KB, ~0.32 SOL < 0.4 SOL. The
    0.2496 SOL figure above is the pre-`AnchorFill` measurement.
 6. Devnet deploy; run the demo against the new program. **NOT DONE** — devnet
    still runs the Phase A `CommitPolicy`-only program.
