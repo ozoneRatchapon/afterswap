@@ -45,6 +45,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "afterswap-bot"
+version = "0.1.0"
+dependencies = [
+ "afterswap-dflow",
+ "afterswap-engine",
+ "anyhow",
+ "env_logger 0.11.11",
+ "log",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "afterswap-dflow"
 version = "0.1.0"
 dependencies = [
