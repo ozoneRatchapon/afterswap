@@ -88,7 +88,8 @@ fn setup_with_one_fill() -> (LiteSVM, Pubkey, Keypair, Pubkey, Pubkey, Keypair, 
         0,
         tick_slot,
         &[7u8; 32],
-        4_000,
+        // One legal tranche: 10% of the 10_000 `happy_setup` deposits.
+        1_000,
     );
     send(&mut svm, &[&crank], &ix).expect("sell succeeds");
     (svm, pid, owner, policy, execution, crank, pos, tick_slot)

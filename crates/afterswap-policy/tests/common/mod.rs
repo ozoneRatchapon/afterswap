@@ -87,6 +87,36 @@ pub fn send_logs(
     }
 }
 
+/// Build an `AuthorizeExecution` (tag 1) instruction.
+///
+/// `settlement_ata` is the payout account the authorization binds — the only
+/// destination `ValidateAndSell` will pay into afterwards.
+pub fn authorize_ix(
+    program_id: Pubkey,
+    owner: &Pubkey,
+    execution: Pubkey,
+    crank: &Pubkey,
+    position_id: u64,
+    expires_unix: u64,
+    settlement_ata: &Pubkey,
+) -> Instruction {
+    let mut d = Vec::with_capacity(AUTHORIZE_IX_LEN);
+    d.push(IX_AUTHORIZE_EXECUTION);
+    d.extend_from_slice(&position_id.to_le_bytes());
+    d.extend_from_slice(crank.as_ref());
+    d.extend_from_slice(&expires_unix.to_le_bytes());
+    d.extend_from_slice(settlement_ata.as_ref());
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(*owner, true),
+            AccountMeta::new(execution, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+        data: d,
+    }
+}
+
 pub fn pda(seed: &[u8], program_id: &Pubkey, owner: &Pubkey, position_id: u64) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[seed, owner.as_ref(), &position_id.to_le_bytes()],
@@ -162,30 +192,10 @@ pub fn setup_full(
     )
     .expect("commit policy");
 
-    // ── Authorize crank (tag 1) ─────────────────────────────────────────
-    let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
-    let expires = (now.unix_timestamp as u64).saturating_add(3_600);
-    let mut d = Vec::with_capacity(AUTHORIZE_IX_LEN);
-    d.push(IX_AUTHORIZE_EXECUTION);
-    d.extend_from_slice(&position_id.to_le_bytes());
-    d.extend_from_slice(crank.pubkey().as_ref());
-    d.extend_from_slice(&expires.to_le_bytes());
-    send(
-        &mut svm,
-        &[&owner],
-        &Instruction {
-            program_id,
-            accounts: vec![
-                AccountMeta::new(owner.pubkey(), true),
-                AccountMeta::new(execution, false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ],
-            data: d,
-        },
-    )
-    .expect("authorize crank");
-
-    // ── SPL token: mint + ATAs + mint tokens ────────────────────────────
+    // ── ATA addresses ───────────────────────────────────────────────────
+    // Derived before `AuthorizeExecution` because that instruction now binds
+    // the settlement destination: the owner names the payout ATA when they
+    // name the crank. Derivation is pure — none of these accounts exist yet.
     let mint_kp = Keypair::new();
     let mint_pk = mint_kp.pubkey();
     let owner_ata = Pubkey::find_program_address(
@@ -212,6 +222,27 @@ pub fn setup_full(
     )
     .0;
 
+    // ── Authorize crank (tag 1) ─────────────────────────────────────────
+    // Settlement destination = the buyer's ATA: the one account tag 2 may
+    // pay into for this authorization.
+    let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
+    let expires = (now.unix_timestamp as u64).saturating_add(3_600);
+    send(
+        &mut svm,
+        &[&owner],
+        &authorize_ix(
+            program_id,
+            &owner.pubkey(),
+            execution,
+            &crank.pubkey(),
+            position_id,
+            expires,
+            &buyer_ata,
+        ),
+    )
+    .expect("authorize crank");
+
+    // ── SPL token: mint + ATAs + mint tokens ────────────────────────────
     // Tx 1a: create mint account (owner pays rent, mint PDA signs).
     const MINT_LEN: u64 = 82;
     let ix = system_instruction::create_account(
@@ -424,4 +455,241 @@ pub fn token_balance(svm: &LiteSVM, ata: &Pubkey) -> u64 {
     let acct = svm.get_account(ata).expect("token account exists");
     // SPL Token account layout: mint(32) + owner(32) + amount(u64 LE @ 64..72)
     u64::from_le_bytes(acct.data[64..72].try_into().unwrap())
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// G7 — cross-account substitution
+// ──────────────────────────────────────────────────────────────────────────
+
+/// A second, fully-formed principal inside the same `LiteSVM` as
+/// `setup_full`'s victim.
+///
+/// The point of a substitution test is *not* that the program rejects
+/// garbage — a random `Pubkey::new_unique()` fails on length or ownership
+/// before any gate logic runs, and proves nothing. The point is that it
+/// rejects a **genuine** account of exactly the right shape that simply
+/// belongs to someone else: same program, same length, same `position_id`,
+/// same mint, committed through the same instructions. Every field the
+/// handlers read is real here; only the seeds differ.
+pub struct Attacker {
+    pub keypair: Keypair,
+    pub policy: Pubkey,
+    pub execution: Pubkey,
+    /// `Pubkey::default()`-valued account is never created when `deposit == 0`;
+    /// the address is still derived so substitution tests can name it.
+    pub vault: Pubkey,
+    pub ata: Pubkey,
+    pub vault_ata: Pubkey,
+}
+
+impl Attacker {
+    pub fn pubkey(&self) -> Pubkey {
+        self.keypair.pubkey()
+    }
+}
+
+/// Build an `Attacker` sharing the victim's `mint` and `position_id`.
+///
+/// `mint_authority` is the victim's owner keypair — the attacker holds the
+/// same token because that is the interesting case: the substituted ATAs are
+/// mint-compatible, so `TransferChecked` cannot be what rejects them.
+///
+/// `deposit == 0` skips the vault entirely (`DepositToVault` reads
+/// `amount == 0` as "move the whole balance", so it has no "create an empty
+/// vault" mode).
+#[allow(clippy::too_many_arguments)]
+pub fn setup_attacker(
+    svm: &mut LiteSVM,
+    program_id: Pubkey,
+    mint_authority: &Keypair,
+    mint: Pubkey,
+    position_id: u64,
+    n_states: u8,
+    tranche_bps: u16,
+    balance: u64,
+    deposit: u64,
+) -> Attacker {
+    let keypair = Keypair::new();
+    let attacker = keypair.pubkey();
+    svm.airdrop(&attacker, 1_000_000_000).expect("airdrop attacker");
+
+    let (policy, _) = pda(POLICY_SEED, &program_id, &attacker, position_id);
+    let (execution, _) = pda(EXECUTION_SEED, &program_id, &attacker, position_id);
+    let (vault, _) = pda(VAULT_SEED, &program_id, &attacker, position_id);
+
+    let ata = Pubkey::find_program_address(
+        &[attacker.as_ref(), TOKEN_PROGRAM_ID.as_ref(), mint.as_ref()],
+        &ASSOCIATED_TOKEN_PROGRAM_ID,
+    )
+    .0;
+    let vault_ata = Pubkey::find_program_address(
+        &[vault.as_ref(), TOKEN_PROGRAM_ID.as_ref(), mint.as_ref()],
+        &ASSOCIATED_TOKEN_PROGRAM_ID,
+    )
+    .0;
+
+    // ── Commit the attacker's own policy (tag 0) ────────────────────────
+    let mut d = Vec::with_capacity(COMMIT_IX_LEN);
+    d.push(IX_COMMIT_POLICY);
+    d.extend_from_slice(&position_id.to_le_bytes());
+    d.extend_from_slice(&0x165e_f4aa_bbcc_ddee_u64.to_le_bytes());
+    d.push(n_states);
+    d.extend_from_slice(&tranche_bps.to_le_bytes());
+    send(
+        svm,
+        &[&keypair],
+        &Instruction {
+            program_id,
+            accounts: vec![
+                AccountMeta::new(attacker, true),
+                AccountMeta::new(policy, false),
+                AccountMeta::new_readonly(system_program::id(), false),
+            ],
+            data: d,
+        },
+    )
+    .expect("attacker commits their own policy");
+
+    // ── Attacker ATA + tokens ───────────────────────────────────────────
+    create_ata(svm, &keypair, &attacker, &mint);
+    if balance > 0 {
+        let ix = instruction::mint_to(
+            &TOKEN_PROGRAM_ID,
+            &mint,
+            &ata,
+            &mint_authority.pubkey(),
+            &[],
+            balance,
+        )
+        .expect("mint_to ix");
+        send(
+            svm,
+            &[mint_authority],
+            &Instruction {
+                program_id: TOKEN_PROGRAM_ID,
+                accounts: ix.accounts.clone(),
+                data: ix.data.clone(),
+            },
+        )
+        .expect("mint tokens to attacker");
+    }
+
+    // ── Authorize the attacker's own crank, paying into their own ATA ───
+    let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
+    let expires = (now.unix_timestamp as u64).saturating_add(3_600);
+    send(
+        svm,
+        &[&keypair],
+        &authorize_ix(
+            program_id,
+            &attacker,
+            execution,
+            &attacker,
+            position_id,
+            expires,
+            &ata,
+        ),
+    )
+    .expect("attacker authorizes their own crank");
+
+    // ── Attacker vault ──────────────────────────────────────────────────
+    if deposit > 0 {
+        create_ata(svm, &keypair, &vault, &mint);
+        let mut d = Vec::with_capacity(DEPOSIT_IX_LEN);
+        d.push(IX_DEPOSIT_TO_VAULT);
+        d.extend_from_slice(&position_id.to_le_bytes());
+        d.extend_from_slice(&deposit.to_le_bytes());
+        send(
+            svm,
+            &[&keypair],
+            &Instruction {
+                program_id,
+                accounts: vec![
+                    AccountMeta::new(attacker, true),
+                    AccountMeta::new(vault, false),
+                    AccountMeta::new(ata, false),
+                    AccountMeta::new_readonly(mint, false),
+                    AccountMeta::new(vault_ata, false),
+                    AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+                    AccountMeta::new_readonly(system_program::id(), false),
+                    AccountMeta::new_readonly(ASSOCIATED_TOKEN_PROGRAM_ID, false),
+                ],
+                data: d,
+            },
+        )
+        .expect("attacker deposits into their own vault");
+    }
+
+    Attacker {
+        keypair,
+        policy,
+        execution,
+        vault,
+        ata,
+        vault_ata,
+    }
+}
+
+/// Idempotent ATA creation for `(authority, mint)`, rent paid by `payer`.
+pub fn create_ata(svm: &mut LiteSVM, payer: &Keypair, authority: &Pubkey, mint: &Pubkey) -> Pubkey {
+    let ix = spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+        &payer.pubkey(),
+        authority,
+        mint,
+        &TOKEN_PROGRAM_ID,
+    );
+    send(
+        svm,
+        &[payer],
+        &Instruction {
+            program_id: ASSOCIATED_TOKEN_PROGRAM_ID,
+            accounts: ix.accounts.clone(),
+            data: ix.data.clone(),
+        },
+    )
+    .expect("create ata");
+    Pubkey::find_program_address(
+        &[authority.as_ref(), TOKEN_PROGRAM_ID.as_ref(), mint.as_ref()],
+        &ASSOCIATED_TOKEN_PROGRAM_ID,
+    )
+    .0
+}
+
+/// Mint a second, unrelated mint into the same `LiteSVM` — the substitute for
+/// the `mint` account slot.
+pub fn create_second_mint(svm: &mut LiteSVM, payer: &Keypair, decimals: u8) -> Pubkey {
+    const MINT_LEN: u64 = 82;
+    let mint_kp = Keypair::new();
+    let mint_pk = mint_kp.pubkey();
+    let ix = system_instruction::create_account(
+        &payer.pubkey(),
+        &mint_pk,
+        svm.minimum_balance_for_rent_exemption(MINT_LEN as usize),
+        MINT_LEN,
+        &TOKEN_PROGRAM_ID,
+    );
+    send(
+        svm,
+        &[payer, &mint_kp],
+        &Instruction {
+            program_id: system_program::id(),
+            accounts: ix.accounts.clone(),
+            data: ix.data.clone(),
+        },
+    )
+    .expect("create second mint account");
+    let init_ix =
+        instruction::initialize_mint2(&TOKEN_PROGRAM_ID, &mint_pk, &payer.pubkey(), None, decimals)
+            .expect("init mint ix");
+    send(
+        svm,
+        &[payer],
+        &Instruction {
+            program_id: TOKEN_PROGRAM_ID,
+            accounts: init_ix.accounts.clone(),
+            data: init_ix.data.clone(),
+        },
+    )
+    .expect("initialize second mint");
+    mint_pk
 }

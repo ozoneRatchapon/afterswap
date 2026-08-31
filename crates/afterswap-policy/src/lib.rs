@@ -30,8 +30,15 @@
 //! Phase B step 2 design (vault-sourced):
 //!   The owner deposits the position into a program PDA vault (tag 4).
 //!   The vault PDA signs every `TransferChecked` (tag 2) — the cranker is
-//!   a signer/fee-payer who can never move funds on their own. The
-//!   authorized-crank check (tag 1) gates which crankers may trigger sells.
+//!   a signer/fee-payer who never holds the vault's signing authority. The
+//!   authorized-crank check (tag 1) gates which crankers may trigger sells;
+//!   the crank picks *when* and *how much* (within the committed tranche
+//!   budget) but never *where* — the payout account is bound at
+//!   authorization time (`execution.settlement_ata`) and tag 2 rejects any
+//!   other destination. An earlier version of this note said the cranker
+//!   "can never move funds on their own", which the code did not support:
+//!   the destination was unchecked, so an authorized crank could name its
+//!   own ATA.
 //!   The owner reclaims remaining tokens via `CloseVault` (tag 5).
 //!   This **does take custody** between deposit and sell: the tokens sit in
 //!   a PDA-owned ATA, and the SPL Token program offers the owner no
@@ -87,8 +94,11 @@ pub const COMMIT_IX_LEN: usize = 1 + 8 + 8 + 1 + 2;
 /// Execution PDA layout (fixed size, no realloc ever):
 /// owner(32) + position_id(8) + authorized_crank(32) +
 /// tranches_filled(1) + executed_lamports(8) + last_tick_slot(8) +
-/// expires_unix(8) + bump(1)
-pub const EXECUTION_LEN: usize = 32 + 8 + 32 + 1 + 8 + 8 + 8 + 1;
+/// expires_unix(8) + bump(1) + settlement_ata(32)
+///
+/// `settlement_ata` is appended last so every offset above it is unchanged
+/// from the pre-binding layout.
+pub const EXECUTION_LEN: usize = 32 + 8 + 32 + 1 + 8 + 8 + 8 + 1 + 32;
 
 /// Offsets inside the execution PDA layout (see `EXECUTION_LEN`).
 const EXEC_OFFSET_POSITION_ID: usize = 32;
@@ -98,29 +108,44 @@ const EXEC_OFFSET_EXECUTED_LAMPORTS: usize = 73;
 const EXEC_OFFSET_LAST_TICK_SLOT: usize = 81;
 const EXEC_OFFSET_EXPIRES_UNIX: usize = 89;
 const EXEC_OFFSET_BUMP: usize = 97;
+const EXEC_OFFSET_SETTLEMENT_ATA: usize = 98;
 
 /// Instruction data: tag(1=1) + position_id u64 LE + crank pubkey(32) +
-/// expires_unix u64 LE.
+/// expires_unix u64 LE + settlement_ata(32).
 /// Expiry is mandatory: an authorization with no deadline is rejected.
 /// position_id is required on the first call to create the execution PDA
 /// (the seeds need it); subsequent calls read it from the PDA and ignore
 /// the data value.
+///
+/// `settlement_ata` is the single token account `ValidateAndSell` may pay
+/// into. The owner names it here, at authorization time, alongside the
+/// crank. Without it the crank chooses the destination per fill, which
+/// means an authorized crank can drain the vault to itself — the account
+/// list is not a permission model. Must be non-zero.
 pub const IX_AUTHORIZE_EXECUTION: u8 = 1;
-pub const AUTHORIZE_IX_LEN: usize = 1 + 8 + 32 + 8;
+pub const AUTHORIZE_IX_LEN: usize = 1 + 8 + 32 + 8 + 32;
 
 /// Instruction data: tag(1=3), no payload.
 pub const IX_REVOKE_AUTHORIZATION: u8 = 3;
 pub const REVOKE_IX_LEN: usize = 1;
 
 /// Vault PDA layout (fixed size, no realloc ever):
-/// owner(32) + position_id(8) + mint(32) + amount(u64 LE) + bump(1)
-pub const VAULT_LEN: usize = 32 + 8 + 32 + 8 + 1;
+/// owner(32) + position_id(8) + mint(32) + amount(u64 LE) + bump(1) +
+/// deposited(u64 LE)
+///
+/// `amount` is the live balance; `deposited` is the monotone sum of every
+/// deposit ever made. The tranche bound needs a fixed denominator — using
+/// the live balance would let a 10% tranche be re-applied to the shrinking
+/// remainder, so the *n*-th sell is 10% of what is left rather than 10% of
+/// the position. `deposited` is that fixed denominator.
+pub const VAULT_LEN: usize = 32 + 8 + 32 + 8 + 1 + 8;
 
 /// Offsets inside the vault PDA layout (see `VAULT_LEN`).
 const VAULT_OFFSET_POSITION_ID: usize = 32;
 const VAULT_OFFSET_MINT: usize = 40;
 const VAULT_OFFSET_AMOUNT: usize = 72;
 const VAULT_OFFSET_BUMP: usize = 80;
+const VAULT_OFFSET_DEPOSITED: usize = 81;
 
 /// Instruction data: tag(1=4) + position_id u64 LE + amount u64 LE.
 /// amount = 0 means "transfer the owner's entire balance" (read from the
@@ -175,6 +200,20 @@ pub const VALIDATE_SELL_IX_LEN: usize = 1 + 8 + 1 + 1 + 8 + 32 + 8;
 /// (variant 12 of `TokenInstruction`). The instruction body is
 /// amount(u64 LE) + decimals(u8) = 9 bytes after the discriminator.
 const SPL_TOKEN_TRANSFER_CHECKED_DISCRIMINATOR: u8 = 12;
+
+/// SPL Token — `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`.
+///
+/// Every `TransferChecked` CPI must target exactly this program. The caller
+/// supplies the token-program account, and `slice_invoke_signed` extends the
+/// vault PDA's signature into whatever program it names — so an unpinned
+/// token program hands vault-PDA signing authority to caller-chosen code.
+/// Token-2022 is deliberately not accepted: its transfer-hook and
+/// transfer-fee extensions change what a `TransferChecked` means, and this
+/// gate's bounds are written against the classic semantics.
+const SPL_TOKEN_PROGRAM_ID: Pubkey = [
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+];
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -280,8 +319,15 @@ fn authorize_execution(
     let crank_key =
         Pubkey::try_from(data[9..41].to_vec()).map_err(|_| ProgramError::InvalidInstructionData)?;
     let expires_unix = u64::from_le_bytes(data[41..49].try_into().unwrap());
+    let settlement_ata = Pubkey::try_from(data[49..81].to_vec())
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
     let now = Clock::get()?.unix_timestamp;
     if expires_unix <= now as u64 {
+        return Err(ProgramError::InvalidInstructionData);
+    }
+    // The all-zero key is `RevokeAuthorization`'s cleared marker; accepting
+    // it here would authorize a crank with an unbound destination.
+    if settlement_ata == [0u8; 32] {
         return Err(ProgramError::InvalidInstructionData);
     }
 
@@ -297,13 +343,19 @@ fn authorize_execution(
     let position_id_le: [u8; 8] = data[1..9].try_into().unwrap();
 
     // If the execution PDA is already initialized, it must be owned by
-    // this program, match the owner, and have no tranches filled. In that
-    // case, re-authorizing with a different crank is deliberately not
-    // supported — the owner must `RevokeAuthorization` first, then call
-    // `AuthorizeExecution` again with the new crank.
+    // this program, match the owner, and have no tranches filled.
+    // Overwriting a *live* authorization is rejected: the owner must
+    // `RevokeAuthorization` first. A revoked PDA (crank zeroed) is
+    // re-authorizable in place — the docstring has always promised that,
+    // and returning `AccountAlreadyInitialized` unconditionally made the
+    // owner's only path back to delegation permanently unreachable, since
+    // revoke keeps the account alive.
     if execution.data_len() > 0 {
         if execution.lamports() == 0 || execution.data_len() != EXECUTION_LEN {
             return Err(ProgramError::InvalidAccountData);
+        }
+        if execution.owner() != program_id {
+            return Err(ProgramError::IllegalOwner);
         }
         let out = execution.try_borrow_data()?;
         if out[0..32] != *owner.key().as_ref() {
@@ -312,15 +364,30 @@ fn authorize_execution(
         if out[EXEC_OFFSET_TRANCHES_FILLED] != 0 {
             return Err(ProgramError::InvalidAccountData);
         }
+        // The PDA's own position_id is authoritative once it exists; the
+        // data field only seeds the *first* call.
+        let stored_position_id: [u8; 8] = out[EXEC_OFFSET_POSITION_ID..EXEC_OFFSET_POSITION_ID + 8]
+            .try_into()
+            .unwrap();
+        let revoked = out[EXEC_OFFSET_CRANK..EXEC_OFFSET_CRANK + 32] == [0u8; 32];
         drop(out);
         let (expected, _) = pubkey::find_program_address(
-            &[EXECUTION_SEED, owner.key().as_ref(), &position_id_le],
+            &[EXECUTION_SEED, owner.key().as_ref(), &stored_position_id],
             program_id,
         );
         if &expected != execution.key() {
             return Err(ProgramError::InvalidSeeds);
         }
-        return Err(ProgramError::AccountAlreadyInitialized);
+        if !revoked {
+            return Err(ProgramError::AccountAlreadyInitialized);
+        }
+        let mut out = execution.try_borrow_mut_data()?;
+        out[EXEC_OFFSET_CRANK..EXEC_OFFSET_CRANK + 32].copy_from_slice(crank_key.as_ref());
+        out[EXEC_OFFSET_EXPIRES_UNIX..EXEC_OFFSET_EXPIRES_UNIX + 8]
+            .copy_from_slice(&expires_unix.to_le_bytes());
+        out[EXEC_OFFSET_SETTLEMENT_ATA..EXEC_OFFSET_SETTLEMENT_ATA + 32]
+            .copy_from_slice(settlement_ata.as_ref());
+        return Ok(());
     }
 
     // Uninitialized: first call — create the PDA and set crank + expiry.
@@ -361,6 +428,8 @@ fn authorize_execution(
     out[EXEC_OFFSET_EXPIRES_UNIX..EXEC_OFFSET_EXPIRES_UNIX + 8]
         .copy_from_slice(&expires_unix.to_le_bytes());
     out[EXEC_OFFSET_BUMP] = bump;
+    out[EXEC_OFFSET_SETTLEMENT_ATA..EXEC_OFFSET_SETTLEMENT_ATA + 32]
+        .copy_from_slice(settlement_ata.as_ref());
     Ok(())
 }
 
@@ -371,9 +440,13 @@ fn authorize_execution(
 /// (time), and the owner always controls revocation.
 ///
 /// After a revoke, the owner may `AuthorizeExecution` again with a new
-/// crank (the PDA is still owned by this program, and `tranches_filled`
-/// is still 0, so the idempotent no-op path in `authorize_execution`
-/// does not trigger).
+/// crank and a new settlement destination: `authorize_execution` treats a
+/// zeroed crank as the re-authorizable state and rebinds in place. Revoke
+/// keeps the account alive, so without that path revoking once would end
+/// the owner's ability to delegate this position for good.
+///
+/// `settlement_ata` is deliberately left as-is: a zeroed crank already
+/// rejects every sell, and re-authorization overwrites it.
 fn revoke_authorization(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -446,6 +519,9 @@ fn deposit_to_vault(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
     if !owner.is_signer() {
         return Err(ProgramError::MissingRequiredSignature);
     }
+    if token_program.key() != &SPL_TOKEN_PROGRAM_ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
     // Derive the expected vault PDA.
     let (expected_vault, bump) = pubkey::find_program_address(
@@ -497,6 +573,8 @@ fn deposit_to_vault(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
         out[VAULT_OFFSET_MINT..VAULT_OFFSET_MINT + 32].copy_from_slice(mint.key().as_ref());
         out[VAULT_OFFSET_AMOUNT..VAULT_OFFSET_AMOUNT + 8].copy_from_slice(&0u64.to_le_bytes());
         out[VAULT_OFFSET_BUMP] = bump;
+        out[VAULT_OFFSET_DEPOSITED..VAULT_OFFSET_DEPOSITED + 8]
+            .copy_from_slice(&0u64.to_le_bytes());
     } else {
         // Subsequent call: verify the existing vault.
         if vault.data_len() != VAULT_LEN {
@@ -553,6 +631,19 @@ fn deposit_to_vault(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) 
         .checked_add(transfer_amount)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     out[VAULT_OFFSET_AMOUNT..VAULT_OFFSET_AMOUNT + 8].copy_from_slice(&updated.to_le_bytes());
+
+    // `deposited` only ever grows — it is the tranche bound's denominator,
+    // so a top-up widens each tranche but a sell never narrows it.
+    let deposited = u64::from_le_bytes(
+        out[VAULT_OFFSET_DEPOSITED..VAULT_OFFSET_DEPOSITED + 8]
+            .try_into()
+            .unwrap(),
+    );
+    let deposited = deposited
+        .checked_add(transfer_amount)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    out[VAULT_OFFSET_DEPOSITED..VAULT_OFFSET_DEPOSITED + 8]
+        .copy_from_slice(&deposited.to_le_bytes());
     Ok(())
 }
 
@@ -575,6 +666,9 @@ fn close_vault(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     };
     if !owner.is_signer() {
         return Err(ProgramError::MissingRequiredSignature);
+    }
+    if token_program.key() != &SPL_TOKEN_PROGRAM_ID {
+        return Err(ProgramError::IncorrectProgramId);
     }
 
     if vault.data_len() != VAULT_LEN {
@@ -664,11 +758,24 @@ fn close_vault(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
 ///   3. `now < execution.expires_unix` (not expired).
 ///   4. `tranche_index == execution.tranches_filled` (monotonic, no
 ///      skipping, no replay).
-///   5. `tranche_index < policy.n_states` (bounded by the committed
-///      machine size) AND `amount <= tranche_bps / 10_000 * vault_balance`
-///      (bounded loss: no single sell can exceed the tranche budget).
-///   6. Move `amount` from `source ATA` to `destination ATA` via
-///      `TransferChecked`, signed by the vault PDA.
+///   5. `tranche_index < ceil(10_000 / policy.tranche_bps)` (no more
+///      tranches than the committed tranche size divides the position
+///      into), `amount <= vault.amount` (cannot overdraw), and
+///      `amount * 10_000 <= policy.tranche_bps * vault.deposited`
+///      (bounded loss: no single sell exceeds the committed tranche
+///      budget, measured against the position as deposited, not against
+///      the shrinking remainder).
+///   6. `destination ATA == execution.settlement_ata` — the payout account
+///      the owner named at authorization time. The crank picks *when* and
+///      *how much*, never *where*.
+///   7. Move `amount` from `source ATA` to `destination ATA` via
+///      `TransferChecked` on the pinned SPL Token program, signed by the
+///      vault PDA.
+///
+/// What is *not* enforced on chain: `expected_state` and `quote_digest` are
+/// audit bindings only. The chain cannot replay the FSM or see the quote, so
+/// these two fields bind the off-chain claim to this transaction for later
+/// verification — they do not gate it.
 ///
 /// On success: `execution.tranches_filled += 1`,
 /// `execution.executed_lamports += amount`,
@@ -692,6 +799,9 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     if !cranker.is_signer() {
         return Err(ProgramError::MissingRequiredSignature);
     }
+    if token_program.key() != &SPL_TOKEN_PROGRAM_ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
     // ── Step 1: policy PDA ──────────────────────────────────────────────
     if policy.data_len() != POLICY_LEN {
@@ -699,8 +809,9 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     }
     let policy_out = policy.try_borrow_data()?;
     let policy_position_id: [u8; 8] = policy_out[32..40].try_into().unwrap();
-    let n_states = policy_out[48];
-    let _tranche_bps = u16::from_le_bytes(policy_out[49..51].try_into().unwrap());
+    // `n_states` (policy_out[48]) is committed but no longer read here: it
+    // sizes the FSM, not the sell schedule. See step 5.
+    let tranche_bps = u16::from_le_bytes(policy_out[49..51].try_into().unwrap());
     drop(policy_out);
     if policy_position_id != position_id_le {
         return Err(ProgramError::InvalidAccountData);
@@ -724,6 +835,10 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     let exec_position_id: [u8; 8] = exec_out[EXEC_OFFSET_POSITION_ID..EXEC_OFFSET_POSITION_ID + 8]
         .try_into()
         .unwrap();
+    let settlement_ata: [u8; 32] = exec_out
+        [EXEC_OFFSET_SETTLEMENT_ATA..EXEC_OFFSET_SETTLEMENT_ATA + 32]
+        .try_into()
+        .unwrap();
     drop(exec_out);
 
     if exec_position_id != position_id_le {
@@ -733,11 +848,11 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     // ── Step 1b: the policy account must BE the policy PDA ──────────────
     // Step 1 above only checked this account's length and the position_id
     // stored inside it. Both are attacker-supplied if the account is not the
-    // real PDA, and `n_states` — read from it and used as the tranche bound
-    // in step 5 — is the gate's only on-chain limit. Without this check a
-    // caller who is already an authorized crank could pass a look-alike
-    // account carrying `n_states = 255` and keep selling tranches long past
-    // the committed machine size, which defeats the purpose of the program.
+    // real PDA, and `tranche_bps` — read from it and driving both of step 5's
+    // limits — is the gate's only on-chain bound on outflow. Without this
+    // check a caller who is already an authorized crank could pass a
+    // look-alike account carrying `tranche_bps = 10_000` and sell the whole
+    // position in one fill, which defeats the purpose of the program.
     // The owner comes from the execution PDA, so this must run after step 2's
     // read rather than beside step 1.
     if policy.owner() != program_id {
@@ -782,7 +897,18 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     }
 
     // ── Step 5: bounds ──────────────────────────────────────────────────
-    if tranche_index >= n_states {
+    // How many tranches the committed policy divides the position into:
+    // ceil(10_000 / tranche_bps). This used to be `n_states`, the FSM's
+    // state count — an unrelated quantity, and one `commit_policy` caps at
+    // 4, so a 10% tranche policy could never sell more than 40% of a
+    // position and the gate had no path to a full exit. Both fields are
+    // still committed; only the tranche count now comes from the field
+    // that means it. Clamped to 255 because `tranches_filled` is a u8.
+    let max_tranches = {
+        let n = 10_000u32.div_ceil(tranche_bps as u32);
+        n.min(255) as u8
+    };
+    if tranche_index >= max_tranches {
         return Err(ProgramError::InvalidInstructionData);
     }
     if amount == 0 {
@@ -799,6 +925,11 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
             .unwrap(),
     );
     let vault_owner: [u8; 32] = vault_out[0..32].try_into().unwrap();
+    let vault_deposited = u64::from_le_bytes(
+        vault_out[VAULT_OFFSET_DEPOSITED..VAULT_OFFSET_DEPOSITED + 8]
+            .try_into()
+            .unwrap(),
+    );
     drop(vault_out);
 
     if vault_owner.as_ref() != exec_owner.as_ref() {
@@ -808,13 +939,26 @@ fn validate_and_sell(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8])
     if amount > vault_amount {
         return Err(ProgramError::InvalidInstructionData);
     }
-    // tranche_bps bound: amount must be ≤ tranche_bps% of the original
-    // position. We don't store the original position size, so we enforce
-    // the simpler invariant: amount ≤ vault_amount (checked above) and
-    // the audit trail (quote_digest, expected_state) binds the off-chain
-    // guarantee. The on-chain bound is: bounded loss + monotonic progress.
+    // The tranche budget the policy committed to, enforced. `vault_deposited`
+    // is the position as deposited — a fixed denominator, so ten 10% tranches
+    // sell the whole position and an eleventh has nothing left to draw on.
+    // Widened to u128 because `amount * 10_000` overflows u64 above ~1.8e15
+    // base units, which a 9-decimal mint reaches at 1.8M tokens.
+    if (amount as u128) * 10_000 > (tranche_bps as u128) * (vault_deposited as u128) {
+        return Err(ProgramError::InvalidInstructionData);
+    }
 
-    // ── Step 6: TransferChecked ─────────────────────────────────────────
+    // ── Step 6: destination binding ─────────────────────────────────────
+    // The owner named the payout account when they authorized the crank.
+    // Nothing else in this instruction constrains where the tokens land:
+    // the vault PDA signs the transfer, so without this check an authorized
+    // crank could name its own ATA and drain the vault one legal tranche at
+    // a time. Being on the account list is not a permission.
+    if dest_ata.key().as_ref() != settlement_ata.as_ref() {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    // ── Step 7: TransferChecked ─────────────────────────────────────────
     let mint_data = mint.try_borrow_data()?;
     let decimals = mint_data[44];
     drop(mint_data);

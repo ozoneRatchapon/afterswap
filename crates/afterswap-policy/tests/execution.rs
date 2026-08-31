@@ -96,12 +96,17 @@ fn authorize_ix(
     crank: Pubkey,
     position_id: u64,
     expires_unix: u64,
+    settlement_ata: Pubkey,
 ) -> Instruction {
     let mut data = Vec::with_capacity(AUTHORIZE_IX_LEN);
     data.push(IX_AUTHORIZE_EXECUTION);
     data.extend_from_slice(&position_id.to_le_bytes());
     data.extend_from_slice(crank.as_ref());
     data.extend_from_slice(&expires_unix.to_le_bytes());
+    // The settlement destination the authorization binds. These tests only
+    // exercise tags 1 and 3, which never pay out, so any non-zero key works;
+    // the zero key is rejected on purpose (it is revoke's cleared marker).
+    data.extend_from_slice(settlement_ata.as_ref());
     Instruction {
         program_id,
         accounts: vec![
@@ -172,9 +177,10 @@ fn send_with_blockhash(
 fn authorize_sets_crank_and_expiry() {
     let (mut svm, program_id, owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
-    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires);
+    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires, settlement);
     send(&mut svm, &owner, &ix).expect("authorize succeeds");
 
     let acct = svm.get_account(&execution).expect("execution exists");
@@ -196,7 +202,7 @@ fn authorize_sets_crank_and_expiry() {
     // Expire the blockhash so the second transaction has a different
     // signature (LiteSVM deduplicates by signature).
     svm.expire_blockhash();
-    let ix2 = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires + 1);
+    let ix2 = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires + 1, settlement);
     let result = send(&mut svm, &owner, &ix2);
     match result {
         Ok(_) => panic!("double authorize must fail (got Ok)"),
@@ -208,6 +214,7 @@ fn authorize_sets_crank_and_expiry() {
 fn authorize_rejects_expired_or_past_expiry() {
     let (mut svm, program_id, owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
 
     // Expiry in the past must be rejected.
@@ -218,6 +225,7 @@ fn authorize_rejects_expired_or_past_expiry() {
         crank,
         7,
         now.unix_timestamp as u64,
+        settlement,
     );
     assert!(
         send(&mut svm, &owner, &ix).is_err(),
@@ -232,6 +240,7 @@ fn authorize_rejects_expired_or_past_expiry() {
         crank,
         7,
         now.unix_timestamp as u64,
+        settlement,
     );
     assert!(
         send(&mut svm, &owner, &ix).is_err(),
@@ -243,10 +252,11 @@ fn authorize_rejects_expired_or_past_expiry() {
 fn revoke_clears_crank() {
     let (mut svm, program_id, owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
 
-    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires);
+    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires, settlement);
     send(&mut svm, &owner, &ix).expect("authorize succeeds");
     let acct = svm.get_account(&execution).expect("execution exists");
     assert_eq!(&acct.data[40..72], crank.as_ref());
@@ -261,10 +271,11 @@ fn revoke_clears_crank() {
 fn revoke_is_idempotent() {
     let (mut svm, program_id, owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
 
-    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires);
+    let ix = authorize_ix(program_id, owner.pubkey(), execution, crank, 7, expires, settlement);
     send(&mut svm, &owner, &ix).expect("authorize succeeds");
 
     // First revoke: clears the crank.
@@ -287,6 +298,7 @@ fn revoke_is_idempotent() {
 fn authorize_rejects_non_owner() {
     let (mut svm, program_id, _owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
 
@@ -294,7 +306,7 @@ fn authorize_rejects_non_owner() {
     let stranger = Keypair::new();
     svm.airdrop(&stranger.pubkey(), 1_000_000_000)
         .expect("airdrop");
-    let ix = authorize_ix(program_id, stranger.pubkey(), execution, crank, 7, expires);
+    let ix = authorize_ix(program_id, stranger.pubkey(), execution, crank, 7, expires, settlement);
     assert!(
         send(&mut svm, &stranger, &ix).is_err(),
         "non-owner must fail"
@@ -305,12 +317,13 @@ fn authorize_rejects_non_owner() {
 fn authorize_rejects_wrong_pda() {
     let (mut svm, program_id, owner, _policy, _execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
 
     // A random (non-PDA) account must be rejected.
     let bogus = Pubkey::new_unique();
-    let ix = authorize_ix(program_id, owner.pubkey(), bogus, crank, 7, expires);
+    let ix = authorize_ix(program_id, owner.pubkey(), bogus, crank, 7, expires, settlement);
     assert!(send(&mut svm, &owner, &ix).is_err(), "wrong PDA must fail");
 }
 
@@ -318,6 +331,7 @@ fn authorize_rejects_wrong_pda() {
 fn authorize_rejects_non_signer_owner() {
     let (mut svm, program_id, owner, _policy, execution) = setup();
     let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
     let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
     let expires = (now.unix_timestamp as u64).saturating_add(3_600);
 
@@ -340,6 +354,9 @@ fn authorize_rejects_non_signer_owner() {
             d.extend_from_slice(&7u64.to_le_bytes());
             d.extend_from_slice(crank.as_ref());
             d.extend_from_slice(&expires.to_le_bytes());
+            // Full-length payload on purpose: a short one would be rejected
+            // for its length and the signer check would never be reached.
+            d.extend_from_slice(settlement.as_ref());
             d
         },
     };
@@ -347,4 +364,85 @@ fn authorize_rejects_non_signer_owner() {
         send(&mut svm, &stranger, &ix).is_err(),
         "non-signer owner must fail"
     );
+}
+
+#[test]
+fn authorize_rejects_zero_settlement_ata() {
+    let (mut svm, program_id, owner, _policy, execution) = setup();
+    let crank = Pubkey::new_unique();
+    let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
+    let expires = (now.unix_timestamp as u64).saturating_add(3_600);
+
+    // The all-zero key is `RevokeAuthorization`'s cleared marker. Accepting
+    // it as a settlement destination would authorize a crank whose payout
+    // account is the same value the revoke path writes.
+    let ix = authorize_ix(
+        program_id,
+        owner.pubkey(),
+        execution,
+        crank,
+        7,
+        expires,
+        Pubkey::default(),
+    );
+    assert!(
+        send(&mut svm, &owner, &ix).is_err(),
+        "a zero settlement ATA must fail"
+    );
+}
+
+#[test]
+fn reauthorize_after_revoke_rebinds_crank_and_settlement() {
+    let (mut svm, program_id, owner, _policy, execution) = setup();
+    let crank = Pubkey::new_unique();
+    let settlement = Pubkey::new_unique();
+    let now = svm.get_sysvar::<solana_sdk::clock::Clock>();
+    let expires = (now.unix_timestamp as u64).saturating_add(3_600);
+
+    let ix = authorize_ix(
+        program_id,
+        owner.pubkey(),
+        execution,
+        crank,
+        7,
+        expires,
+        settlement,
+    );
+    send(&mut svm, &owner, &ix).expect("first authorize succeeds");
+
+    svm.expire_blockhash();
+    send(&mut svm, &owner, &revoke_ix(program_id, owner.pubkey(), execution))
+        .expect("revoke succeeds");
+
+    // Revoke keeps the account alive, so re-authorizing has to work in
+    // place — otherwise revoking would permanently end the owner's ability
+    // to delegate this position, which is not what revoke is for.
+    svm.expire_blockhash();
+    let crank2 = Pubkey::new_unique();
+    let settlement2 = Pubkey::new_unique();
+    let expires2 = expires + 60;
+    let ix = authorize_ix(
+        program_id,
+        owner.pubkey(),
+        execution,
+        crank2,
+        7,
+        expires2,
+        settlement2,
+    );
+    send(&mut svm, &owner, &ix).expect("re-authorize after revoke succeeds");
+
+    let acct = svm.get_account(&execution).expect("execution exists");
+    assert_eq!(&acct.data[40..72], crank2.as_ref(), "crank rebound");
+    assert_eq!(
+        u64::from_le_bytes(acct.data[89..97].try_into().unwrap()),
+        expires2,
+        "expiry rebound"
+    );
+    assert_eq!(
+        &acct.data[98..130],
+        settlement2.as_ref(),
+        "settlement destination rebound"
+    );
+    assert_eq!(acct.data[72], 0, "tranches_filled untouched");
 }

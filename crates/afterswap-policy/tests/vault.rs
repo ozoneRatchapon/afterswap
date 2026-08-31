@@ -134,20 +134,21 @@ fn sell_by_authorized_crank_moves_tokens() {
         0,
         1_000_000,
         &digest,
-        4_000,
+        // A full tranche: tranche_bps = 1000 (10%) of the 10_000 deposited.
+        1_000,
     );
     send(&mut svm, &[&crank], &ix).expect("sell succeeds");
 
-    // 4_000 moved from vault ATA to dest.
-    assert_eq!(token_balance(&svm, &vault_ata), 6_000);
-    assert_eq!(token_balance(&svm, &dest), 4_000);
+    // 1_000 moved from vault ATA to dest.
+    assert_eq!(token_balance(&svm, &vault_ata), 9_000);
+    assert_eq!(token_balance(&svm, &dest), 1_000);
 
     // Execution state advanced.
     let e = svm.get_account(&execution).expect("execution exists");
     assert_eq!(e.data[72], 1, "tranches_filled == 1");
     assert_eq!(
         u64::from_le_bytes(e.data[73..81].try_into().unwrap()),
-        4_000,
+        1_000,
         "executed_lamports"
     );
     assert_eq!(
@@ -160,7 +161,13 @@ fn sell_by_authorized_crank_moves_tokens() {
     let v = svm.get_account(&vault).expect("vault exists");
     assert_eq!(
         u64::from_le_bytes(v.data[72..80].try_into().unwrap()),
-        6_000
+        9_000
+    );
+    // `deposited` is the tranche denominator and does not move on a sell.
+    assert_eq!(
+        u64::from_le_bytes(v.data[81..89].try_into().unwrap()),
+        10_000,
+        "deposited stays at the position as deposited"
     );
 }
 
@@ -444,8 +451,10 @@ fn sell_rejects_tranche_replay() {
 }
 
 #[test]
-fn sell_rejects_tranche_beyond_n_states() {
-    // n_states = 1: only tranche 0 is valid.
+fn sell_rejects_tranche_beyond_the_committed_tranche_count() {
+    // tranche_bps = 10_000 (100%): the position is one tranche, so only
+    // tranche 0 is valid. The bound is ceil(10_000 / tranche_bps), not
+    // n_states — n_states sizes the FSM, not the sell schedule.
     let (
         mut svm,
         pid,
@@ -460,7 +469,7 @@ fn sell_rejects_tranche_beyond_n_states() {
         _buyer,
         buyer_ata,
         pos,
-    ) = setup_full(1, 1000, 10_000, 0);
+    ) = setup_full(1, 10_000, 10_000, 0);
     let digest = [15u8; 32];
 
     // Fill tranche 0.
@@ -482,7 +491,7 @@ fn sell_rejects_tranche_beyond_n_states() {
     );
     send(&mut svm, &[&crank], &ix0).expect("tranche 0 succeeds");
 
-    // Tranche 1 >= n_states(1) must be rejected.
+    // Tranche 1 >= the committed tranche count (1) must be rejected.
     let ix1 = validate_sell_ix(
         pid,
         &crank.pubkey(),
@@ -501,7 +510,7 @@ fn sell_rejects_tranche_beyond_n_states() {
     );
     assert!(
         send(&mut svm, &[&crank], &ix1).is_err(),
-        "tranche beyond n_states must fail"
+        "tranche beyond the committed tranche count must fail"
     );
 }
 
@@ -589,7 +598,7 @@ fn sell_rejects_zero_amount() {
 }
 
 #[test]
-fn full_sequence_three_states_then_fourth_fails() {
+fn full_sequence_runs_the_schedule_then_stops() {
     let (
         mut svm,
         pid,
@@ -604,11 +613,12 @@ fn full_sequence_three_states_then_fourth_fails() {
         _buyer,
         buyer_ata,
         pos,
-    ) = happy_setup(); // n_states = 3
+    // tranche_bps = 2_500 (25%): the committed schedule is 4 tranches.
+    ) = setup_full(3, 2_500, 10_000, 0);
     let base = [18u8; 32];
 
-    // Sells 0, 1, 2 all succeed.
-    for i in 0..3u8 {
+    // Sells 0..3 all succeed — 2_500 each, the full position.
+    for i in 0..4u8 {
         let mut digest = base;
         digest[0] = i;
         let ix = validate_sell_ix(
@@ -625,18 +635,20 @@ fn full_sequence_three_states_then_fourth_fails() {
             i,
             1_000_000 + u64::from(i),
             &digest,
-            1_000,
+            2_500,
         );
         send(&mut svm, &[&crank], &ix)
             .unwrap_or_else(|e| panic!("sell {i} succeeds: {e:?}"));
     }
 
-    // All 3_000 sold; vault ATA empty.
-    assert_eq!(token_balance(&svm, &vault_ata), 7_000);
+    // The whole position exited; vault ATA empty.
+    assert_eq!(token_balance(&svm, &vault_ata), 0);
+    assert_eq!(token_balance(&svm, &buyer_ata), 10_000);
 
-    // The 4th sell (tranche 3) must fail: tranche_index(3) >= n_states(3).
+    // The 5th sell (tranche 4) must fail: the committed schedule has
+    // ceil(10_000 / 2_500) = 4 tranches, and 4 is past the last one.
     let mut digest = base;
-    digest[0] = 3;
+    digest[0] = 4;
     let ix = validate_sell_ix(
         pid,
         &crank.pubkey(),
@@ -648,14 +660,14 @@ fn full_sequence_three_states_then_fourth_fails() {
         mint,
         pos,
         0,
-        3,
+        4,
         2_000_000,
         &digest,
-        1_000,
+        2_500,
     );
     assert!(
         send(&mut svm, &[&crank], &ix).is_err(),
-        "4th sell must fail (tranche >= n_states)"
+        "a sell past the committed tranche count must fail"
     );
 }
 
@@ -769,11 +781,14 @@ fn close_vault_reclaims_remaining_tokens() {
         owner_ata,
         vault_ata,
         _buyer,
-        _buyer_ata,
+        buyer_ata,
         pos,
     ) = happy_setup();
 
-    // Sell 2_000 first, leaving 8_000 in the vault.
+    // Sell one 10% tranche first, leaving 9_000 in the vault. The payout
+    // goes to the bound settlement ATA even under the owner override — the
+    // destination binding is on the account, not on who signs. The owner's
+    // route back to their own ATA is `CloseVault`, exercised below.
     let digest = [19u8; 32];
     let ix = validate_sell_ix(
         pid,
@@ -782,19 +797,19 @@ fn close_vault_reclaims_remaining_tokens() {
         execution,
         vault,
         vault_ata,
-        owner_ata,
+        buyer_ata,
         mint,
         pos,
         0,
         0,
         1_000_000,
         &digest,
-        2_000,
+        1_000,
     );
-    send(&mut svm, &[&owner], &ix).expect("sell 2000");
-    assert_eq!(token_balance(&svm, &vault_ata), 8_000);
+    send(&mut svm, &[&owner], &ix).expect("sell one tranche");
+    assert_eq!(token_balance(&svm, &vault_ata), 9_000);
 
-    // Close the vault: 8_000 back to the owner ATA.
+    // Close the vault: 9_000 back to the owner ATA.
     let close_ix = Instruction {
         program_id: pid,
         accounts: vec![
@@ -811,7 +826,7 @@ fn close_vault_reclaims_remaining_tokens() {
     send(&mut svm, &[&owner], &close_ix).expect("close vault");
 
     assert_eq!(token_balance(&svm, &vault_ata), 0);
-    assert_eq!(token_balance(&svm, &owner_ata), 10_000); // 2_000 sold + 8_000 reclaimed
+    assert_eq!(token_balance(&svm, &owner_ata), 9_000); // 1_000 sold, 9_000 reclaimed
 
     // Vault state zeroed.
     let v = svm.get_account(&vault).expect("vault exists");
@@ -832,9 +847,11 @@ fn close_vault_is_idempotent_when_empty() {
         owner_ata,
         vault_ata,
         _buyer,
-        _buyer_ata,
+        buyer_ata,
         pos,
-    ) = happy_setup();
+        // tranche_bps = 10_000 (100%): one sell may legally drain the whole
+        // position, which is what this test needs to reach an empty vault.
+    ) = setup_full(3, 10_000, 10_000, 0);
 
     // Sell everything first.
     let digest = [20u8; 32];
@@ -845,7 +862,7 @@ fn close_vault_is_idempotent_when_empty() {
         execution,
         vault,
         vault_ata,
-        owner_ata,
+        buyer_ata,
         mint,
         pos,
         0,
@@ -872,7 +889,9 @@ fn close_vault_is_idempotent_when_empty() {
         data: vec![5u8],
     };
     send(&mut svm, &[&owner], &close_ix).expect("close empty vault (idempotent)");
-    assert_eq!(token_balance(&svm, &owner_ata), 10_000);
+    // Nothing came back: the vault was already empty and the position was
+    // paid out to the bound settlement ATA.
+    assert_eq!(token_balance(&svm, &owner_ata), 0);
 }
 
 #[test]
@@ -913,4 +932,326 @@ fn close_vault_rejects_non_owner() {
         send(&mut svm, &[&stranger], &close_ix).is_err(),
         "non-owner close must fail"
     );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Account-substitution gate
+//
+// Each test below substitutes one account the caller supplies and asserts the
+// program rejects it. Being on the account list is not a permission: the vault
+// PDA signs every transfer, so any account the gate reads but does not verify
+// is an account the caller gets to choose. These four were all unverified —
+// the destination, and the token program in each of the three transfer paths.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// A pubkey that is not the SPL Token program. Used as the substituted token
+/// program below; the check is on the key, before any CPI, so the account
+/// need not be a real program.
+fn foreign_token_program() -> Pubkey {
+    Pubkey::new_unique()
+}
+
+#[test]
+fn sell_rejects_destination_other_than_settlement_ata() {
+    let (
+        mut svm,
+        pid,
+        _owner,
+        policy,
+        execution,
+        crank,
+        vault,
+        mint,
+        owner_ata,
+        vault_ata,
+        _buyer,
+        buyer_ata,
+        pos,
+    ) = happy_setup();
+
+    // The authorization bound `buyer_ata`. The crank names a different
+    // account instead — one that exists and would accept the transfer.
+    // Without the binding this is how an authorized crank drains a vault:
+    // legal tranche size, legal cadence, wrong destination.
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        owner_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[21u8; 32],
+        1_000,
+    );
+    assert!(
+        send(&mut svm, &[&crank], &ix).is_err(),
+        "a destination other than the bound settlement ATA must fail"
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000, "vault untouched");
+    assert_eq!(token_balance(&svm, &owner_ata), 0, "nothing was paid out");
+
+    // The bound destination still works.
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[21u8; 32],
+        1_000,
+    );
+    send(&mut svm, &[&crank], &ix).expect("bound destination succeeds");
+    assert_eq!(token_balance(&svm, &buyer_ata), 1_000);
+}
+
+#[test]
+fn sell_rejects_foreign_token_program() {
+    let (
+        mut svm,
+        pid,
+        _owner,
+        policy,
+        execution,
+        crank,
+        vault,
+        mint,
+        _owner_ata,
+        vault_ata,
+        _buyer,
+        buyer_ata,
+        pos,
+    ) = happy_setup();
+
+    // Everything else is a valid tranche; only the token program is
+    // substituted. The vault PDA signs the CPI, so an unpinned token program
+    // would extend the vault's signing authority into caller-chosen code.
+    let mut ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[22u8; 32],
+        1_000,
+    );
+    ix.accounts[7] = AccountMeta::new_readonly(foreign_token_program(), false);
+    assert!(
+        send(&mut svm, &[&crank], &ix).is_err(),
+        "a token program other than SPL Token must fail"
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000, "vault untouched");
+}
+
+#[test]
+fn deposit_rejects_foreign_token_program() {
+    let (
+        mut svm,
+        pid,
+        owner,
+        _policy,
+        _exec,
+        _crank,
+        vault,
+        mint,
+        owner_ata,
+        vault_ata,
+        _buyer,
+        _buyer_ata,
+        pos,
+    ) = setup_full(3, 1000, 10_000, 1);
+    // 1 base unit was deposited by the setup; the rest is still in owner_ata.
+
+    let mut d = Vec::with_capacity(DEPOSIT_IX_LEN);
+    d.push(IX_DEPOSIT_TO_VAULT);
+    d.extend_from_slice(&pos.to_le_bytes());
+    d.extend_from_slice(&100u64.to_le_bytes());
+    let ix = Instruction {
+        program_id: pid,
+        accounts: vec![
+            AccountMeta::new(owner.pubkey(), true),
+            AccountMeta::new(vault, false),
+            AccountMeta::new(owner_ata, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(vault_ata, false),
+            AccountMeta::new_readonly(foreign_token_program(), false),
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new_readonly(ASSOCIATED_TOKEN_PROGRAM_ID, false),
+        ],
+        data: d,
+    };
+    assert!(
+        send(&mut svm, &[&owner], &ix).is_err(),
+        "deposit through a foreign token program must fail"
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 1, "no extra deposit landed");
+}
+
+#[test]
+fn close_vault_rejects_foreign_token_program() {
+    let (
+        mut svm,
+        pid,
+        owner,
+        _policy,
+        _exec,
+        _crank,
+        vault,
+        mint,
+        owner_ata,
+        vault_ata,
+        _buyer,
+        _buyer_ata,
+        _pos,
+    ) = happy_setup();
+
+    let close_ix = Instruction {
+        program_id: pid,
+        accounts: vec![
+            AccountMeta::new(owner.pubkey(), true),
+            AccountMeta::new(vault, false),
+            AccountMeta::new(vault_ata, false),
+            AccountMeta::new(owner_ata, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new_readonly(foreign_token_program(), false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+        data: vec![5u8],
+    };
+    assert!(
+        send(&mut svm, &[&owner], &close_ix).is_err(),
+        "close through a foreign token program must fail"
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000, "vault untouched");
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Tranche budget
+// ──────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn sell_rejects_amount_above_tranche_budget() {
+    let (
+        mut svm,
+        pid,
+        _owner,
+        policy,
+        execution,
+        crank,
+        vault,
+        mint,
+        _owner_ata,
+        vault_ata,
+        _buyer,
+        buyer_ata,
+        pos,
+    ) = happy_setup();
+
+    // tranche_bps = 1000 (10%) of 10_000 deposited = 1_000 per tranche.
+    // 1_001 is one base unit over budget and well under the vault balance,
+    // so only the tranche bound can reject it.
+    let over = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[23u8; 32],
+        1_001,
+    );
+    assert!(
+        send(&mut svm, &[&crank], &over).is_err(),
+        "one base unit over the tranche budget must fail"
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000);
+
+    // Exactly the budget is allowed (the bound is inclusive).
+    let exact = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[23u8; 32],
+        1_000,
+    );
+    send(&mut svm, &[&crank], &exact).expect("exactly the tranche budget succeeds");
+}
+
+#[test]
+fn tranche_budget_is_measured_against_deposits_not_the_remainder() {
+    // 10% tranches: the committed schedule is ten of them.
+    let (
+        mut svm,
+        pid,
+        _owner,
+        policy,
+        execution,
+        crank,
+        vault,
+        mint,
+        _owner_ata,
+        vault_ata,
+        _buyer,
+        buyer_ata,
+        pos,
+    ) = setup_full(3, 1000, 10_000, 0);
+
+    // Ten 10% tranches drain the position exactly. Against a shrinking
+    // denominator the tenth tranche would be 10% of what is left (~387) and
+    // the position would never fully exit.
+    for tranche in 0..10u8 {
+        let ix = validate_sell_ix(
+            pid,
+            &crank.pubkey(),
+            policy,
+            execution,
+            vault,
+            vault_ata,
+            buyer_ata,
+            mint,
+            pos,
+            0,
+            tranche,
+            1_000_000 + tranche as u64,
+            &[tranche; 32],
+            1_000,
+        );
+        send(&mut svm, &[&crank], &ix).unwrap_or_else(|e| panic!("tranche {tranche}: {e}"));
+    }
+    assert_eq!(token_balance(&svm, &vault_ata), 0, "position fully exited");
+    assert_eq!(token_balance(&svm, &buyer_ata), 10_000);
 }
