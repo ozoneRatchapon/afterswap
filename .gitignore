@@ -8,3 +8,18 @@ node_modules/
 .devnet/
 .wrangler/
 crates/afterswap-worker/build/
+
+# Demo-video render artifacts (~4.4 GB): frame dumps from
+# scripts/record_playwright*.mjs, TTS scratch, and the rendered cuts.
+# Regenerable from the scripts; git is the wrong store for them.
+docs/frames/
+docs/frames_120s/
+docs/notebooklm_synced_frames/
+docs/playwright_frames/
+docs/playwright_styled_frames/
+docs/playwright_v2_frames/
+docs/styled_frames_62s/
+docs/audio_segments/
+docs/*.mp4
+docs/*.m4a
+docs/*.aiff
