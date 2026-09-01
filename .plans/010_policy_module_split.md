@@ -1,7 +1,7 @@
 # 010 — Split the policy program into per-instruction modules
 
-Status: **done, uncommitted.** 60 policy tests green, workspace green,
-`cargo clippy --workspace --all-targets` clean.
+Status: **done, committed** in `692b4fd` (not pushed). 60 policy tests green,
+workspace green, `cargo clippy --workspace --all-targets` clean.
 
 ## Why
 

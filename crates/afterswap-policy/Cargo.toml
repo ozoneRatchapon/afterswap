@@ -30,5 +30,3 @@ bincode = "1"
 # builders and `Pack` state types, both of which are available without it.
 spl-token = { version = "7", features = ["no-entrypoint"] }
 spl-associated-token-account = "6"
-# TEMP: test-only ed25519 verification for debugging signature failures.
-ed25519-dalek = "2.2.0"
