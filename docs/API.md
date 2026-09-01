@@ -66,3 +66,25 @@ and shipped as the surviving raw indices (2,108 bytes), so a cold
 `/decide` in local `workerd` fell from **752 ms to 7 ms**. The figure above
 is the post-deploy measurement.
 Pay-per-decision via pay.sh 402 is the roadmap (7b).
+
+## Demo commit budget (`GET /api/slot-status`)
+
+`/api/commit-policy` signs real devnet transactions from a throwaway
+balance, so the demo has a hard global budget of 380 commitments and a
+per-visitor cap of 3 per hour. That budget has no reset path short of
+redeploying the Durable Object, and the public `/api/score` aggregate
+deliberately excludes the slot counter — so this endpoint exists to make
+the remaining headroom observable before it runs out rather than after.
+
+```bash
+curl https://afterswap.solana-thailand.workers.dev/api/slot-status
+```
+
+```json
+{ "used": 12, "cap": 380, "remaining": 368,
+  "per_ip_cap": 3, "ip_window_ms": 3600000 }
+```
+
+Read-only and unauthenticated: it returns one counter and two constants
+that are already documented here, and nothing a caller does not learn by
+being refused with a 429.

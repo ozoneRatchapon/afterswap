@@ -83,6 +83,35 @@ export class Scoreboard extends DurableObject {
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.pathname === "/slot/status") {
+      // Read-only budget introspection. The public aggregate below excludes
+      // the `slot` row, so without this the demo's remaining commit budget
+      // is invisible from outside — the first sign it had run dry would be
+      // visitors getting a 429. Deliberately unauthenticated and
+      // non-mutating: it exposes a counter and two constants that are
+      // already documented, and nothing an attacker does not learn anyway
+      // by being refused.
+      const rows = [...this.sql.exec("SELECT cycles FROM totals WHERE floor = 'slot'")] as Array<{ cycles: number }>;
+      const used = rows[0]?.cycles ?? 0;
+      return new Response(
+        JSON.stringify({
+          used,
+          cap: Scoreboard.MAX_DEMO_COMMITS,
+          remaining: Math.max(0, Scoreboard.MAX_DEMO_COMMITS - used),
+          per_ip_cap: Scoreboard.MAX_PER_IP,
+          ip_window_ms: Scoreboard.IP_WINDOW_MS,
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            // Reachable from the browser like `/api/score`, so it carries
+            // the same open CORS header; the internal `/slot` routes do not,
+            // because nothing but the worker ever calls them.
+            "access-control-allow-origin": "*",
+          },
+        },
+      );
+    }
     if (url.pathname === "/slot") {
       // The caller is required to name a visitor. Making this mandatory
       // rather than optional is the point: an omitted `ip` used to mean an

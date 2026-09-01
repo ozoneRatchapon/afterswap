@@ -106,6 +106,16 @@ export default {
       return env.SCOREBOARD.get(id).fetch(request);
     }
 
+    if (url.pathname === "/api/slot-status") {
+      // Operational visibility on the demo commit budget. `MAX_DEMO_COMMITS`
+      // has no reset path short of redeploying the Durable Object, so
+      // knowing how much is left is the difference between noticing before
+      // the demo dies and noticing after.
+      return env.SCOREBOARD
+        .get(env.SCOREBOARD.idFromName("global-v1"))
+        .fetch("https://do/slot/status");
+    }
+
     if (url.pathname === "/api/commit-policy") {
       if (request.method !== "POST") return json({ error: "POST only" }, 405);
       if (!env.DEMO_KEYPAIR) return json({ error: "demo signer not configured" }, 503);
