@@ -1,7 +1,8 @@
 # 009 — Gate hardening: making `ValidateAndSell` enforce its own docstring
 
-Status: **done for the program (55 tests green, G7 substitution gate closed)
-and for the signing oracle (per-visitor cap, DEPLOYED to prod 2026-08-31 as
+Status: **done for the program (60 tests green, G7 substitution gate closed,
+vault source/mint bound to the derived ATA, sysvar / program-slot /
+reordering follow-ons closed) and for the signing oracle (per-visitor cap, DEPLOYED to prod 2026-08-31 as
 version `cb047d28`); the quote-digest overclaim is reworded to match
 behaviour. No open decisions. The worker is deployed; the program is not.**
 Date: 2026-09-01.
@@ -253,11 +254,12 @@ What each case pins, by the check that stops it:
   account holding the tokens and the authorization presented.
 - **sell / vault** — mirror image, victim's authorization against the
   attacker's vault. Same owner cross-check.
-- **sell / src_ata**, **close / src_ata** — the one slot no handler validates.
-  The vault PDA signs, so safety here rests entirely on SPL Token's authority
-  check rather than on the gate. Asserted with two substitutes: an ordinary
-  ATA, and a *different vault PDA's* ATA. Both rejected — but by the token
-  program, which is worth knowing rather than assuming.
+- **sell / src_ata**, **close / src_ata** — asserted with two substitutes: an
+  ordinary ATA, and a *different vault PDA's* ATA. Both rejected by the token
+  program, which is worth knowing rather than assuming. The third substitute —
+  an account the vault *does* control that is not its ATA — is the one SPL
+  Token cannot catch; see "Source binding" below, which closes it in the
+  handler.
 - **sell / mint** — read only for `decimals`, which is what `TransferChecked`
   is checked against; a second mint is rejected by the token program.
 - **deposit / vault** — seeds derive from the signer, so crediting another
@@ -288,11 +290,139 @@ Slots already covered in `vault.rs` / `anchor.rs` are listed in the file
 header against their test rather than duplicated.
 
 **Not closed by this:** the matrix covers cross-*principal* substitution.
-Substituting a sysvar, a program slot with a look-alike, or reordering the
-account list is not enumerated. `sell / src_ata` and `close / src_ata` remain
-unvalidated in the program itself — currently harmless because the vault PDA's
-signature is what bounds them, but a handler-level check would make that
-independent of SPL Token's behaviour.
+Sysvars, program slots and account-list reordering were left unenumerated —
+see the section below, which closes all three.
+
+## Sysvar, program-slot and reordering follow-ons — closed 2026-09-01
+
+The three vectors the G7 matrix deferred. Two turned out to need verifying
+rather than fixing; the third needed one check and two tests. Recording the
+evidence, because "we looked and it was fine" is only worth something if the
+next reader can see what was looked at.
+
+**Sysvars — not reachable.** No handler takes a sysvar account. `Clock` and
+`Rent` are read through `Clock::get()` / `Rent::get()`, which are syscalls
+into the runtime, not deserialisations of a caller-supplied account. There is
+no slot to substitute, so there is nothing to test and nothing to harden. If
+a future handler ever takes `sysvar::instructions` (the natural candidate,
+for CPI-introspection) this stops being true and the slot needs pinning.
+
+**Program slots — already pinned, already tested.** Every executable slot a
+handler actually *uses* is compared against a hardcoded id before use:
+`token_program` in `deposit_to_vault`, `close_vault` and `validate_and_sell`,
+and `memo_program` in `anchor_fill`. Each has a regression test
+(`vault.rs::{sell,deposit,close_vault}_rejects_foreign_token_program`,
+`anchor.rs::anchor_fill_rejects_a_foreign_memo_program`). The two slots that
+are *not* checked — `_system_program` and `_ata_program` — are never read:
+they are bound with a leading underscore and the CPIs that need them
+(`CreateAccount`) address the system program by its own hardcoded const, so
+the account's only role is to be present in the transaction's account list.
+Substituting them changes nothing a check would catch.
+
+**Reordering — the two token slots are the only confusable pair.** Passing
+the handler's own accounts in the wrong order is cheaper than sourcing a
+foreign one. Most pairs cannot be confused: `policy` (60 bytes), `vault` (89)
+and `execution` (129) are distinguished by an exact length check before any
+seed derivation runs, and each is then pinned to its own PDA address. The
+pair that *is* interchangeable by shape is `src_ata` / `dest_ata` — both 165
+bytes, same layout, same mint. Two tests pin the direction:
+
+  * `sell_rejects_the_source_and_destination_slots_swapped` — reversed, the
+    transfer would run backwards, pulling the buyer's balance into the vault
+    while `vault.amount` is debited as though a sale had happened. Step 5b's
+    source binding refuses it.
+  * `close_rejects_the_source_and_destination_slots_swapped` — owner-signed,
+    so drift rather than theft, but the binding must hold regardless of who
+    is asking. The test also runs the canonical order afterwards, so a
+    handler that refused the slot outright would not pass.
+
+**One check added: `vault.owner() == program_id`** in `validate_and_sell` and
+`close_vault` (`ProgramError::IllegalOwner`). This is defence in depth, not a
+closed hole, and the plan should not claim otherwise. Both handlers read
+`vault_amount`, `vault_deposited` and `vault_mint` out of the account and
+compute every step-5 bound from them *before* the step-7 seed derivation
+proves the address. In practice nothing but this program can create an
+account at one of its own PDAs, so the reads were already sound — the check
+makes them sound at the point they happen rather than sixty lines later, and
+matches what step 1b already does for the policy and execution accounts.
+
+The negative control is worth recording. `sell_rejects_a_vault_pda_this_
+program_does_not_own` uses `svm.set_account` to do what the chain will not:
+re-own a well-formed vault PDA to the system program. With the check removed
+and the `.so` rebuilt, the test fails with
+`InstructionError(0, ExternalAccountDataModified)` — the `TransferChecked`
+CPI **runs to completion** and the transaction only dies at the
+post-instruction write-back. Atomicity means no state changed either way, so
+this was never exploitable; but a refusal that lands before the CPI instead
+of after it is the honest failure, and 21,911 CU of it were being spent to
+reach the wrong error.
+
+Cost: two pointer comparisons. Binary 46,704 → **46,936 bytes**, inside the
+60 KB budget. Suite 57 → **60 tests**, `cargo clippy -p afterswap-policy
+--all-targets` clean.
+
+## Source binding — closed 2026-09-01
+
+The G7 pass left `src_ata` resting on SPL Token's authority check. That check
+answers "may the vault move this?" — it never answers "is this the account the
+vault is accounted in?", and those are different questions, because **anyone
+can create a token account naming the vault PDA as its authority**. The
+authority field is an assertion by whoever ran `InitializeAccount`, not a
+grant by the authority.
+
+The attack that gap allows, on the sell path:
+
+1. An authorized crank creates an ordinary (non-ATA) token account for the
+   same mint with the victim's vault PDA as authority, and funds it with dust.
+2. It cranks legal tranches — right size, right cadence, bound destination —
+   but names the decoy as `src_ata`. The vault PDA signs, SPL Token is
+   satisfied, the dust moves.
+3. The handler debits `vault.amount` by the *instructed* amount each time.
+   After ten 10% tranches the accounting reads zero.
+4. Every real token is still in the canonical vault ATA, and `CloseVault`
+   no-ops on `amount == 0`. The owner's position is stranded with no
+   instruction that can reach it.
+
+No theft, but a permanent loss, reachable by a party the owner deliberately
+gave limited power to. Only the *address* says which account, so only an
+address derivation stops it.
+
+`require_vault_ata(vault, mint, ata)` derives
+`find_program_address([vault, spl_token, mint], ATA_PROGRAM)` and compares.
+Applied in three places:
+
+- `validate_and_sell` — new step 5b, before the destination binding. Also
+  pins `mint` to the mint the vault was opened with, since the derivation is
+  keyed on it and `decimals` is read from it.
+- `close_vault` — same pair of checks; owner-signed, so this is drift rather
+  than theft, but both paths must agree on one account or the invariant is
+  not an invariant.
+- `deposit_to_vault` — *replaces* the old `dest_ata.data[32..64] == vault`
+  authority check, which the derivation strictly subsumes: only the ATA
+  program can create an account at that address, and it always sets the
+  authority to the wallet in the seeds.
+
+Cost is one extra `find_program_address` per instruction (~2.5k CU against a
+200k budget; the sell path already did one for the vault). No account-layout
+change, so nothing to migrate — which matters only because the program is not
+deployed yet.
+
+Two new tests in `tests/substitution.rs`, one per path, each asserting the
+specific `InvalidAccountData`, that the decoy and the real ATA are both
+untouched, and then that the canonical account still works — a binding that
+also refuses the legitimate source would pass a rejection-only test.
+
+**Caught by the negative control, and worth recording:** both tests first
+reported "the substitution was ACCEPTED" against a program that already had
+the check. `common::program_so()` loads a *prebuilt*
+`$CARGO_TARGET_DIR/deploy/afterswap_policy.so`, and `cargo test` does not
+rebuild it — `cargo-build-sbf` is a separate step. So a green suite after a
+program edit can be testing the previous binary. Every claim about program
+behaviour in this file that was made without an intervening `cargo-build-sbf`
+is worth re-reading with that in mind.
+
+57 tests green (8+9+2+15+23) against a freshly built binary; workspace suite
+green; clippy clean. Binary 45,600 → **46,704 bytes**, still inside 60 KB.
 
 ## Static-linter pass (`program_autofixer`) — run 2026-09-01
 

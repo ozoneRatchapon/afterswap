@@ -693,3 +693,79 @@ pub fn create_second_mint(svm: &mut LiteSVM, payer: &Keypair, decimals: u8) -> P
     .expect("initialize second mint");
     mint_pk
 }
+
+/// A token account for `mint` whose *authority* is `authority`, at an address
+/// that is deliberately **not** the associated token account.
+///
+/// Anyone may create one of these for any authority — the authority field is
+/// an assertion by whoever ran `InitializeAccount`, not a permission granted
+/// by the authority. That is why the vault handlers derive the ATA address
+/// instead of trusting `data[32..64]`.
+pub fn create_aux_token_account(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint_authority: &Keypair,
+    authority: &Pubkey,
+    mint: &Pubkey,
+    amount: u64,
+) -> Pubkey {
+    const TOKEN_ACCOUNT_LEN: u64 = 165;
+    let account = Keypair::new();
+    let ix = system_instruction::create_account(
+        &payer.pubkey(),
+        &account.pubkey(),
+        svm.minimum_balance_for_rent_exemption(TOKEN_ACCOUNT_LEN as usize),
+        TOKEN_ACCOUNT_LEN,
+        &TOKEN_PROGRAM_ID,
+    );
+    send(
+        svm,
+        &[payer, &account],
+        &Instruction {
+            program_id: system_program::id(),
+            accounts: ix.accounts.clone(),
+            data: ix.data.clone(),
+        },
+    )
+    .expect("create aux token account");
+
+    let init =
+        instruction::initialize_account3(&TOKEN_PROGRAM_ID, &account.pubkey(), mint, authority)
+            .expect("initialize_account3 ix");
+    send(
+        svm,
+        &[payer],
+        &Instruction {
+            program_id: TOKEN_PROGRAM_ID,
+            accounts: init.accounts.clone(),
+            data: init.data.clone(),
+        },
+    )
+    .expect("initialize aux token account");
+
+    match amount {
+        0 => {}
+        _ => {
+            let ix = instruction::mint_to(
+                &TOKEN_PROGRAM_ID,
+                mint,
+                &account.pubkey(),
+                &mint_authority.pubkey(),
+                &[],
+                amount,
+            )
+            .expect("mint_to ix");
+            send(
+                svm,
+                &[mint_authority],
+                &Instruction {
+                    program_id: TOKEN_PROGRAM_ID,
+                    accounts: ix.accounts.clone(),
+                    data: ix.data.clone(),
+                },
+            )
+            .expect("fund aux token account");
+        }
+    }
+    account.pubkey()
+}

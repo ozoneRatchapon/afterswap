@@ -33,7 +33,8 @@ use afterswap_policy::{
     IX_DEPOSIT_TO_VAULT, IX_REVOKE_AUTHORIZATION, REVOKE_IX_LEN,
 };
 use common::{
-    authorize_ix, create_second_mint, happy_setup, send, setup_attacker, token_balance,
+    authorize_ix, create_aux_token_account, create_second_mint, happy_setup, send, setup_attacker,
+    token_balance,
     validate_sell_ix, Attacker, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID,
 };
 use litesvm::LiteSVM;
@@ -208,9 +209,11 @@ fn sell_rejects_a_substituted_vault_account() {
 fn sell_rejects_a_source_ata_the_vault_does_not_control() {
     // `src_ata` is the account the tokens actually leave. The vault PDA signs
     // the `TransferChecked`, so the only accounts it can move from are those
-    // it is the authority of — but nothing in the handler says so, which
-    // makes this the one slot whose safety rests entirely on the SPL Token
-    // program rather than on the gate.
+    // it is the authority of — and the handler now also pins the address to
+    // the vault's ATA for the mint, so this slot no longer rests on the SPL
+    // Token program alone. The vault-controlled look-alike that the authority
+    // check cannot see is covered by
+    // `sell_rejects_a_vault_controlled_account_that_is_not_the_vault_ata`.
     let (mut svm, pid, _owner, policy, execution, crank, vault, mint, owner_ata, vault_ata, buyer_ata, pos, _atk) =
         victim_and_attacker();
 
@@ -269,6 +272,71 @@ fn sell_rejects_a_foreign_vaults_source_ata() {
     assert_eq!(token_balance(&svm, &atk.vault_ata), 5_000);
     assert_eq!(token_balance(&svm, &vault_ata), 10_000, "and the real source is untouched");
     assert_eq!(token_balance(&svm, &buyer_ata), 0);
+}
+
+#[test]
+fn sell_rejects_a_vault_controlled_account_that_is_not_the_vault_ata() {
+    // The substitute the authority field cannot catch: a token account for
+    // the same mint whose authority *is* the victim's vault PDA, so the
+    // vault's own signature moves it and SPL Token is satisfied. Anyone can
+    // create one and fund it with dust.
+    //
+    // What it buys an authorized crank: the transfer succeeds against the
+    // decoy, the handler still debits `vault.amount` by the full tranche, and
+    // after ten legal tranches the accounting reads zero while every real
+    // token is still sitting in the canonical vault ATA — where `CloseVault`
+    // will no-op on `amount == 0` and strand it. Only the address derivation
+    // says *which* account, so only the address derivation stops this.
+    let (mut svm, pid, owner, policy, execution, crank, vault, mint, _owner_ata, vault_ata, buyer_ata, pos, _atk) =
+        victim_and_attacker();
+
+    let decoy = create_aux_token_account(&mut svm, &owner, &owner, &vault, &mint, 5_000);
+
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        decoy, // <- substituted: vault is the authority, but it is not the ATA
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[21u8; 32],
+        1_000,
+    );
+    assert_rejected(
+        send(&mut svm, &[&crank], &ix),
+        "InvalidAccountData",
+        "a vault-controlled look-alike source",
+    );
+    assert_eq!(token_balance(&svm, &decoy), 5_000, "the decoy is untouched");
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000);
+    assert_eq!(token_balance(&svm, &buyer_ata), 0);
+
+    // And the canonical source still works, so the binding is not a blanket
+    // refusal of the slot.
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[21u8; 32],
+        1_000,
+    );
+    send(&mut svm, &[&crank], &ix).expect("the vault's own ATA succeeds");
+    assert_eq!(token_balance(&svm, &buyer_ata), 1_000);
 }
 
 #[test]
@@ -473,6 +541,32 @@ fn close_rejects_a_source_ata_the_vault_does_not_control() {
     assert_eq!(token_balance(&svm, &owner_ata), 0);
 }
 
+#[test]
+fn close_rejects_a_vault_controlled_account_that_is_not_the_vault_ata() {
+    // Same look-alike on the close path. The owner signs here, so this is not
+    // theft — it is the accounting drifting from the tokens, which is exactly
+    // what makes the stranding above possible. Both paths bind the same way.
+    let (mut svm, pid, owner, _policy, _execution, _crank, vault, mint, owner_ata, vault_ata, _buyer_ata, _pos, _atk) =
+        victim_and_attacker();
+
+    let decoy = create_aux_token_account(&mut svm, &owner, &owner, &vault, &mint, 5_000);
+
+    let ix = close_ix(pid, &owner.pubkey(), vault, decoy, owner_ata, mint);
+    assert_rejected(
+        send(&mut svm, &[&owner], &ix),
+        "InvalidAccountData",
+        "a vault-controlled look-alike source on close",
+    );
+    assert_eq!(token_balance(&svm, &decoy), 5_000);
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000);
+    assert_eq!(token_balance(&svm, &owner_ata), 0);
+
+    // The canonical source reclaims the position as before.
+    let ix = close_ix(pid, &owner.pubkey(), vault, vault_ata, owner_ata, mint);
+    send(&mut svm, &[&owner], &ix).expect("the vault's own ATA succeeds");
+    assert_eq!(token_balance(&svm, &owner_ata), 10_000);
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // CommitPolicy (tag 0) / AuthorizeExecution (tag 1) / RevokeAuthorization (tag 3)
 // ──────────────────────────────────────────────────────────────────────────
@@ -616,4 +710,129 @@ fn revoke_rejects_an_execution_pda_belonging_to_another_owner() {
         crank.pubkey().to_bytes(),
         "the authorized crank is untouched"
     );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Account-list reordering
+// ──────────────────────────────────────────────────────────────────────────
+//
+// The tests above swap a slot for a *foreign* account. Reordering is the
+// cheaper attack: pass the handler's own accounts, in the wrong order. Most
+// slot pairs cannot be confused — `policy` (60 bytes), `vault` (89) and
+// `execution` (129) are distinguished by length before any seed derivation
+// runs, and each is then pinned to its PDA address. The pair that *is*
+// interchangeable by shape is the two token accounts, which are both 165
+// bytes of the same layout for the same mint. Those are the swaps worth
+// pinning: nothing about the account's contents distinguishes them, so only
+// the direction of the two bindings does.
+
+#[test]
+fn sell_rejects_the_source_and_destination_slots_swapped() {
+    // Step 5b binds the source to the vault's ATA and step 6 binds the
+    // destination to the settlement ATA the owner named. Swapped, each
+    // account is individually legitimate and appears in an account list the
+    // handler expects — the transfer would simply run backwards, pulling the
+    // buyer's tokens into the vault while `vault.amount` is debited as
+    // though a sale had happened.
+    let (mut svm, pid, _owner, policy, execution, crank, vault, mint, _owner_ata, vault_ata, buyer_ata, pos, _atk) =
+        victim_and_attacker();
+
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        buyer_ata, // <- source and destination exchanged
+        vault_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[22u8; 32],
+        1_000,
+    );
+    assert_rejected(
+        send(&mut svm, &[&crank], &ix),
+        "InvalidAccountData",
+        "the sell source and destination slots exchanged",
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000, "nothing moved in");
+    assert_eq!(token_balance(&svm, &buyer_ata), 0, "nothing moved out");
+}
+
+#[test]
+fn close_rejects_the_source_and_destination_slots_swapped() {
+    // `close_vault` is owner-signed, so this is drift rather than theft —
+    // but the source binding must hold regardless of who is asking. Reversed,
+    // the handler would be instructed to pull the owner's own balance into
+    // the vault and then zero `vault.amount`, stranding both sides.
+    let (mut svm, pid, owner, _policy, _execution, _crank, vault, mint, owner_ata, vault_ata, _buyer_ata, _pos, _atk) =
+        victim_and_attacker();
+
+    let before_owner = token_balance(&svm, &owner_ata);
+    let ix = close_ix(pid, &owner.pubkey(), vault, owner_ata, vault_ata, mint);
+    assert_rejected(
+        send(&mut svm, &[&owner], &ix),
+        "InvalidAccountData",
+        "the close source and destination slots exchanged",
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000);
+    assert_eq!(token_balance(&svm, &owner_ata), before_owner);
+
+    // The correct order still drains the vault, so the binding is directional
+    // rather than a refusal of the slot.
+    let ix = close_ix(pid, &owner.pubkey(), vault, vault_ata, owner_ata, mint);
+    send(&mut svm, &[&owner], &ix).expect("the canonical order succeeds");
+    assert_eq!(token_balance(&svm, &vault_ata), 0);
+    assert_eq!(token_balance(&svm, &owner_ata), before_owner + 10_000);
+}
+
+#[test]
+fn sell_rejects_a_vault_pda_this_program_does_not_own() {
+    // The seed derivation proves the *address*; it does not prove who wrote
+    // the bytes. In practice nothing else can create an account at a PDA of
+    // this program, so this is defence in depth rather than a closed hole —
+    // but `validate_and_sell` reads `vault_amount`, `vault_deposited` and
+    // `vault_mint` out of this account sixty lines before the derivation
+    // runs, and every step-5 bound is computed from them. `set_account` lets
+    // the test do what the chain will not, and pins the early refusal.
+    //
+    // Without the owner check the instruction gets as far as the transfer and
+    // then dies in the runtime on the post-instruction write-back — no state
+    // change either way, but `IllegalOwner` before the CPI is the honest
+    // failure.
+    let (mut svm, pid, _owner, policy, execution, crank, vault, mint, _owner_ata, vault_ata, buyer_ata, pos, _atk) =
+        victim_and_attacker();
+
+    let mut hijacked = svm.get_account(&vault).expect("the vault exists");
+    assert_eq!(hijacked.owner, pid, "the vault starts out program-owned");
+    hijacked.owner = system_program::id();
+    svm.set_account(vault, hijacked)
+        .expect("re-owning the vault account");
+
+    let ix = validate_sell_ix(
+        pid,
+        &crank.pubkey(),
+        policy,
+        execution,
+        vault,
+        vault_ata,
+        buyer_ata,
+        mint,
+        pos,
+        0,
+        0,
+        1_000_000,
+        &[23u8; 32],
+        1_000,
+    );
+    assert_rejected(
+        send(&mut svm, &[&crank], &ix),
+        "IllegalOwner",
+        "a vault PDA owned by another program",
+    );
+    assert_eq!(token_balance(&svm, &vault_ata), 10_000);
+    assert_eq!(token_balance(&svm, &buyer_ata), 0);
 }
