@@ -38,11 +38,19 @@ the split was behaviour-preserving.
 
 ## Cost
 
-The SBF binary went 46,936 → **47,088 bytes** (+152). The likely cause is
-codegen-unit partitioning: SBF release builds do not use `codegen-units = 1`,
-and CGUs follow module boundaries, so cross-module inlining decisions shifted
-slightly. Still far inside the 60 KB budget. If it ever matters, setting
-`codegen-units = 1` for the release profile should erase it and then some.
+The SBF binary went 46,936 → **47,088 bytes** (+152). Still far inside the
+60 KB budget.
+
+The first guess was codegen-unit partitioning — CGUs follow module
+boundaries, so the split could have shifted cross-module inlining. **That was
+measured and is wrong.** Adding a workspace `[profile.release]` with
+`codegen-units = 1` and `lto = "fat"` and rebuilding produced a
+*byte-identical* 47,088-byte `.so`. Whole-program optimisation has nothing
+left to do here: the crate's only dependencies are `pinocchio` and
+`pinocchio-system`, both `no_std` and already effectively one unit. The
+profile was reverted rather than kept, since it would slow every release
+build in the workspace for no gain. The real cause of the +152 bytes is
+unexplained; it is not worth chasing at 78% headroom.
 
 ## Verification
 
