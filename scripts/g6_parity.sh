@@ -5,7 +5,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 cargo build -p afterswap-wasm --target wasm32-unknown-unknown --release --quiet
-wasm-bindgen "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/release/afterswap_wasm.wasm" \
+# Ask cargo where it builds rather than guessing. `${CARGO_TARGET_DIR:-target}`
+# silently missed a shared target-dir set in ~/.cargo/config.toml, which the
+# env var does not reflect, and the gate died on a missing .wasm.
+TARGET_DIR=$(cargo metadata --format-version 1 --no-deps \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")
+wasm-bindgen "$TARGET_DIR/wasm32-unknown-unknown/release/afterswap_wasm.wasm" \
   --target web --out-dir web-wasm/public/pkg
 cargo run -p afterswap-engine --example parity_ref --release --quiet > /tmp/g6_native.json
 npx wrangler dev --port 8789 >/dev/null 2>&1 & WPID=$!

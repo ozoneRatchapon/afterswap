@@ -40,11 +40,10 @@ fn corpora() -> Vec<(String, Vec<f64>)> {
         .map(|&r| (r.name().to_string(), synthetic_corpus(r, 300, 42)))
         .collect();
     for p in ["data/recorded.jsonl", "data/recorded2.jsonl"] {
-        if let Ok(c) = load_corpus(p) {
-            if c.len() >= 100 {
+        if let Ok(c) = load_corpus(p)
+            && c.len() >= 100 {
                 out.push((p.to_string(), c));
             }
-        }
     }
     out
 }

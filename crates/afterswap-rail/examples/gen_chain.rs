@@ -10,12 +10,26 @@
 //! ```sh
 //! cargo run -p afterswap-rail --example gen_chain --release -- \
 //!     /tmp/rail_falsifier.jsonl 60
+//! # against a production-keyed rail, sign with that rail's seed:
+//! cargo run -p afterswap-rail --example gen_chain --release -- \
+//!     /tmp/rail_falsifier.jsonl 60 --attest-seed-hex <64 hex>
 //! ```
 
 use afterswap_rail::{
     AttestKey, AuditRecord, EvaluatedVenue, QuoteEvidence, RouteDecision, VenueQuote, attest,
     link, rule_v1_fingerprint,
 };
+
+fn hex32(s: &str) -> Option<[u8; 32]> {
+    if s.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
+        out[i] = u8::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?;
+    }
+    Some(out)
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -24,7 +38,20 @@ fn main() {
         eprintln!("usage: gen_chain <LOG.jsonl> <N>");
         std::process::exit(2);
     };
-    let key = AttestKey::from_seed([0xA5; 32]); // the dev seed, deliberately
+    // Default: the dev seed, deliberately. A rail deployed with a rotated
+    // production key rejects dev-attested records, so the seed is a flag —
+    // same `--attest-seed-hex` convention as `rail_verify` and the executor.
+    let seed = match args.iter().position(|a| a == "--attest-seed-hex") {
+        Some(i) => match args.get(i + 1).and_then(|h| hex32(h)) {
+            Some(seed) => seed,
+            None => {
+                eprintln!("--attest-seed-hex needs 64 hex chars");
+                std::process::exit(2);
+            }
+        },
+        None => [0xA5; 32],
+    };
+    let key = AttestKey::from_seed(seed);
     let text = std::fs::read_to_string(path).unwrap_or_default();
     let mut tip: Option<AuditRecord> = text.lines().rev().find_map(|l| serde_json::from_str(l).ok());
     let mut out = std::fs::OpenOptions::new()
@@ -65,5 +92,7 @@ fn main() {
         writeln!(out, "{}", serde_json::to_string(&record).expect("json")).expect("write");
         tip = Some(record);
     }
+    let pubkey: String = key.public().iter().map(|b| format!("{b:02x}")).collect();
+    eprintln!("attested under pubkey {pubkey}");
     eprintln!("appended {n} synthetic records, tip seq {}", tip.map_or(0, |t| t.seq));
 }

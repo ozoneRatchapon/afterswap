@@ -42,9 +42,104 @@ in-tab, 0 failures). The verifier caught a real bug: full-range u64
 fingerprints mangled by JS JSON above 2^53 — now hex on the wire, legacy
 numeric still parses.
 
-Remaining (owner actions, RAIL.md §7): production deploy (DO migration
-caveat), real attestation key, R2 bucket, external ≤30 s measurement, first
-funded anchor.
+## Deployment ✅ DONE 2026-08-28 (RAIL.md §7)
+
+- [x] **Production deploy** — dashboard `afterswap` and the pure-Rust rail
+      Worker `afterswap-rail` both live on workers.dev. The DO-migration
+      caveat did not bite: `v1: RailSequencer` went through a normal
+      `wrangler deploy`, no 10013/10021 fallback, confirmed with `wrangler
+      deployments list` rather than assumed from a green push.
+- [x] **Real attestation key** — rotated off the public dev seed. Production
+      pubkey `887e4537…3451` in `wrangler.jsonc`; the seed is executor-only
+      (`--attest-seed-hex`, `gen_chain` now takes the same flag) and is not
+      in git. Proven by falsification, not assertion: a dev-attested record
+      is rejected `400 attestation does not verify`. DO instance `rail-v1` →
+      `rail-prod-v1` so the production chain starts at seq 0 under the new
+      key — `rail.html` verifies every record against the single current
+      pubkey, so a dev-attested prefix would have shown as failures.
+- [x] **External ≤30 s measurement** — 70/70 ingested against the production
+      edge, 0 rejected, ingest→publicly-readable median 227 ms / p90 294 ms /
+      max 393 ms. Inside budget by ~76×. Honest caveat: observed from the
+      executor machine, not the third host §7.6 specifies.
+- [x] **First funded anchor** — devnet, from a dedicated keypair
+      (`58CQybdb…xiks`, 4.86 SOL). Root `9dbec084…79b0` (seq 0..63) anchored
+      in tx `2Um3Jsvdk5uc…DpMzvt`, Finalized, fee ◎0.000005, memo
+      byte-matching the root; `/rail/proof/10` from the live Worker VERIFIES
+      under the native crate against that anchored root.
+- [x] **`scripts/rail_falsifier.sh` un-stalled** — it still booted `wrangler
+      dev` on the repo-root (dashboard) config, which has no RAIL binding.
+      Two further defects surfaced while proving the fix rather than
+      asserting it: `--config` is not enough, because wrangler runs
+      `worker-build` in the *invoking* cwd and dies on the workspace
+      Cargo.toml (`missing field \`package\``) — it has to `cd`; and the run
+      was not repeatable, since a persisted miniflare DO makes the replayed
+      log fail wholesale as `seq not monotonic`, so each run now gets a
+      throwaway `--persist-to` dir. Two consecutive clean runs: 81/81
+      ingested, 0 rejected, median 2.5–3.3 ms, fork 400, replay 409, segment
+      closed, identical root `68462ce7…`, proof native-VERIFIED.
+- [—] **R2 bucket** — **CLOSED, not executed.** Deliberately not created: the
+      §8 free-tier invariant keeps closed segments in DO SQLite, and creating
+      the bucket would breach it for no capability the rail lacks today. This
+      is a resolved decision, not outstanding work — re-open only if the
+      project leaves the free tier.
+
+      **Re-affirmed 2026-08-28, with a second reason.** Binding the bucket
+      also arms the trim `DELETE` (`sequencer.rs:266`), whose only recovery
+      path is the R2 read-back in `proof` — and that read-back had a latent
+      framing bug: a body with a literal newline (pretty-printed JSON parses
+      and verifies exactly like compact) shreds when the segment is split on
+      `\n`, failing every proof in it, unrecoverably once the rows are gone.
+      Fixed by an ingest guard (commit `e254e50`, deployed to prod version
+      `fd0f3278`, both branches probed live) and pinned by two tests in
+      `crates/afterswap-rail/tests/rail.rs`. `RING_KEEP = 512` against 140
+      records means nothing would be trimmed for a long while regardless, so
+      waiting costs nothing. **Precondition for re-opening: exercise the
+      archived-proof round-trip end-to-end first** — the guard makes the
+      framing safe, but the R2 write→trim→read-back path is still unproven
+      against a live bucket.
+- [x] **Point the real executor at production ingest** (§7.5) —
+      `--rail-ingest <origin>` and `crates/afterswap-server/src/rail_ship.rs`.
+      70 live cycles: **70 accepted, 0 rejected, 0 failed, 0 seq gaps** against
+      the production edge. The rail now carries real evidence (RFC 9421
+      provider-signed DFlow beside observed Jupiter, Meteora DLMM /
+      PancakeSwap routes), and segment root `ff63ca41…e99e` (seq 64..127) is
+      anchored in devnet tx `4FHorYfF178j…EJ7SWR`, memo byte-matching, with
+      `/rail/proof/100` for a real record VERIFIED under the native crate.
+
+      Design decisions, each with the reason it is not the obvious one:
+      shipping is a channel into a *single* task, because the Sequencer
+      enforces `prev_hash == tip` — parallelism here is a correctness bug, not
+      a speed-up. `--rail-out` is flushed *before* enqueue, so an outage costs
+      visibility and never the record; that is why `--rail-ingest` requires
+      it. Failures are classified rather than blanket-retried: 400 is the
+      record (retrying a bad signature is a busy-loop), 5xx/timeout is the
+      edge (5 attempts, ~6 s of backoff), and 409 is read against the returned
+      `tip_seq` because a lost response looks identical to a replay. Plaintext
+      to a remote host is refused — over `http://` a network position can drop
+      records indistinguishably from an outage.
+
+      The reconciler is what makes the retry message ("can be replayed") true
+      rather than aspirational. Both directions were falsified locally against
+      `wrangler dev`: file-ahead-of-rail replayed its backlog (3 queued,
+      6 accepted, 0 rejected); rail-ahead-of-file adopted the live tip at
+      seq 5 instead of forking. In production it adopted seq 69 from an empty
+      local file — the synthetic prefix was **kept, not deleted**: discarding
+      an anchored bootstrap to make the trail read better is what an audit
+      trail exists to prevent.
+
+- [x] **Latent `.gitignore` bug, found while landing the above** —
+      `data/rail/.gitignore` held `data/rail/*.jsonl`. Patterns in a nested
+      ignore file are relative to *that* directory, so it expanded to
+      `data/rail/data/rail/*.jsonl` and matched nothing; the run's chain file
+      showed up untracked. Same defect in `data/execution/.gitignore`.
+
+- [x] **`afterswap-server` grew a `lib.rs`** — the https-only guard on
+      `--rail-ingest` is a security control, so it needs a test that survives
+      refactors. The crate was binary-only, which forces assertions into
+      inline `#[cfg(test)]` blocks against the house rule that tests live in
+      `tests/`. `src/lib.rs` is now an index of the six modules, `main.rs` is
+      dispatch-only, and the guard is asserted from
+      `crates/afterswap-server/tests/rail_ship_guards.rs`.
 
 ## Pure-Rust worker + free-tier invariant (2026-08-28)
 

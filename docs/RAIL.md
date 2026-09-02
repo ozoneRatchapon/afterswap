@@ -1,17 +1,54 @@
 # The Verifiable Execution Rail — technical specification
 
-> **Status 2026-08-28: R0–R3 implemented; local verification green; NOT
-> deployed.** R0 `afterswap-rail` (23 tests, native+wasm). R1 multi-venue
-> capture — live dry run: 21 records, slot gaps ≤ 1, Jupiter chose 11/21.
-> R2 Sequencer DO + R2 segments — local falsifier: 81/81 ingested,
-> ingest→public-read median 3.7 ms, wasm-served proof verified under the
-> native crate. R3 anchor tool (dry-run verified; **no real anchor posted —
-> needs a funded keypair**) + browser verifier (headless-Chrome check: 26/26
-> attestations, 9/9 proofs, 0 failures, computed in-tab). The browser
-> verifier also caught a real schema bug: a full-range u64 fingerprint
-> crossing JSON as a number is mangled by JavaScript above 2^53 — it now
-> crosses as hex. Production deployment and the real ≤30 s measurement are
-> §7, and are owner actions.
+> **Status 2026-08-28: R0–R3 DEPLOYED and ANCHORED on devnet.** R0
+> `afterswap-rail` (23 tests, native+wasm). R1 multi-venue capture — live dry
+> run: 21 records, slot gaps ≤ 1, Jupiter chose 11/21. R2 Sequencer DO — now
+> live as the pure-Rust Worker `afterswap-rail`. R3 anchor poller + browser
+> verifier (headless-Chrome check: 26/26 attestations, 9/9 proofs, 0
+> failures, computed in-tab). The browser verifier also caught a real schema
+> bug: a full-range u64 fingerprint crossing JSON as a number is mangled by
+> JavaScript above 2^53 — it now crosses as hex.
+>
+> Live as of 2026-08-28:
+> - dashboard <https://afterswap.solana-thailand.workers.dev>, rail worker
+>   <https://afterswap-rail.solana-thailand.workers.dev> (DO migration `v1:
+>   RailSequencer` confirmed via `wrangler deployments list`, not assumed).
+> - **§7.2 done — the attestation key was rotated off the public dev seed.**
+>   Production pubkey `887e4537…3451`; the seed lives with the executor only
+>   (`--attest-seed-hex`), never in git. Falsified rather than asserted: a
+>   dev-attested record now gets `400 attestation does not verify`. The DO
+>   instance moved `rail-v1` → `rail-prod-v1` so the production chain starts
+>   at seq 0 under the production key — the verifier checks every record
+>   against the one current pubkey, so a dev-attested prefix would have read
+>   as failures.
+> - **§7.6 measured live** against the production edge: 70/70 ingested, 0
+>   rejected, ingest→publicly-readable median 227 ms, p90 294 ms, max 393 ms
+>   — inside the 30 s budget by ~76×. Caveat: the observer was the executor
+>   machine, not a third host as §7.6 asks; the headroom is large enough that
+>   the verdict does not turn on it.
+> - **§7.7 done — first real anchors posted.** Production-keyed segment root
+>   `9dbec084…79b0` (seq 0..63) anchored in devnet tx
+>   `2Um3Jsvdk5uc…DpMzvt`, Finalized, fee ◎0.000005, memo byte-matching the
+>   root. A live `/rail/proof/10` verifies under the native crate against
+>   that anchored root.
+>
+> - **§7.5 done — the real executor now feeds production.** `--rail-ingest`
+>   ships each attested record off the execution loop's critical path; 70 live
+>   cycles gave **70 accepted, 0 rejected, 0 gaps**. The chain now carries real
+>   multi-venue evidence (RFC 9421 provider-signed DFlow beside observed
+>   Jupiter, real routes and context slots), and a second segment root
+>   `ff63ca41…e99e` (seq 64..127) is anchored in devnet tx
+>   `4FHorYfF178j…EJ7SWR` — memo byte-matching, and `/rail/proof/100` for a
+>   real record VERIFIES under the native crate against it.
+>
+> The synthetic `TEST/SYNTH` prefix at seq 0..69 was **kept, not discarded**.
+> It is labelled as what it is, the shipper's reconciler extended the deployed
+> chain rather than forking a clean one, and deleting an anchored bootstrap to
+> make the trail read better is the kind of tidying an audit trail exists to
+> prevent.
+>
+> Still open: §7.3 R2 bucket, deliberately unbound — §8 keeps closed segments
+> in DO SQLite so the rail stays free-tier complete.
 
 Phase spec for roadmap #7b as re-scoped: sell **verifiability, not alpha**.
 The statistical program closed every path to an alpha claim this project can
@@ -163,11 +200,18 @@ the shipped quote-digest memo. Tampering with any published record after its
 segment anchors requires rewriting a Solana transaction. Anchor cost at
 1/min ≈ 0.007 SOL/day; at 1/10min it is noise.
 
-**Retention:** closed segments are content-addressed objects in R2
-(append-only by policy, no delete permission on the writer token). A record
-is ~2–4 KB; even 10k executions/day is ~40 MB/day → < 75 GB over five
-years → R2 cost ~$1/month. The Durable Object holds only the live window
-and the sequence counters.
+**Retention — as shipped:** no R2 bucket is bound (§7 step 3, skipped per
+the §8 free-tier invariant), so `close_segment` takes the `Err(_)` branch:
+closed records are marked `archived = 1` and **never deleted** — the trim
+`DELETE` is gated behind a successful R2 put. Durability is therefore the
+Durable Object's SQLite, not a bucket policy. At ~2–4 KB/record, >1M records
+fit the free allowance.
+
+**Retention — if the bucket is bound:** closed segments become
+content-addressed objects in R2 (append-only by policy, no delete permission
+on the writer token) and SQLite keeps only a `RING_KEEP` live window. Even
+10k executions/day is ~40 MB/day → < 75 GB over five years → ~$1/month.
+This path is implemented and unexercised; treat it as designed, not proven.
 
 ### 3.4 What an auditor verifies, independently
 
@@ -207,10 +251,27 @@ forge or alter them.
   no-keys-in-Worker invariant. (The devnet demo's throwaway-key path in
   `commit.ts` stays demo-only.)
 - **Endpoints**: `POST /rail/ingest` (attested records only — the DO
-  verifies the attestation via the WASM module before accepting),
+  verifies the attestation via the WASM module before accepting; the body
+  must also be **a single line of compact JSON** — see the framing note
+  below),
   `GET /rail/record/{instrument}/{seq}`, `GET /rail/segment/{id}`,
   `GET /rail/verify/{sig}` (convenience re-verification; auditors need not
   trust it, per §3.4).
+- **Archive framing (added 2026-08-28)**: a record body is stored verbatim,
+  and a closed segment is written to R2 as those bodies joined by `\n`; the
+  proof path rebuilds the segment's Merkle leaves by splitting that object
+  and re-parsing each line. A body carrying a *literal* newline —
+  pretty-printed JSON parses and verifies identically to compact JSON —
+  would therefore shred into unparseable fragments on read-back and fail
+  every proof in its segment, irrecoverably once the SQLite rows have been
+  trimmed. Ingest rejects such a body with `400` so the framing can only
+  fail loudly, at the boundary, while the rows still exist. Both shipped
+  clients (`rail_ship`'s reqwest `.json()`, `rail_falsifier.sh`'s
+  `json.dumps`) already emit single-line bodies, so this rejects nothing
+  that previously succeeded. Pinned in
+  `crates/afterswap-rail/tests/rail.rs` by
+  `an_archived_segment_rebuilds_identical_leaves_and_proofs` and
+  `a_pretty_printed_body_shreds_the_jsonl_framing`.
 - **CPU budget**: blake3 over a 4 KB record is microseconds; ingest fits the
   free plan's 10 ms. The Workers-Paid blocker from #7b applied to full
   enumeration, not to this. ~~R2 needs the paid plan~~ — **corrected
@@ -240,15 +301,20 @@ a record with no access to our infrastructure.
 - Anchoring proves a record existed *by* anchor time and was not altered
   *after*; the ≤ 30 s window between execution and publication rests on our
   attestation alone.
-- "5-year retention" is an R2 bucket policy plus anchors — durable against
-  us; not against Cloudflare and Solana both disappearing. A regulator may
-  require a second custodian; the content-addressed segments make mirroring
-  trivial, which is the design's answer.
+- "5-year retention" is, **as deployed**, Durable Object SQLite plus anchors
+  — no bucket is bound and nothing is trimmed. It is durable against us, not
+  against Cloudflare and Solana both disappearing, and it rests on a single
+  DO's storage rather than on an object-store policy. The R2 archive path
+  (§3.3) is written but unexercised. A regulator may require a second
+  custodian; the content-addressed segments make mirroring trivial, which is
+  the design's answer — and executing §7 step 3 is what turns it on.
 
 ## 7. Deployment runbook (owner actions)
 
-Everything below changes live infrastructure or spends from a key, and none
-of it has been executed — the rail is verified locally only.
+Everything below changes live infrastructure or spends from a key. Steps
+1–2 and 4–7 have been executed (2026-08-28); step 3 is deliberately skipped
+per the §8 free-tier invariant. Each step records what was *observed*, not
+what was expected.
 
 1. **Build the wasm bundle** (committed, but rebuild to be sure):
    `cargo build -p afterswap-wasm --target wasm32-unknown-unknown --release`
@@ -258,16 +324,63 @@ of it has been executed — the rail is verified locally only.
    with the executor, put the *public* key in `wrangler.jsonc` `vars.RAIL_PUBKEY`
    (it is registered, not secret). The dev seed's pubkey currently in the
    config must not survive to production.
-3. **Create the R2 bucket** `afterswap-rail-archive` (paid plan required),
+3. **Create the R2 bucket** `afterswap-rail-archive` (R2 free tier, per the
+   §4 correction — not the paid plan),
    with no delete permission on the writer token — append-only by policy.
 4. **Deploy** with `wrangler deploy`. ⚠ This carries a new DO class +
    migration (`v2: RailSequencer`); the PUT-API fallback path rejects
    DO-binding changes (error 10021) while the versions-API 10013 bug stands.
    Confirm with `wrangler deployments list` — never assume from a green push.
-5. **Point the executor at production**: `--exec-ab … --rail-out … ` posts are
-   local-file in R1; production ingest is the executor POSTing each record to
-   `https://<host>/rail/ingest` (small addition, or run the falsifier's POST
-   loop as a bridge).
+5. **Point the executor at production** — `--rail-ingest <origin>`:
+   ```sh
+   cargo run -p afterswap-server --release -- --exec-ab \
+       --pair sol --cycles 70 --interval-ms 3000 --decision-delay-ms 400 \
+       --out data/execution/rail_live_001.jsonl \
+       --rail-out data/rail/prod_chain.jsonl \
+       --attest-seed-hex "$(tr -d '\n ' < .devnet/rail_attest_seed.hex)" \
+       --rail-ingest https://afterswap-rail.solana-thailand.workers.dev
+   ```
+   `crates/afterswap-server/src/rail_ship.rs` ships records off the execution
+   loop's critical path — a channel into one task, one in-flight request.
+   Three properties are non-negotiable and each is bought explicitly:
+
+   * **The loop never blocks on the network.** A slow edge may delay the trail
+     becoming public; it must never delay or reorder an execution.
+   * **Order is preserved.** The Sequencer *enforces* `prev_hash == tip`, so a
+     record posted out of order is rejected 409 and the chain stalls behind
+     it. Concurrency on this path would be a correctness bug, not a speed-up.
+   * **`--rail-out` is written and flushed before a record is enqueued**, so
+     an ingest outage costs visibility, never the record. That is why
+     `--rail-ingest` *requires* `--rail-out`: the file is both the replay
+     source and what a restart resumes the chain from.
+
+   Failures are classified rather than blanket-retried. A 400 means the record
+   did not verify — retrying a bad signature is a busy-loop, not resilience.
+   A 5xx or timeout is the edge, and gets 5 attempts over ~6 s of backoff. The
+   subtle case is 409 `seq not monotonic`: that is exactly what a *successful*
+   POST whose response was lost looks like on retry, so it is read against the
+   `tip_seq` the Sequencer returns and counted as already-ingested when the tip
+   has passed us — never by matching the message text.
+
+   On start the shipper reconciles the local file against the live rail,
+   because the two can disagree in opposite directions. File ahead of rail
+   (retries exhausted): the backlog is replayed, otherwise the gap is
+   permanent, since the chain only moves forward. Rail ahead of file (the file
+   was lost): the live tip is fetched and adopted, because it is the tip
+   `prev_hash` will be enforced against — continuing from a stale local tip
+   forks and is rejected for the rest of the run. Failing to reach the rail
+   here is fatal, not a warning: the silent degradation is starting a fork.
+
+   A plaintext `--rail-ingest` to a remote host is refused (loopback exempt,
+   for the falsifier's `wrangler dev`): over `http://` a network position can
+   drop records indistinguishably from an outage.
+
+   **Observed 2026-08-28.** 70 live cycles → **70 accepted, 0 rejected, 0
+   failed, 0 seq gaps** against the production edge. The reconciler adopted
+   the live tip at seq 69 rather than forking — the executor's chain file was
+   empty, and the run still extended the deployed chain. Records carry real
+   evidence: RFC 9421 `provider_signed` DFlow quotes beside `observed` Jupiter
+   bodies, real routes (Meteora DLMM, PancakeSwap), real context slots.
 6. **Measure the 30 s falsifier for real**: from a machine that is neither
    the executor nor the Worker, poll `GET /rail/records` and measure
    execution-to-visible latency across a live run.

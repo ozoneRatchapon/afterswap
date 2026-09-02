@@ -22,8 +22,8 @@
 
 **Project name:** AfterSwap
 
-**One-liner:** Exhaustively enumerated exit machines, fighting over your
-position — live on DFlow.
+**One-liner:** Cruise control plus a dashcam, for selling — your exit runs
+to a rule, and every fill leaves a receipt anyone can check. Live on DFlow.
 
 **Team:** solo — [your name / @handle here]. Third-party: katgpt-ruliology
 (MIT, @katopz) for FSM enumeration primitives.
@@ -52,6 +52,21 @@ local keypair, and submits it. Small, repeated, uninformed tranches are
 exactly the flow DFlow's declarative/conditional-liquidity design prices
 well.
 
+**Two front doors, one engine:**
+- **Dashboard** (https://afterswap.solana-thailand.workers.dev) — the whole
+  fight visible: live DFlow price, tranche fills, leaderboard, the driving
+  machine's state diagram, in-browser verification of every signed quote.
+- **Telegram bot** — for the person who does not want any of that. `/watch SOL
+  1.0` and the same engine narrates its exits in one sentence each: *"saw a
+  dip → sell-state S1 → sold 10% of your SOL at 102.4504. 90% left."* No
+  wallet, no install, no chart. It adds zero engine behaviour — identical
+  config, identical events — and its phrasing is unit-tested against the same
+  claim discipline as the numbers: losing windows must be reported as losses,
+  the position value never appears without its hold baseline, and no message
+  may promise the reader money. Runs without a bot token via
+  `cargo run -p afterswap-bot -- --dry-run`, so a judge can reproduce the
+  transcript in one command.
+
 **Repo:** https://github.com/ozoneRatchapon/afterswap
 
 **Demo video:** [link after recording — script in docs/DEMO.md]
@@ -61,12 +76,23 @@ well.
 then open http://localhost:8787 and press "Open position".
 
 **Ecosystem benchmark:** measured against the exits Solana traders
-actually use — on 5-corpus mean the engine beats **every** standard exit:
-TWAP/DCA +71.9 bps, TP-ladders +109.9, TP/SL brackets +76.1, and
-Jupiter-style trailing stops +6.5 (6 corpora incl. 2 recorded segments). The trailing-stop result is the story:
-bench 004 measured a −24.5 bps *loss* (machines couldn't see distance-
-from-peak); we added that one input bit and bench 005 closed the gap —
-measured weakness → targeted fix → weakness gone, all reproducible.
+actually use. On the 6-corpus mean (4 synthetic regimes + 2 recorded DFlow
+segments) the engine beats every standard exit: TWAP/DCA **+75.7** bps,
+TP-ladders **+113.7**, TP/SL brackets **+79.9**, Jupiter-style trailing stops
+**+10.3** (bench `039_goat`, the shipped default configuration).
+
+That mean is an upper bound, not a result, and we report it as such: it is
+produced by the synthetic regimes, which are hand-specified and far cleaner
+than real price action. **On the two recorded DFlow corpora alone the engine
+loses to these floors** — trailing **−21.1**, TP-ladder **−7.9**, bracket
+**−8.9** bps — while still clearing its two gated floors (TWAP **+75.73**,
+random-arm **+6.90**). See `benches/017_real_horizon` for the larger
+real-data test.
+
+The trailing-stop result is the story: bench `004_goat` measured a −24.5 bps
+*loss* (machines couldn't see distance-from-peak); we added that one input bit
+and bench `005_goat` closed the gap — measured weakness → targeted fix,
+all reproducible.
 Same engine generalizes to DFlow prediction-market outcome tokens —
 exits after the *bet*.
 
@@ -75,9 +101,9 @@ replays, byte-identical browser/native parity, ~1 µs/tick, every constant swept
 for sensitivity (`benches/021_sensitivity`), pre-run power gating, an
 evidence-ladder linter that fails the build when a claim outruns its evidence,
 and four negative results recorded rather than deleted. Latest floors report:
-`benches/020_goat/report.md`.
+`benches/039_goat/report.md`.
 
-**Status:** built entirely during the buildathon (Aug 21–31); never released
+**Status:** built entirely during the buildathon (Aug 21 – Sep 2); never released
 before. Paper mode: quotes real, fills simulated. Live mode: feature-gated,
 sells real tranches via DFlow orders.
 
@@ -108,7 +134,7 @@ position → machine reads DFlow tick direction → sell-state fills tranche
 at DFlow quote (live: signed /order tx) → windows score machine vs hold →
 losers benched, mutants challenge → hero number = your edge.
 
-**Built Aug 21–31:** everything, empty dir → v2.4 — incl. an on-chain
+**Built Aug 21 – Sep 2:** everything, empty dir → v2.4 — incl. an on-chain
 policy-registry program (Pinocchio, deployed on devnet, first policy
 committed and verified) → engine (enumeration,
 tournament, Pareto+cap, UCB1, spectral gate, evolution, renoise

@@ -1,0 +1,17 @@
+# BONK/USDC paired soak — pre-registered report
+# generated 2026-08-28T11:21:13Z from data/incoming/bonk_soak_paired.jsonl (soak PID 25782)
+# pre-registration: .plans/001_execution_edge.md
+
+cycles 253 · ticks 4461 · median cycle 10 ticks
+
+endpoint                      mean       SE       t         p   win rate
+PRIMARY  vs trailing         -0.02     0.45   -0.05    0.9566  145/253  
+         vs hold             -0.11     0.37   -0.29    0.7709  144/253  
+         vs TWAP             -0.10     0.41   -0.25    0.8017  144/253  
+         vs ladder           -0.49     0.37   -1.32    0.1884  142/253  
+         vs bracket          -0.54     0.44   -1.21    0.2293  143/253  
+
+Primary endpoint: -0.02 bps (SE 0.45, t -0.05, p 0.9566 on 252 df) — NOT significant at 5%.
+MDE at 80% power: 1.3 bps — an effect smaller than this could not have been seen at n = 253.
+
+Secondary rows carry no claim: they are reported for completeness and are not corrected for multiplicity.

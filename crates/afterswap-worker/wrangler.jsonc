@@ -16,8 +16,9 @@
   // ⚠ Same deploy caveat as the dashboard: DO migrations must go through a
   // working `wrangler deploy`, confirmed with `wrangler deployments list`.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RailSequencer"] }],
-  // The registered *public* attestation key (dev seed's pubkey; override in
-  // production). Not a secret.
-  "vars": { "RAIL_PUBKEY": "29e5833a915a6429a4e3a7948475c338ef436eb82be89c92f059704403db9d55" }
+  // The registered *public* attestation key. Not a secret — it is published
+  // so auditors can verify. Rotated off the dev seed 2026-08-28; the private
+  // seed lives with the executor only (see RAIL.md §7.2), never in git.
+  "vars": { "RAIL_PUBKEY": "887e4537d43618b9d38b3b935cf0027543728863c1a893d0dcb641e9486c3451" }
   // "r2_buckets": [{ "binding": "RAIL_ARCHIVE", "bucket_name": "afterswap-rail-archive" }]
 }

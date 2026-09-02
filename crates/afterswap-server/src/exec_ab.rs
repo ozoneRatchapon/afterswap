@@ -70,6 +70,11 @@ pub struct ExecConfig {
     /// the R1 rail: multi-venue arrival (DFlow primary + Jupiter shadow),
     /// committed decision rule, hash chain.
     pub rail_out: Option<PathBuf>,
+    /// When set, every attested record is also POSTed to this rail origin's
+    /// `/rail/ingest` (spec §7.5) — the step that makes the trail *publicly*
+    /// verifiable within the 30 s window rather than only locally provable.
+    /// Shipping is asynchronous and ordered; see `rail_ship`.
+    pub rail_ingest: Option<String>,
     /// Attestation key for rail records. Executor-held, never the Worker's.
     pub attest_key: Option<AttestKey>,
     /// When set, take a second quote at this clip size to derive an executable
@@ -258,7 +263,24 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
         }
         None => None,
     };
+    let shipper = match (&cfg.rail_ingest, &cfg.rail_out) {
+        // The chain tip a restarted run resumes from is read back out of
+        // `--rail-out`. Shipping without it would send a fresh genesis record
+        // after every restart, which the Sequencer rejects 409 for the rest of
+        // the run — so the pairing is a requirement, not a convenience.
+        (Some(_), None) => anyhow::bail!(
+            "--rail-ingest requires --rail-out: the local chain file is what a restart resumes \
+the chain from, and the durable copy an ingest outage is replayed from"
+        ),
+        (Some(base), Some(_)) => Some(crate::rail_ship::RailShipper::spawn(base)?),
+        (None, _) => None,
+    };
     let mut rail_tip: Option<AuditRecord> = cfg.rail_out.as_deref().and_then(load_rail_tip);
+    // The live rail, not the local file, decides what `prev_hash` must cite —
+    // so when both exist they are reconciled before the first record is built.
+    if let (Some(s), Some(path)) = (shipper.as_ref(), cfg.rail_out.as_deref()) {
+        rail_tip = s.reconcile(rail_tip, path).await?;
+    }
     if let Some(t) = &rail_tip {
         info!("rail: resuming chain at seq {}", t.seq);
     }
@@ -304,7 +326,7 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
         // concurrent. The record is *built* only after the fill outcome is
         // known, so live fills enter it; capture failures leave a seq gap in
         // the chain — visible, per the spec.
-        let rail_capture = match rail_writer.is_some() {
+        let rail_capture = match rail_writer.is_some() || shipper.is_some() {
             true => {
                 let captures = tokio::join!(
                     afterswap_dflow::capture_dflow(&client, &cfg.request),
@@ -332,9 +354,7 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
 
         let filled = cfg.executor.execute(&cfg.request, &submit).await;
 
-        if let (Some(w), Some(key), Some((primary, shadow))) =
-            (rail_writer.as_mut(), cfg.attest_key.as_ref(), rail_capture)
-        {
+        if let (Some(key), Some((primary, shadow))) = (cfg.attest_key.as_ref(), rail_capture) {
             let mut record = build_rail_record(now_ms(), &instrument, primary, shadow);
             // Only a live, confirmed, two-sided fill enters the audit trail;
             // paper fills are the quote restated and stay out by construction.
@@ -351,8 +371,15 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
                 _ => None,
             });
             let record = attest(link(record, rail_tip.as_ref()), key);
-            writeln!(w, "{}", serde_json::to_string(&record)?)?;
-            w.flush()?;
+            // Durable first, shipped second: the file is the source of truth
+            // the rail can be replayed from, so it must never lag the edge.
+            if let Some(w) = rail_writer.as_mut() {
+                writeln!(w, "{}", serde_json::to_string(&record)?)?;
+                w.flush()?;
+            }
+            if let Some(s) = shipper.as_ref() {
+                s.enqueue(record.clone());
+            }
             rail_tip = Some(record);
         }
         let record = ExecutionCycle {
@@ -394,6 +421,15 @@ pub async fn run(cfg: ExecConfig) -> anyhow::Result<Vec<ExecutionCycle>> {
             info!("cycle {cycle}/{}: {ok} filled so far", cfg.cycles);
         }
         recorded.push(record);
+    }
+    // Drain before returning so the operator learns whether the public trail
+    // is complete, rather than discovering a gap at audit time.
+    if let Some(s) = shipper {
+        let st = s.finish().await;
+        info!(
+            "rail ingest: {} accepted, {} already present, {} rejected, {} failed",
+            st.accepted, st.already_present, st.rejected, st.failed
+        );
     }
     Ok(recorded)
 }
@@ -482,6 +518,7 @@ pub async fn run_cli(args: &[String]) -> anyhow::Result<()> {
         notional: arg(args, "--notional").unwrap_or(1_000.0),
         executor,
         rail_out: arg::<String>(args, "--rail-out").map(Into::into),
+        rail_ingest: arg::<String>(args, "--rail-ingest"),
         attest_key: match arg::<String>(args, "--attest-seed-hex") {
             Some(hex) if hex.len() == 64 => {
                 let mut seed = [0u8; 32];

@@ -5,7 +5,8 @@ use serde::Serialize;
 /// Engine tuning knobs.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
-    /// FSM state count fed to `FsmEnumerator::enumerate` (2 → ~22, 3 → ~956).
+    /// FSM state count fed to `FsmEnumerator::enumerate` after behavioural
+    /// dedup: 1 → 2, 2 → 26, 3 → 1,054 (asserted by `tests/fsm_table.rs`).
     pub n_fsm_states: u8,
     /// Ticks per evaluation window.
     pub window_len: usize,

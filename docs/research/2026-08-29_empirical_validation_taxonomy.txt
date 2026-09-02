@@ -1,0 +1,473 @@
+﻿Institutional Empirical Validation and Taxonomic Decomposition of Digital Asset Trading Strategies
+Section 1: The Taxonomy of Quantitative and Heuristic Strategies
+The digital asset trading landscape comprises a heterogeneous spectrum of algorithmic paradigms, ranging from continuous-time econometric formulations to heuristic pattern recognition heuristics. Establishing an institutional taxonomy requires dissecting both the underlying microeconomic drivers—the precise structural or behavioral mechanisms generating prospective alpha—and the mathematical footprints that govern execution across centralized exchange (CEX) limit order books and decentralized automated market makers (AMMs)1.
+
+
+Strategy Family
+	Core Economic Rationale
+	Primary Mathematical / Econometric Footprint
+	Typical Alpha Half-Life (t1/2​)
+	Primary Structural Failure Mode
+	Trend Following & Momentum
+	Institutional execution drag, slow information diffusion, convex liquidation spirals
+	  
+
+	Hours to Weeks
+	Extended sideways volatility chop, sudden trend exhaustion
+	Mean Reversion & StatArb
+	Liquidity provision compensation, inventory risk, transitory collateral divergence
+	  
+
+	Minutes to Days
+	Structural regime shift, permanent cointegration breakdown
+	Microstructure & Order Flow
+	Asymmetric information, order book queue depletion, AMM adverse selection1
+	  
+
+[cite: 1, 3]
+	Sub-second to Minutes
+	Toxic flow cascades, queue position cancellation risk
+	Heuristic & Retail Patterns
+	Retail coordination equilibria, focal points, predatory liquidity harvesting
+	  
+
+	Minutes to Hours
+	False breakout runs, predatory institutional stop-harvesting
+	Trend Following and Momentum
+Momentum and trend-following anomalies in cryptocurrency spot and derivatives markets stem from structural frictions and behavioral biases. Primary mechanisms include institutional execution drag—where large block orders are sliced via Time-Weighted Average Price (TWAP) or Volume-Weighted Average Price (VWAP) algorithms over extended windows, creating positive serial correlation in order flow—and slow information diffusion across fragmented venues. In derivatives markets, continuous funding rate imbalances and high leverage induce convex liquidation spirals, amplifying directional runs beyond fundamental price discoveries.
+Time-Series Momentum (TSMOM) over lookback horizon    and holding period    is parameterized by the sign of past cumulative excess log returns:
+  
+
+  
+
+The Dual Moving Average (DMA) crossover generates continuous or discrete positioning signals via exponential convolution operators. Let    and    represent exponential kernels where the smoothing parameter is   . The moving average series and corresponding positioning signal are expressed as:
+  
+
+  
+
+Volatility-targeted position sizing scales the raw signal    by the conditional volatility estimate    (derived via an Exponentially Weighted Moving Average or GARCH(1,1) process) relative to an annualized volatility target   :
+  
+
+where    represents the maximum allowable gross leverage.
+Mean Reversion and Statistical Arbitrage
+Mean reversion operates on the premise that asset prices fluctuate around a time-varying or stationary equilibrium level due to temporary supply-demand imbalances, inventory risk management by designated market makers, and liquidity provision compensation. In cross-asset statistical arbitrage, price divergences between economically linked pairs (such as Layer-1 tokens versus their Layer-2 scaling tokens, or liquid staking derivatives versus underlying spot collateral) reflect transitory idiosyncratic shocks that decay as arbitrageurs rebalance relative value.
+The fundamental continuous-time representation of a mean-reverting spread    is the Ornstein-Uhlenbeck (OU) stochastic differential equation:
+  
+
+where    is the rate of mean reversion,    is the long-term equilibrium mean,    is the diffusion coefficient, and    is a standard Brownian motion. The discrete-time equivalent corresponds to an AR(1) process:
+  
+
+Parameter mapping yields:
+  
+
+The expected half-life of mean reversion is given by:
+  
+
+For cointegration-based pairs trading between two non-stationary series    and   , the Engle-Granger two-step representation requires that the residual spread    is stationary (  ):
+  
+
+  
+
+Stationarity is verified if the test statistic for    rejects the unit-root null under Augmented Dickey-Fuller (ADF) critical values. Dynamic positioning utilizes the rolling Z-score:
+  
+
+  
+
+Market Microstructure and Order Flow
+Microstructure alpha exploits information asymmetries, structural queue priorities, and the mechanical price impact of order book adjustments. In high-frequency environments, informed order flow shifts the continuous equilibrium price before passive limit orders can adjust, generating adverse selection for passive market participants.
+Order Flow Imbalance (OFI), formalized by Cont, Kukanov, and Stoikov, captures the net supply-demand shifts at the top-of-book across discrete event updates   3. Let    be the best bid price and size, and    be the best ask price and size:
+  
+
+The instantaneous price change    displays a linear relation with    scaled by the instantaneous market depth   3:
+  
+
+Volume-Synchronized Probability of Toxicity (VPIN), introduced by Easley et al., measures informed trading by sampling the market in constant volume buckets of size   :
+  
+
+where    and    represent buy and sell volumes within volume bar   , classified via the standard tick rule or bulk volume classification.
+In decentralized automated market makers, constant function market makers (CFMMs)—governed by invariants such as   —suffer from structural adverse selection because pool quotes do not update until an external trade occurs1. Milionis, Moallemi, Roughgarden, and Zhang formalized this systematic cost as Loss-Versus-Rebalancing (LVR), which quantifies the outperformance of a continuously rebalanced delta-hedging portfolio relative to passive liquidity provision1. Assuming external centralized market prices follow a geometric Brownian motion   , the value of a constant-product pool with reserves    and    is   1. The instantaneous LVR rate incurred by liquidity providers due to arbitrageurs extracting value from stale pool quotes is:
+  
+
+The expected arbitrage loss per block over discrete block intervals factors directly into the probability of an arbitrage trade and the conditional price drift9:
+  
+
+Active on-chain strategies capture this alpha by executing CEX-DEX statistical arbitrage across block boundaries6.
+Heuristic and Retail Patterns
+Heuristic technical patterns lack direct physical or macroeconomic foundations. Their marginal predictive capacity is primarily an emergent coordination game among retail market participants, reinforced by retail-focused charting software. However, these patterns frequently serve as liquidity pools for institutional order flow, leading to stop hunts where price briefly breaks a widely recognized support level to absorb resting liquidity before reversing.
+Heuristic patterns must be converted from qualitative visual rules into deterministic Boolean indicator functions. For a Japanese Candlestick Bullish Engulfing pattern at time   , given open   , high   , low   , and close   :
+  
+
+where    parameterizes the relative magnitude constraint.
+Support and Resistance levels are formalized as local extrema of a rolling price trajectory, or as the local maxima of a continuous Kernel Density Estimation (KDE) evaluated over historical transaction prices:
+  
+
+  
+
+Section 2: Transformation to Statistical Hypotheses
+Evaluating trading concepts requires converting informal trading jargon into testable null (  ) and alternative (  ) statistical hypotheses. Vague propositions must be mapped to formal parametric or non-parametric assertions regarding the conditional distribution of returns.
+Strategy Pattern
+	Mathematical Trigger Condition
+	Null Hypothesis (H0​)
+	Test Statistic / Estimator
+	Econometric Hazard to Control
+	Bullish Engulfing
+	  
+
+	  
+
+	Panel regression   -stat with double-clustered SE
+	Volatility clustering, conditional selection on past drops
+	RSI < 30 Oversold
+	  
+
+	  
+
+	Wilcoxon rank-sum   -statistic, Welch   -test
+	Non-normality of returns, heavy-tailed crash risk
+	SMA Crossover
+	  
+
+	  
+
+	OLS with Hansen-Hodrick / Newey-West HAC (  )
+	Autocorrelated residuals from overlapping evaluation windows
+	Dependent Variable Formulations
+To eliminate bias from overall market drift and uncompensated systematic beta, the primary dependent variable is defined as the Forward Cumulative Abnormal Return (  ) over forward horizon   , adjusted for execution latency   :
+  
+
+where    is the log return of asset   ,    is the benchmark market return (e.g., BTC/ETH capitalization-weighted index), and    represents the system execution delay (e.g., matching engine round-trip latency or block finality time).
+For high-frequency microstructure executions, the dependent metric shifts to the Implementation Shortfall (  ) or Markout Return (  ):
+  
+
+where    is trade direction, and    is the markout horizon (e.g., 100ms, 1s, 10s).
+Transformation of Retail Strategies
+The first strategy transformation addresses the Bullish Engulfing candlestick formation. The retail claim posits that a bullish engulfing candle following a downtrend signals an immediate upward reversal. To evaluate this rigorously, the qualitative narrative is converted into a conditional expectations hypothesis:
+  
+
+  
+
+The econometric verification is conducted via panel regression:
+  
+
+where    contains controls for realized volatility, funding rates, and market momentum. Statistical inference relies on the   -statistic of   , computed using cluster-robust standard errors double-clustered by asset and time.
+The second transformation examines the 14-period Relative Strength Index (RSI) oversold rule. The retail assertion claims that an RSI falling below 30 identifies an exhausted sell-off that predicts positive forward excess returns. Let    be the empirical distribution of forward returns conditional on   , and    be the distribution conditional on   . The formal hypothesis states:
+  
+
+  
+
+Testing is performed using the two-sample Kolmogorov-Smirnov test for distributional dominance and the Wilcoxon-Mann-Whitney rank-sum test for stochastic location shifts:
+  
+
+  
+
+The third transformation evaluates the Dual Moving Average Crossover. The retail assertion asserts that a fast simple moving average crossing above a slow simple moving average isolates persistent upward trend regimes. Defining    and the crossover indicator as   , the statistical specification is:
+  
+
+  
+
+Because forward return horizons overlap for   , the error terms    follow an    process under the null. Standard OLS standard error estimators are downward biased, generating inflated   -statistics. Inference must use the Hansen-Hodrick or Newey-West Heteroskedasticity and Autocorrelation Consistent (HAC) covariance estimator with bandwidth   :
+  
+
+Section 3: The Anti-Overfitting Validation Framework
+Validating quantitative strategies requires institutional econometric safeguards to eliminate data snooping, backtest flattery, and execution selection biases.
+
+
+Validation Layer
+	Econometric / Mathematical Safeguard
+	Baseline Formula / Algorithm
+	Failure Diagnostic
+	Synthetic Control
+	Intra-Bar OHLCV Permutation10
+	Log-space shuffling:   
+[cite: 10]
+	Positive Sharpe on noise indicates look-ahead/asymmetry leaks
+	Cross-Validation
+	Combinatorial Purged CV (CPCV)
+	  
+ blocks,    paths, label purging, post-test embargo
+	Overfitting to overlapping samples and post-event memory
+	Multiple Testing
+	Romano-Wolf Stepdown11
+	Bootstrap Max-   Quantile Recycling11
+	Unadjusted   -values yield high False Discovery Rates
+	Execution Modeling
+	Square-Root Impact + Latency3
+	  
+
+[cite: 3]
+	High theoretical Sharpe decaying into negative live PnL
+	Synthetic Null Controls
+To confirm that backtested performance reflects genuine predictive power rather than spurious noise fitting, candidate models must be evaluated against synthetic price series with destroyed temporal dependencies10.
+Shuffling returns directly on a univariate basis breaks the geometric dependencies between open, high, low, and close prices within a candle10. The correct multivariate OHLCV permutation protocol computes relative intra-bar log returns:
+  
+
+The vector sequence    is randomly permuted via a uniform draw   10. The null price trajectory is reconstructed iteratively:
+  
+
+This procedure removes temporal auto-correlations and cross-autocorrelations while preserving the static marginal distributions and intra-bar geometry10.
+In parallel, phase randomization via Fourier surrogates preserves the linear autocorrelation structure and power spectral density while destroying non-linear dependencies. Applying the Discrete Fourier Transform (DFT) to the return series:
+  
+
+A random phase sequence    is added such that    to maintain real-valued inverse transformations:
+  
+
+If a trading strategy achieves a statistically significant Sharpe ratio (  ) on synthetic null series where future predictability is zero by construction, the research framework exhibits fundamental implementation flaws:
+* Look-Ahead Leakage: The indicator or normalizer at step    uses parameters estimated over the full sample    (e.g., standardizing using full-sample moments or referencing future bar extremes).
+* Microstructure Leakage: Target prices are filled against the same candle's high/low rather than forward bid/ask executions post-latency.
+* Asymmetric Logic Biases: The strategy logic contains hardcoded short/long asymmetries that unintentionally exploit drift or volatility asymmetry within the synthetic series generation.
+In-Sample vs. Out-of-Sample Protocol
+Standard   -fold cross-validation fails in financial time series due to the non-independent and identically distributed (non-i.i.d.) nature of returns and information leakage across overlapping labels. Combinatorial Purged Cross-Validation (CPCV) resolves this by dividing the historical dataset of    observations into    contiguous, non-overlapping temporal blocks. The model is evaluated across all possible combinations of    test splits, yielding    unique backtest paths.
+For every test split    with   , two operations are enforced:
+   * Purging: Any training observation    whose label window    overlaps with any test sample    is removed from the training set:
+  
+
+      * Embargoing: Post-autoregressive market memory leads to information leakage immediately following test periods. An embargo window    (proportional to the autocorrelation decay time of the series) removes training samples immediately following test slices:
+  
+
+In 24/7 digital asset markets, structural regime shifts (such as changes in leverage availability, regulatory actions, and major venue insolvencies) break stationarity12. The CPCV framework must be stratified across macro regimes identified via the Bai-Perron structural break test or a 2-state Hidden Markov Model on volatility and volume12.
+Multiple Testing Correction
+When testing a large strategy parameter space across lookbacks, thresholds, and universe allocations (  ), standard unadjusted   -values guarantee false discoveries via data snooping. The Familywise Error Rate (FWER) represents the probability of committing at least one Type I error:
+  
+
+While the Bonferroni correction assumes independence and is excessively conservative, the Romano-Wolf Stepdown procedure uses a studentized block bootstrap to account for the full, non-linear cross-correlation structure of strategy returns11:
+         1. Compute the studentized test statistic for all    strategies:
+  
+
+            2. Sort test statistics in descending order:   .
+            3. Generate    bootstrap return matrices using a Stationary Bootstrap to capture temporal autocorrelation.
+            4. Center the bootstrap statistics to impose the joint null:
+  
+
+               5. For step    to   , compute the critical value    as the   -quantile of    across all    bootstrap samples10.
+               6. If   , reject    and proceed to step   10. Otherwise, stop and accept all remaining null hypotheses   10.
+In large-scale strategy generation, controlling the False Discovery Rate (FDR)—the expected proportion of false rejections—provides greater statistical power than FWER14:
+  
+
+The Benjamini-Hochberg algorithm sorts two-sided   -values   , identifies the largest index   , and rejects the null hypotheses   14.
+The Deflated Sharpe Ratio (DSR) evaluates whether an observed maximum Sharpe ratio    remains statistically significant after accounting for the number of tested trials   , the variance of trials   , sample length   , and the skewness (  ) and kurtosis (  ) of strategy returns15:
+  
+
+where the benchmark expected maximum Sharpe ratio under zero skill is approximated by15:
+  
+
+and    is the Euler-Mascheroni constant15.
+Friction and Execution Modeling
+A backtest that assumes execution at the historical midpoint price without accounting for latency and microstructural fees is invalid. High-frequency signals frequently decay before they can be monetized due to market frictions.
+Net realized return per transaction of size    at execution price    must incorporate exchange and protocol fees:
+  
+
+For decentralized automated market makers, on-chain execution costs include pool swap fees and EIP-1559 base and priority network fees:
+  
+
+Price impact scales according to the Almgren-Chriss framework and the empirical square-root law of market impact:
+  
+
+  
+
+  
+
+where    is the Average Daily Volume,    is the execution interval length, and    are calibrated liquidity coefficients.
+Execution signals generated at time    using the limit order book state    must be matched against the stale state updated for network transit and queue latency   :
+  
+
+On-chain DEX orders must incorporate mempool priority auction mechanics, where the probability of successful inclusion depends on the priority tip relative to competing arbitrage searchers.
+Section 4: The Strategy-to-Input Alphabet Bridge
+Deploying quantitative trading strategies into low-latency execution engines (such as custom C++ cores, FPGA logic, or resource-constrained on-chain smart contracts) requires mapping continuous multi-dimensional indicator spaces into a minimal discrete alphabet16.
+Bit Position
+	Logical Feature Representation
+	Discretization Threshold / Logic
+	Operational State Encoded
+	Bit 0 (  )
+	Trend Direction
+	  
+
+	  
+
+	Bit 1 (  )
+	Volatility Regime
+	  
+
+	  
+
+	Bit 2 (  )
+	Microstructure Flow
+	  
+
+[cite: 3]
+	  
+
+[cite: 3]
+	Bit 3 (  )
+	Extreme Boundary Breach
+	  
+
+	  
+
+	Information-Theoretic Discretization
+Given a continuous feature    (such as OFI, normalized spread, or RSI), the objective is to define a mapping    into a finite alphabet    of size    (   bits) that maximizes the mutual information    with the directional target variable   :
+  
+
+To preserve entropy and prevent sample collapse, continuous features are mapped to uniform quantiles via the Empirical Cumulative Distribution Function (ECDF):
+  
+
+  
+
+To prevent high-frequency state switching around decision boundaries, binary signals implement a Schmitt-trigger dual-threshold filter with an internal memory state   :
+  
+
+The resulting 4-bit microstructural word compresses the market state into an alphabet vector   .
+Finite-State Machine (FSM) Automaton Formalism
+Complex execution mechanics—such as dynamic trailing stops, profit targets, momentum scaling, and volatility-based risk reduction—can be formalized as a Deterministic Moore Machine17:
+  
+
+where    is the finite set of operational strategy states,    is the initial reset state (FLAT),    is the discrete input alphabet,    is the output alphabet representing target portfolio leverage,    is the deterministic state transition function, and    is the Moore output function mapping states to portfolio allocations17.
+The defined state space comprises eight discrete operating modes:
+                  *   : FLAT — Zero position exposure (  ).
+                  *   : LONG_MOMENTUM — Full long exposure on verified trend and supporting order flow (  ).
+                  *   : LONG_TRAILING — Reduced long exposure with an active trailing stop when trend momentum slows or volatility rises (  ).
+                  *   : SHORT_MOMENTUM — Full short exposure on confirmed downward trend and negative order flow (  ).
+                  *   : SHORT_TRAILING — Reduced short exposure with an active trailing stop (  ).
+                  *   : MEAN_REV_LONG — Long exposure driven by an oversold boundary breach (  ) in low volatility (  ).
+                  *   : MEAN_REV_SHORT — Short exposure driven by an overbought boundary breach (  ) in low volatility (  ).
+                  *   : RISK_OFF — Capital preservation state triggered by extreme market volatility or order book toxicity (  ).
+
+
+Current State (S)
+	Target Allocation λ(S)
+	Input Trigger Pattern [b3​b2​b1​b0​]
+	Target Next State (S′)
+	Functional Operational Rationale
+	  
+ (FLAT)
+	  
+
+	0101 (  )
+	  
+ (LONG_MOM)
+	Bullish trend, low vol, positive OFI3
+	  
+ (FLAT)
+	  
+
+	0000 (  )
+	  
+ (SHORT_MOM)
+	Bearish trend, low vol, negative OFI
+	  
+ (FLAT)
+	  
+
+	1000 (  )
+	  
+ (MR_LONG)
+	Extreme oversold breach, quiet regime
+	  
+ (FLAT)
+	  
+
+	1001 (  )
+	  
+ (MR_SHORT)
+	Extreme overbought breach, quiet regime
+	  
+ (LONG_MOM)
+	  
+
+	* * 1 * (  : High Volatility Spike)
+	  
+ (LONG_TRAIL)
+	Volatility expansion; de-risk to trailing mode
+	  
+ (LONG_MOM)
+	  
+
+	* 0 * 0 (  : Flow/Trend Decay)
+	  
+ (LONG_TRAIL)
+	Momentum decay; initiate tighter trailing stop
+	  
+ (LONG_TRAIL)
+	  
+
+	* 0 1 0 (Trend Reversed, Flow Negative)
+	  
+ (FLAT)
+	Trailing stop breached; exit to Flat
+	  
+ (LONG_TRAIL)
+	  
+
+	0 1 0 1 (Trend Re-established, Low Vol)
+	  
+ (LONG_MOM)
+	Momentum resumes; re-scale to full long
+	  
+ (SHORT_MOM)
+	  
+
+	* * 1 * (  : High Volatility Spike)
+	  
+ (SHORT_TRAIL)
+	Volatility expansion; de-risk short to trailing
+	  
+ (SHORT_TRAIL)
+	  
+
+	* 1 1 1 (Trend Reversed, Flow Positive)
+	  
+ (FLAT)
+	Trailing stop breached; exit to Flat
+	  
+ (MR_LONG)
+	  
+
+	0 * * * (  : Z-score Normalized)
+	  
+ (FLAT)
+	Mean-reversion target reached; take profit
+	  
+ (MR_SHORT)
+	  
+
+	0 * * * (  : Z-score Normalized)
+	  
+ (FLAT)
+	Mean-reversion target reached; take profit
+	Any State (  )
+	Any
+	* 1 1 * (Simultaneous Toxic Flow & High Vol)
+	  
+ (RISK_OFF)
+	Microstructure toxicity tripwire; force Flat3
+	  
+ (RISK_OFF)
+	  
+
+	0 0 0 * (Volatility and Flow Stabilized)
+	  
+ (FLAT)
+	Normalization timeout; transition to Flat
+	This state-machine representation guarantees that all execution paths, de-risking protocols, and exit loops are bounded and deterministic17. It eliminates floating-point indeterminism, prevents unhandled runtime branch conditions, and translates quantitative macro and micro strategies into high-performance execution engines.
+Section 5: Nuanced Conclusions and Synthesis
+The empirical validation of cryptocurrency trading strategies requires separating genuine economic mechanisms from statistical noise and data snooping artifacts. Simple technical indicators and heuristic retail patterns exhibit no independent, unconditioned pricing power. Realized alpha in digital asset markets concentrates in structural microstructure phenomena: order flow imbalance on centralized order books3, directional inventory absorption, and CEX-DEX adverse selection driven by automated market maker Loss-Versus-Rebalancing (LVR)1. Trend and momentum configurations generate excess returns only when structured with adaptive volatility targeting and applied across liquidity-driven liquidation cascades.
+Qualitative trading rules must be translated into explicit parametric null hypotheses evaluated on Forward Cumulative Abnormal Returns (  ) or Implementation Shortfall (  ). Because financial return series display heavy tails, conditional heteroskedasticity, and overlapping serial dependence, standard OLS and   -tests produce severely inflated rejection rates. Reliable inference requires cluster-robust standard errors and Newey-West or Hansen-Hodrick HAC covariance estimators matched to the evaluation horizon.
+High backtested Sharpe ratios frequently collapse out-of-sample due to data snooping, backtest flattery, and unmodeled market frictions. An institutional verification pipeline must deploy synthetic null controls via intra-bar permuted null series to detect look-ahead bias and structural logic leaks10. It must implement Combinatorial Purged Cross-Validation across combinatorial path slices with strict label purging and post-test embargoing to eliminate autoregressive leakage. Furthermore, it must apply the Romano-Wolf stepdown procedure or Benjamini-Hochberg ranking across parameter sweeps to control the Familywise Error Rate and False Discovery Rate while incorporating maker-taker fee asymmetries, on-chain base and priority gas fees, square-root temporary price impact, and latency drift11.
+Continuous indicator metrics can be compressed via quantile binning, hysteresis thresholding, and mutual information maximization into compact binary alphabets. Expressing strategies as formal Deterministic Finite-State Machines ensures that momentum tracking, mean reversion, trailing stops, and risk-off routines execute with mathematically bounded, deterministic guarantees across low-latency systems and smart contracts16.
+Works cited
+                     1. Automated Market Making and Loss-Versus-Rebalancing - arXiv, https://arxiv.org/pdf/2208.06046
+                     2. Automated Market Making and Loss-Versus-Rebalancing, https://ideas.repec.org/p/arx/papers/2208.06046.html
+                     3. The Price Impact of Order Book Events - Sasha Stoikov, http://www.sashastoikov.com/finance/2015/3/12/the-price-impact-of-order-book-events
+                     4. Order-Flow Imbalance (OFI) - Emergent Mind, https://www.emergentmind.com/topics/order-flow-imbalance-ofi-7dff1686-44cf-4cf4-a602-b24df2b7c56e
+                     5. What Is Order Book Imbalance? | Cube Exchange, https://www.cube.exchange/what-is/order-book-imbalance
+                     6. Partially Active Automated Market Makers - arXiv, https://arxiv.org/pdf/2602.09887
+                     7. Automated Market Making and Loss-Versus-Rebalancing - arXiv, https://arxiv.org/abs/2208.06046
+                     8. Impermanent loss and Loss-vs-Rebalancing II - arXiv, https://arxiv.org/html/2502.04097v3
+                     9. Loss-Versus-Rebalancing under Deterministic and Generalized, https://arxiv.org/html/2505.05113v3
+                     10. Statistical Finance - quantpylib, https://quantpylib.hangukquant.com/learn/statistical_finance/
+                     11. Stepwise Multiple Testing as Formalized Data Snooping, https://www.researchgate.net/publication/4899357_Stepwise_Multiple_Testing_as_Formalized_Data_Snooping
+                     12. FR-LUX: Friction-Aware, Regime-Conditioned Policy Optimization, https://arxiv.org/pdf/2510.02986
+                     13. Efficient Computation of Adjusted P-Values for Resampling-Based, https://www.researchgate.net/publication/345752616_Efficient_Computation_of_Adjusted_P-Values_for_Resampling-Based_Stepdown_Multiple_Testing
+                     14. Exact and Approximate Stepdown Methods for Multiple Hypothesis, https://www.researchgate.net/publication/4742093_Exact_and_Approximate_Stepdown_Methods_for_Multiple_Hypothesis_Testing
+                     15. The Effects of Reality on the Deflated Sharpe Ratio., http://www.sharperat.io/do-not-deflate-I.html
+                     16. Contract as Automaton - Stanford Law School Conferences, https://conferences.law.stanford.edu/futurelaw2015/wp-content/uploads/sites/14/2016/09/OFRwp-2015-04_Contract-as-Automaton-The-Computational-Representation-of-Financial-Agreements.pdf
+                     17. Verification Guided Refinement of Flight Safety Assessment and, https://arc.aiaa.org/doi/10.2514/1.I010408

@@ -68,6 +68,68 @@ pub fn replay_exit_cost(
     (strategy_value - hold_value) / hold_value * 10_000.0
 }
 
+/// `replay_exit_cost` with a **Schmitt-trigger** off-peak bit.
+///
+/// The shipping off-peak bit is memoryless: it is 1 whenever the drawdown
+/// from the running peak is at or past one threshold. Around that threshold
+/// the bit chatters — a price oscillating within a fraction of a bp of it
+/// flips the machine's input every tick, and the machine cannot tell a real
+/// reversal from quote noise.
+///
+/// A dual-threshold trigger with one bit of memory removes the chatter: arm
+/// at `theta_high_bps`, and stay armed until the drawdown recovers back below
+/// `theta_low_bps`. The band `[theta_low, theta_high)` holds whatever state
+/// it was already in.
+///
+/// With `theta_low_bps == theta_high_bps` this is **exactly** `replay_exit_cost`
+/// at that threshold — the memory band is empty, so the bit is memoryless
+/// again. That makes the degenerate row of any sweep the shipping protocol
+/// rather than an approximation of it (asserted in `tests/hysteresis.rs`).
+pub fn replay_exit_hysteresis(
+    fsm: &FsmStrategy,
+    window: &[f64],
+    tranche_frac: f64,
+    theta_high_bps: f64,
+    theta_low_bps: f64,
+    cost_bps: f64,
+) -> f64 {
+    if window.len() < 2 {
+        return 0.0;
+    }
+    let entry = window[0];
+    let mut m = fsm.clone();
+    m.reset();
+
+    let mut remaining = 1.0f64;
+    let mut cash = 0.0f64;
+    let mut peak = entry;
+    let mut armed = false;
+
+    for t in 1..window.len() {
+        let dir: u8 = u8::from(window[t] > window[t - 1]);
+        peak = peak.max(window[t]);
+        let drop_bps = (peak - window[t]) / peak * 10_000.0;
+        // Order matters at the degenerate threshold: arming on `>=` and
+        // disarming on strict `<` leaves no drawdown that does both, so
+        // theta_low == theta_high collapses to the memoryless bit exactly.
+        match drop_bps {
+            d if d >= theta_high_bps => armed = true,
+            d if d < theta_low_bps => armed = false,
+            _ => {}
+        }
+        m.next_action(&[dir]);
+        let action = m.next_action(&[u8::from(armed)]);
+        if action == 1 && remaining > 0.0 {
+            let frac = tranche_frac.min(remaining);
+            remaining -= frac;
+            cash += frac * (window[t] / entry) * (1.0 - cost_bps * 1e-4);
+        }
+    }
+
+    let last = window[window.len() - 1] / entry;
+    (cash + remaining * last - last) / last * 10_000.0
+}
+
 /// Replay with an arbitrary precomputed third input bit.
 ///
 /// Bits per tick: direction, off-peak, then `bits[t]`. Any candidate signal

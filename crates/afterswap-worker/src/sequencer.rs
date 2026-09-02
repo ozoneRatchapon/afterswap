@@ -149,6 +149,19 @@ impl RailSequencer {
         if body.len() > MAX_BODY {
             return json_response(&serde_json::json!({"error": "record too large"}), 413);
         }
+        // The body is stored verbatim and later framed as JSONL in the R2
+        // segment (`join("\n")` on close, `split('\n')` on proof). A body
+        // carrying a literal newline — pretty-printed JSON parses and verifies
+        // exactly like compact JSON — would shred into unparseable fragments on
+        // read-back and 500 every proof in its segment, irrecoverably once the
+        // rows have been trimmed. Rejecting here keeps the framing invariant at
+        // the one boundary that can still fail loudly.
+        if body.bytes().any(|b| b == b'\n' || b == b'\r') {
+            return json_response(
+                &serde_json::json!({"error": "record body must be a single line; send compact JSON (no literal newlines)"}),
+                400,
+            );
+        }
         let record: AuditRecord = match serde_json::from_str(&body) {
             Ok(r) => r,
             Err(e) => return json_response(&serde_json::json!({"error": format!("parse: {e}")}), 400),

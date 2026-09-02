@@ -1,10 +1,19 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AfterSwap — ruliology exit autopilot</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%233987e5'/><circle cx='11' cy='5' r='3' fill='%23d95926'/></svg>">
+<!-- The engine is loaded by a dynamic import() partway down the module script,
+     so without this hint the browser cannot discover the glue module until it
+     has parsed the whole script — one avoidable round trip in front of a
+     487 KB WASM download. Deliberately not preloading the .wasm itself: the
+     `as="fetch"` credentials mode has to match wasm-bindgen's own fetch or the
+     file is downloaded twice, and that is not something this change can
+     measure here. The 487 KB figure is the uncompressed module; the edge
+     serves it brotli-compressed at ~152 KB, measured 2026-08-29. -->
+<link rel="modulepreload" href="./pkg/afterswap_wasm.js">
 <style>
   /* Reference dark palette (validated: #3987e5,#d95926 on #1a1a19 — all checks pass) */
   :root {
@@ -21,10 +30,53 @@
     --series-1:    #3987e5;   /* price line, active FSM state */
     --series-2:    #d95926;   /* tranche-fill markers */
     --seq-400:     #3987e5;   /* meter fill */
-    --seq-600:     #184f95;   /* meter track (lighter step of same ramp, dark mode) */
+    --seq-600:     #184f95;   /* meter track (deeper step of same ramp, dark mode) */
     --delta-good:  #0ca30c;
     --delta-bad:   #d03b3b;
     --status-warn: #fab219;
+    --field-off:   #3f3f3a;   /* unlit machine in the field */
+    /* On-line value pills (last price, race edge). One pair for both themes:
+       white on #1d5fb0 is 6.33:1, and the fill clears 3:1 against either
+       page. Dark mode previously used near-black --page text on #3987e5 —
+       5.34:1 on paper, but the text matched the page behind the chart and
+       read as a hole in the pill. */
+    --pill-fill:   #1d5fb0;
+    --pill-ink:    #ffffff;
+  }
+  /* Demo Day is a projected room and judges screenshot into light documents,
+     so the page follows the OS instead of forcing dark. Every value below was
+     contrast-checked against --page, --surface-1 and --surface-2: the lowest
+     text pair is --delta-good on --surface-2 at 4.89:1, above the 4.5:1 floor.
+     The two series hues keep their blue/orange identity but move to darker
+     steps, because in dark mode they only ever had to clear 3:1 as marks
+     while in light mode they also carry small text (.chip, .up/.down).
+     Known and unchanged from the dark palette: --series-1 and --series-2 sit
+     at nearly equal luminance (1.03 here, 1.07 in dark), so the price line and
+     the tranche markers are told apart by hue plus mark shape — a stroked line
+     against filled dots, each named in .markerkey — not by lightness. The
+     meter track is a compromise: 1.67 against the panel it sits on, but 3.54
+     against its own fill, which is the pair that has to stay readable. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --page:        #ffffff;
+      --surface-1:   #f7f7f5;
+      --surface-2:   #eeeeec;
+      --ink:         #1a1a19;
+      --ink-2:       #4a4a45;
+      --muted:       #63625c;
+      --grid:        #d8d8d3;
+      --baseline:    #bdbdb7;
+      --border:      rgba(0,0,0,0.12);
+      --series-1:    #1d5fb0;
+      --series-2:    #a8410f;
+      --seq-400:     #1d5fb0;
+      --seq-600:     #a9c4e6;
+      --delta-good:  #067806;
+      --delta-bad:   #b32020;
+      --status-warn: #8a5a00;
+      --field-off:   #c4c3bc;
+    }
   }
   * { box-sizing: border-box; margin: 0; }
   body {
@@ -48,12 +100,17 @@
   .up   { color: var(--delta-good); }
   .down { color: var(--delta-bad); }
   .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  /* "Open position" is the one thing a first-time visitor must do, and it was
+     tied for fifth place in a single flex row with two ghost buttons and two
+     checkboxes. The toggles are now a second row and this one is bigger. */
+  #open { font-size: 15px; padding: 10px 20px; }
+  .controls.toggles { margin-top: 8px; gap: 14px; flex-wrap: wrap; }
   input[type=number] {
     background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
     border-radius: 6px; padding: 6px 8px; width: 90px; font: inherit;
   }
   button {
-    background: var(--series-1); color: #fff; border: 0; border-radius: 6px;
+    background: var(--series-1); color: var(--page); border: 0; border-radius: 6px;
     padding: 7px 14px; font: inherit; font-weight: 600; cursor: pointer;
   }
   button.ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
@@ -85,13 +142,102 @@
   .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   footer a { color: var(--ink-2); }
+  /* /rail is the "dashcam" half of the pitch and nothing on this page linked
+     to it, so the receipts were effectively undiscoverable. */
+  .navlink {
+    color: var(--ink-2); text-decoration: none; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+    background: var(--surface-2);
+  }
+  .navlink:hover { color: var(--ink); }
+  /* The most credible claim on the page sat below the fold in 12.5px body
+     text. This lifts one line of it to where a skimming judge lands. */
+  #proofstrip {
+    font-size: 12.5px; color: var(--ink-2); margin: -4px 0 14px;
+    padding: 9px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-1);
+  }
+  #proofstrip a { color: var(--series-1); }
+
+  /* ---- The field ------------------------------------------------------
+     The pitch's first number — 1,054 exhaustively enumerated machines — was
+     rendered as the string "1054" in a 22px tile, and the Pareto pruning that
+     turns it into a roster was not drawn anywhere at all. This panel is those
+     two facts made visible: an exact 62x17 lattice of the enumeration (1,054
+     factors perfectly, so no ragged last row), and a real-axis scatter of the
+     survivors it produced. */
+  #fieldpanel { margin-bottom: 14px; }
+  .beats { display: flex; flex-wrap: wrap; gap: 0; align-items: stretch; margin-bottom: 12px; }
+  .beat {
+    display: flex; flex-direction: column; gap: 2px; padding: 0 16px 0 14px;
+    border-left: 2px solid var(--grid); opacity: 0.42;
+    transition: opacity .5s ease, border-color .5s ease;
+  }
+  .beat:first-child { padding-left: 0; border-left: 0; }
+  .beat.on { opacity: 1; border-left-color: var(--series-1); }
+  .beat.now { border-left-color: var(--series-2); }
+  .beat .bn { font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .beat .bv { font-size: 15px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .beat a { color: var(--series-1); text-decoration: none; }
+  .fieldgrid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .fieldgrid { grid-template-columns: 1fr; } }
+  #field rect { transition: fill .6s ease, opacity .6s ease; }
+  #pareto circle { transition: cx .8s ease, cy .8s ease, r .4s ease; }
+  .pulse { animation: pulse 2.4s ease-in-out infinite; transform-origin: center; }
+  @keyframes pulse { 0%,100% { opacity: .95; } 50% { opacity: .32; } }
+  .cap { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  /* Everything above animates only as decoration; none of it encodes data,
+     so it can be switched off wholesale without losing information. */
+  @media (prefers-reduced-motion: reduce) {
+    #field rect, #pareto circle, .beat { transition: none; }
+    .pulse { animation: none; }
+  }
+
+  /* Buttons set border:0, which in some engines drops the default focus ring.
+     One of these controls arms live sells through a connected wallet, so where
+     the keyboard is must never be invisible. */
+  :focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 6px; }
+
+  /* Both grids above are unconditional column counts — five across for the
+     stat row, two for the body — so without these the page only lays out at
+     desktop width, and the link is shared as a link. */
+  @media (max-width: 980px) {
+    .split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    body { padding: 14px; }
+    /* The hero stat carries a 48px number, an explainer paragraph and the
+       controls; it needs the full width, and the four readouts pair off. */
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stats > .stat:first-child { grid-column: 1 / -1; }
+    .stat .value.hero { font-size: 38px; }
+    .controls { flex-wrap: wrap; }
+    input[type=number] { width: 78px; }
+    header { gap: 8px; }
+    .conn { margin-left: 0; flex-wrap: wrap; }
+  }
+  /* Tables of numbers are the one thing that must not reflow into nonsense:
+     let them scroll sideways rather than wrap a bps figure onto two lines. */
+  @media (max-width: 560px) {
+    .panel { padding: 13px; overflow-x: auto; }
+    .stat .value.hero { font-size: 32px; }
+  }
 </style>
 </head>
 <body>
+<noscript>
+  <div style="background:var(--surface-1); border:1px solid var(--status-warn); border-radius:10px; padding:14px; margin-bottom:14px; color:var(--ink-2); font-size:13px">
+    <b style="color:var(--ink)">This page needs JavaScript.</b>
+    The exit machines are a WebAssembly engine that runs in your tab — there is
+    no server computing any of this — so with scripting off the panels below
+    stay empty rather than showing stale numbers.
+  </div>
+</noscript>
 <header>
   <h1>AfterSwap</h1>
-  <span class="tag">exhaustively enumerated exit machines, fighting over your position — live on DFlow, running entirely in your tab</span>
+  <span class="tag">cruise control plus a dashcam, for selling — your exit runs to a rule, every fill leaves a receipt anyone can check — live on DFlow, running entirely in your tab</span>
   <span class="conn">
+    <a class="navlink" href="/rail">Receipts ↗</a>
     <span style="position:relative">
       <select id="pair" title="quote pair" style="background:var(--surface-2); color:var(--ink-2); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font:inherit; font-size:12px">
       <option value="sol">SOL / USDC</option>
@@ -100,7 +246,7 @@
     <button id="wallet" class="ghost" style="padding:4px 10px; font-size:12px">Connect wallet</button>
       <div id="walletmenu" style="display:none; position:absolute; right:0; top:110%; z-index:20; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:160px"></div>
     </span>
-    <span id="conndot" class="dot"></span><span id="conntext">connecting…</span>
+    <span id="conndot" class="dot" aria-hidden="true"></span><span id="conntext" role="status">connecting…</span>
     <span id="sigchip" style="font-size:11px; color:var(--muted); margin-left:8px"></span>
   </span>
 </header>
@@ -120,6 +266,8 @@
       <button id="open">Open position</button>
       <button id="close" class="ghost">Close</button>
       <button id="share" class="ghost" style="display:none">Share this fight</button>
+    </div>
+    <div class="controls toggles">
       <label id="livelabel" style="display:none; font-size:12px; color:var(--ink-2); gap:5px; align-items:center; cursor:pointer">
         <input type="checkbox" id="livemode"> live sells via wallet
       </label>
@@ -132,6 +280,39 @@
   <div class="stat"><div class="label">Hold value</div><div class="value" id="vhold">—</div><div class="sub">× entry if never sold</div></div>
   <div class="stat"><div class="label">Remaining</div><div class="value" id="vrem">—</div><div class="sub" id="vfills">no fills yet</div></div>
   <div class="stat"><div class="label">Machines</div><div class="value" id="varms">—</div><div class="sub" id="vwind">enumerating…</div></div>
+</div>
+
+<div id="proofstrip">
+  Checkable, not asserted: DFlow signs every quote your browser acts on
+  (RFC 9421) · this build is byte-identical to the audited native engine
+  · and our own harness says the edge is <b>not</b> yet statistically
+  significant — <a href="#proof">the evidence ↓</a>
+</div>
+
+<div class="panel" id="fieldpanel">
+  <div class="beats" id="beats"></div>
+  <div class="fieldgrid">
+    <div>
+      <h2>The field — every enumerated machine</h2>
+      <svg id="field" width="100%" viewBox="0 0 310 85" role="img"
+           aria-label="the enumerated machine field"></svg>
+      <div class="cap">
+        Each mark is one of the exhaustively enumerated 3-state exit machines.
+        Lit marks hold a bandit seat right now; the orange one is driving.
+        <b>Where a mark sits in the lattice is arbitrary</b> — the engine does
+        not publish per-machine positions, so only the counts are claims.
+      </div>
+    </div>
+    <div>
+      <h2>Pareto survivors — payoff against complexity</h2>
+      <svg id="pareto" width="100%" height="188" role="img"
+           aria-label="Pareto scatter of surviving machines"></svg>
+      <div class="cap" id="paretocap">
+        Simulated edge over holding, against machine complexity. The orange
+        step is the Pareto frontier — nothing to its upper-left exists.
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="panel" style="margin-bottom:14px">
@@ -151,6 +332,13 @@
     </div>
     <div class="panel">
       <h2>Live scoreboard — paired against every standard exit</h2>
+      <svg id="race" width="100%" height="150" role="img"
+           aria-label="live race against reference exits"></svg>
+      <div class="cap" id="racecap" style="margin-bottom:10px">
+        Every line is the same position from the same entry on the same ticks,
+        so the price path cancels and what is left is the exit rule. Zero is
+        doing nothing.
+      </div>
       <div id="scoreboard" class="empty">first cycle in progress…</div>
       <div id="globalscore" style="margin-top:10px"></div>
       <div style="font-size:11.5px; color:var(--muted); margin-top:8px">
@@ -159,7 +347,7 @@
         benchmarks use, running live in front of you.
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" id="proof" tabindex="-1">
       <h2>Proof (not marketing)</h2>
       <div style="display:grid; gap:7px; font-size:12.5px; color:var(--ink-2)">
         <div><b style="color:var(--ink)">No durable edge — our own harness says so.</b>
@@ -191,15 +379,15 @@
       <svg id="fsm" width="100%" height="190" role="img" aria-label="FSM state diagram"></svg>
       <div class="sub" style="color:var(--muted); font-size:12px" id="fsmhint">reads 2 bits/tick: direction, then off-peak · orange badge = sell state</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="gatepanel" style="display:none">
       <h2>Simulation gate</h2>
       <div id="gate" class="empty">no tournament yet</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="feedpanel" style="display:none">
       <h2>Activity</h2>
       <div id="feed" class="empty">quiet so far</div>
     </div>
-    <div class="panel">
+    <div class="panel" id="tapepanel" style="display:none">
       <h2>Fills tape</h2>
       <div id="tape" class="empty">no fills yet</div>
     </div>
@@ -211,11 +399,15 @@
 </div>
 
 <div id="tooltip"></div>
-<footer>DFlow Trading API (dev, quotes fetched by your browser) · engine compiled to WASM — no server anywhere · primitives: <a href="https://github.com/katopz/katgpt-rs">katgpt-ruliology</a> (@katopz, MIT) · <a href="https://github.com/ozoneRatchapon/afterswap">source</a> · paper mode — quotes real, fills simulated</footer>
+<footer>DFlow Trading API (dev, quotes fetched by your browser) · engine compiled to WASM — no server anywhere · primitives: <a href="https://github.com/katopz/katgpt-rs">katgpt-ruliology</a> (@katopz, MIT) · <a href="https://github.com/ozoneRatchapon/afterswap">source</a> · <a href="/rail">receipt rail</a> · paper mode — quotes real, fills simulated</footer>
 
 <script type="module">
 "use strict";
 const $ = (id) => document.getElementById(id);
+// Ticks per evaluation window. Kept next to its only other use — the
+// `new WasmEngine(...)` call below — so the countdown cannot drift from the
+// engine it is counting down to.
+const WINDOW_LEN = 12;
 const hexTag = (idStr) => "#" + BigInt(idStr).toString(16).slice(0, 4);
 const fmt = (x, d = 4) => x == null ? "—" : x.toFixed(d);
 const px = (v) => v == null ? "—" : v.toFixed(PAIRS[pair]?.dp ?? 4);
@@ -265,7 +457,14 @@ function renderStats(s) {
   $("vrem").textContent = ap ? `${(ap.remaining_frac * 100).toFixed(0)}%` : "—";
   $("vfills").textContent = ap ? `${ap.fills.length} tranche fills` : "no open position";
   $("varms").textContent = s.arms.length ? `${s.arms.length} arms` : "—";
-  $("vwind").textContent = `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`;
+  // Before the first window closes there is nothing to report, and "0 windows"
+  // reads as broken. Count down instead, so the wait is legible as progress.
+  // recent_prices is capped at 240 but this branch only runs for the first
+  // WINDOW_LEN ticks, where its length is exactly the ticks seen.
+  $("vwind").textContent = s.completed_windows > 0
+    ? `${s.strategies_enumerated} enumerated · ${s.completed_windows} windows`
+    : `${s.strategies_enumerated} enumerated · first tournament in ` +
+      `${Math.max(0, WINDOW_LEN - (s.recent_prices?.length ?? 0))} ticks`;
   $("open").disabled = !!s.position;
   $("explainer").style.display = (s.position || s.last_closed) ? "none" : "";
   $("share").style.display = (!s.position && s.last_closed) ? "" : "none";
@@ -289,6 +488,15 @@ function renderChart(s) {
   const P = { l: 54, r: 46, t: 10, b: 22 };
   const prices = s.recent_prices || [];
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  // aria-label was the fixed string "price line chart", which tells a screen
+  // reader the element's type and none of its content. Restate the data.
+  const ap0 = activePos(s);
+  svg.setAttribute("aria-label", prices.length < 2
+    ? `${PAIRS[pair].label} price chart, waiting for quotes`
+    : `${PAIRS[pair].label} price, ${prices.length} ticks. ` +
+      `Now ${px(prices[prices.length - 1])}, low ${px(Math.min(...prices))}, ` +
+      `high ${px(Math.max(...prices))}.` +
+      (ap0 ? ` Entry ${px(ap0.entry_price)}, ${ap0.fills.length} tranche fills marked.` : ""));
   if (prices.length < 2) { svg.innerHTML = ""; return; }
   const t1 = s.tick, t0 = t1 - prices.length + 1;
   let lo = Math.min(...prices), hi = Math.max(...prices);
@@ -304,21 +512,37 @@ function renderChart(s) {
   }
   const pts = prices.map((p, i) => `${X(t0 + i)},${Y(p)}`).join(" ");
   const areaPts = `${X(t0)},${Y(lo)} ${pts} ${X(t1)},${Y(lo)}`;
-  g += `<polygon points="${areaPts}" fill="var(--series-1)" opacity="0.10"/>`;
+  g += `<defs><linearGradient id="areafill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--series-1)" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="var(--series-1)" stop-opacity="0.02"/>
+    </linearGradient></defs>`;
+  g += `<polygon points="${areaPts}" fill="url(#areafill)"/>`;
   g += `<polyline points="${pts}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   g += `<line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1"/>`;
   // entry + fill markers (2px surface ring per mark spec)
   const ap = activePos(s);
-  if (ap && ap.opened_at_tick >= t0 && ap.entry_price >= lo && ap.entry_price <= hi) {
-    g += `<circle cx="${X(ap.opened_at_tick)}" cy="${Y(ap.entry_price)}" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>`;
+  if (ap && ap.entry_price >= lo && ap.entry_price <= hi) {
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(ap.entry_price)}" y2="${Y(ap.entry_price)}"
+            stroke="var(--series-1)" stroke-width="1" stroke-dasharray="4 4" opacity="0.55"/>`
+       + `<text x="${P.l + 4}" y="${Y(ap.entry_price) - 5}" fill="var(--series-1)">entry</text>`;
+    if (ap.opened_at_tick >= t0) {
+      g += `<circle cx="${X(ap.opened_at_tick)}" cy="${Y(ap.entry_price)}" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>`;
+    }
   }
   const fills = ap ? ap.fills : [];
   for (const f of fills) if (f.tick >= t0) {
-    g += `<circle cx="${X(f.tick)}" cy="${Y(f.price)}" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>`;
+    // A sold tranche is the whole point of the product; give it a halo so it
+    // is findable on a projector at three metres.
+    g += `<circle cx="${X(f.tick)}" cy="${Y(f.price)}" r="10" fill="var(--series-2)" opacity="0.18"/>`
+       + `<circle cx="${X(f.tick)}" cy="${Y(f.price)}" r="5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="2"/>`;
   }
   // selective direct label: line end only
   const lastP = prices[prices.length - 1];
-  g += `<text x="${W - P.r + 6}" y="${Y(lastP) + 4}" fill="var(--ink-2)">${lastP.toFixed(2)}</text>`;
+  const pillW = Math.max(34, String(px(lastP)).length * 7 + 10);
+  const pillX = W - 2 - pillW;
+  g += `<rect x="${pillX}" y="${Y(lastP) - 9}" width="${pillW}" height="18" rx="4"
+          fill="var(--pill-fill)"/>`
+     + `<text x="${pillX + pillW / 2}" y="${Y(lastP) + 4}" text-anchor="middle" fill="var(--pill-ink)">${px(lastP)}</text>`;
   g += `<line id="xhair" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
   svg.innerHTML = g;
   svg.onmousemove = (ev) => {
@@ -341,6 +565,307 @@ function showTip(x, y, html) {
   tip.style.top = `${y + 14}px`;
 }
 function hideTip() { $("tooltip").style.display = "none"; }
+
+// ---- The field: the enumeration and its survivors, drawn -----------------
+// 1,054 = 62 x 17 exactly, so the lattice is a clean rectangle with no ragged
+// last row. The marks are built once and then mutated in place: rebuilding a
+// thousand nodes every second would both cost more than the rest of the page
+// put together and cancel the CSS transition that makes a seat change legible.
+const FIELD_COLS = 62;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+let fieldCells = null, fieldLit = new Map(), fieldArms = new Map();
+
+function buildField(total) {
+  const svg = $("field");
+  const cols = FIELD_COLS, rows = Math.ceil(total / cols);
+  svg.setAttribute("viewBox", `0 0 ${cols * 5} ${rows * 5}`);
+  svg.innerHTML = Array.from({ length: total }, (_, i) =>
+    `<rect x="${(i % cols) * 5}" y="${Math.floor(i / cols) * 5}" width="3" height="3"
+           rx="0.6" fill="var(--field-off)" data-slot="${i}"/>`).join("");
+  fieldCells = [...svg.querySelectorAll("rect")];
+  fieldLit = new Map();
+}
+
+// A stable cell for an arm. Position carries no meaning — it only has to be
+// the SAME cell every tick, or the field would shimmer and read as noise.
+function fieldSlot(id, taken, total) {
+  let i = Number(BigInt(id) % BigInt(total));
+  while (taken.has(i)) i = (i + 1) % total;   // 24 arms in 1,054 cells
+  taken.add(i);
+  return i;
+}
+
+function renderField(s) {
+  const total = s.strategies_enumerated || 0;
+  if (!total) return;
+  if (!fieldCells || fieldCells.length !== total) buildField(total);
+  const taken = new Set(), want = new Map();
+  fieldArms = new Map();
+  for (const a of s.arms) {
+    const slot = fieldSlot(a.id, taken, total);
+    want.set(slot, a.index === s.live_arm);
+    fieldArms.set(String(slot), a);
+  }
+  for (const [i, wasLive] of fieldLit) {
+    if (want.has(i)) continue;
+    fieldCells[i].setAttribute("fill", "var(--field-off)");
+    fieldCells[i].removeAttribute("class");
+    void wasLive;
+  }
+  for (const [i, isLive] of want) {
+    if (fieldLit.get(i) === isLive) continue;
+    fieldCells[i].setAttribute("fill", isLive ? "var(--series-2)" : "var(--series-1)");
+    if (isLive) fieldCells[i].setAttribute("class", "pulse");
+    else fieldCells[i].removeAttribute("class");
+  }
+  fieldLit = want;
+  // A lattice you cannot interrogate is decoration. Delegated, so the handler
+  // survives the in-place mark updates and costs one listener, not 1,054.
+  const svg = $("field");
+  svg.onmousemove = (ev) => {
+    const a = fieldArms.get(ev.target?.dataset?.slot);
+    if (!a) return hideTip();
+    showTip(ev.clientX, ev.clientY,
+      `<b>${a.name}</b> ${hexTag(a.id)}${a.index === s.live_arm ? " · driving" : ""}<br>` +
+      `sim ${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)} bps · ${a.pulls} pulls`);
+  };
+  svg.onmouseleave = hideTip;
+  svg.setAttribute("aria-label",
+    `${total} enumerated exit machines. ` +
+    `${plural(s.arms.length, "machine holds", "machines hold")} a bandit seat` +
+    (s.live_arm != null ? ", one of which is driving." : "."));
+}
+
+function paretoFront(arms) {
+  // Upper-left frontier: cheapest machine at each edge level that nothing
+  // simpler beats. Sorted by complexity so one pass suffices.
+  const pts = [...arms].sort((a, b) => a.complexity - b.complexity);
+  const front = [];
+  let best = -Infinity;
+  for (const a of pts) if (a.sim_edge_bps > best) { front.push(a); best = a.sim_edge_bps; }
+  return front;
+}
+
+// Dots are reused across renders, not re-created. A replaced element starts at
+// its final position, so the CSS transition would never fire — and the one
+// moment worth watching here is a tournament reshuffling the roster and every
+// survivor gliding to its new payoff/complexity.
+let paretoDots = new Map();
+
+function renderPareto(s) {
+  const svg = $("pareto"), W = svg.clientWidth || 520, H = 188;
+  const P = { l: 44, r: 14, t: 12, b: 30 };
+  const NS = "http://www.w3.org/2000/svg";
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (!svg.querySelector("#pstatic")) {
+    svg.innerHTML = `<g id="pstatic"></g><g id="pdots"></g>`;
+    paretoDots = new Map();
+  }
+  const stat = svg.querySelector("#pstatic"), dots = svg.querySelector("#pdots");
+  if (!s.arms.length) {
+    stat.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no tournament yet</text>`;
+    dots.innerHTML = ""; paretoDots = new Map();
+    svg.setAttribute("aria-label", "No survivors yet; the first tournament has not run");
+    return;
+  }
+  const cx0 = Math.min(...s.arms.map(a => a.complexity));
+  const cx1 = Math.max(...s.arms.map(a => a.complexity));
+  let e0 = Math.min(0, ...s.arms.map(a => a.sim_edge_bps));
+  let e1 = Math.max(0, ...s.arms.map(a => a.sim_edge_bps));
+  if (e1 - e0 < 1e-9) { e1 += 1; e0 -= 1; }
+  const epad = (e1 - e0) * 0.12; e0 -= epad; e1 += epad;
+  const cpad = Math.max(0.05, (cx1 - cx0) * 0.12);
+  const X = (c) => P.l + (c - cx0 + cpad) / (cx1 - cx0 + 2 * cpad) * (W - P.l - P.r);
+  const Y = (e) => P.t + (e1 - e) / (e1 - e0) * (H - P.t - P.b);
+  const maxPulls = Math.max(1, ...s.arms.map(a => a.pulls));
+  const front = paretoFront(s.arms);
+
+  let g = `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3 3"/>`
+        + `<text x="${W - P.r}" y="${Y(0) - 5}" text-anchor="end">holding</text>`;
+  if (front.length > 1) {
+    let d = `M${X(front[0].complexity)},${Y(front[0].sim_edge_bps)}`;
+    for (let i = 1; i < front.length; i++) {
+      d += ` L${X(front[i].complexity)},${Y(front[i - 1].sim_edge_bps)}`
+         + ` L${X(front[i].complexity)},${Y(front[i].sim_edge_bps)}`;
+    }
+    g += `<path d="${d}" fill="none" stroke="var(--series-2)" stroke-width="1.5" opacity="0.75"/>`;
+  }
+  g += `<text x="${P.l}" y="${H - 8}">simpler →  complexity  → richer</text>`
+     + `<text x="${P.l - 8}" y="${P.t + 4}" text-anchor="end">${e1.toFixed(0)}</text>`
+     + `<text x="${P.l - 8}" y="${H - P.b}" text-anchor="end">${e0.toFixed(0)}</text>`
+     + `<text x="6" y="${P.t + 4}" fill="var(--muted)">bps</text>`;
+  stat.innerHTML = g;
+
+  const seen = new Set();
+  for (const a of s.arms) {
+    const key = String(a.index);
+    seen.add(key);
+    let c = paretoDots.get(key);
+    if (!c) {
+      c = document.createElementNS(NS, "circle");
+      c.dataset.arm = key;
+      dots.appendChild(c);
+      paretoDots.set(key, c);
+    }
+    const live = a.index === s.live_arm;
+    const r = 3 + 4 * Math.sqrt(a.pulls / maxPulls);
+    c.setAttribute("cx", X(a.complexity));
+    c.setAttribute("cy", Y(a.sim_edge_bps));
+    c.setAttribute("r", live ? r + 2.5 : r);
+    c.setAttribute("fill", live ? "var(--series-2)" : "var(--series-1)");
+    c.setAttribute("fill-opacity", live ? 1 : 0.55 + 0.45 * (a.pulls / maxPulls));
+    c.setAttribute("stroke", "var(--surface-1)");
+    c.setAttribute("stroke-width", live ? 2 : 1);
+    if (live) c.setAttribute("class", "pulse"); else c.removeAttribute("class");
+  }
+  for (const [key, c] of paretoDots) {
+    if (seen.has(key)) continue;
+    c.remove(); paretoDots.delete(key);
+  }
+
+  const byIndex = new Map(s.arms.map(a => [String(a.index), a]));
+  svg.onmousemove = (ev) => {
+    const a = byIndex.get(ev.target?.dataset?.arm);
+    if (!a) return hideTip();
+    showTip(ev.clientX, ev.clientY,
+      `<b>${a.name}</b> ${hexTag(a.id)}<br>complexity ${a.complexity.toFixed(2)} · sim ` +
+      `${a.sim_edge_bps >= 0 ? "+" : ""}${a.sim_edge_bps.toFixed(1)} bps<br>${a.pulls} pulls` +
+      (a.generation > 0 ? ` · evolved g${a.generation}` : " · enumerated"));
+  };
+  svg.onmouseleave = hideTip;
+  const bestArm = s.arms.reduce((m, a) => (a.sim_edge_bps > m.sim_edge_bps ? a : m));
+  svg.setAttribute("aria-label",
+    `${plural(s.arms.length, "surviving machine", "surviving machines")} plotted by ` +
+    `simulated edge against complexity. Best simulated edge ` +
+    `${bestArm.sim_edge_bps.toFixed(1)} bps from ${bestArm.name}. ` +
+    `${plural(front.length, "machine lies", "machines lie")} on the Pareto frontier.`);
+}
+
+// ---- The race -----------------------------------------------------------
+// "Paired against every standard exit" was a three-column table of running
+// means. The per-tick values behind it already exist (shadowValues), they were
+// just never plotted. Sampling happens in render() rather than the tick loop
+// so the machine and the references are read off the SAME tick — which is the
+// entire basis of the paired comparison.
+const RACE_MAX = 400;
+let raceHist = [], raceKey = null;
+
+function sampleRace(s) {
+  if (!s.position) return;                        // keep the last race on screen
+  if (s.position.opened_at_tick !== raceKey) { raceKey = s.position.opened_at_tick; raceHist = []; }
+  if (!shadow || s.last_price == null || s.position_value_norm == null) return;
+  if (raceHist.length && raceHist[raceHist.length - 1].t === s.tick) return;   // render() can fire twice per tick
+  const v = shadowValues(shadow, s.last_price);
+  if (!(v.hold > 0)) return;
+  const bps = (x) => (x - v.hold) / v.hold * 1e4;
+  raceHist.push({ t: s.tick, machine: bps(s.position_value_norm), twap: bps(v.twap),
+                  trailing: bps(v.trailing), ladder: bps(v.ladder), bracket: bps(v.bracket) });
+  if (raceHist.length > RACE_MAX) raceHist.shift();
+}
+
+// References share one ink and are told apart by dash pattern plus a direct
+// end label, rather than by four invented hues the palette does not have.
+const RACE_REFS = [
+  ["twap", "TWAP", "1 0"], ["trailing", "trailing", "5 3"],
+  ["ladder", "ladder", "2 2"], ["bracket", "bracket", "7 2 2 2"],
+];
+
+function renderRace(s) {
+  const svg = $("race"), W = svg.clientWidth || 520, H = 150;
+  const P = { l: 40, r: 66, t: 12, b: 18 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (raceHist.length < 2) {
+    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">${
+      s.position ? "measuring…" : "open a position to start the race"}</text>`;
+    svg.setAttribute("aria-label", "The race has not started; no position is open");
+    svg.onmousemove = null; svg.onmouseleave = null;
+    return;
+  }
+  const keys = ["machine", ...RACE_REFS.map(r => r[0])];
+  const all = raceHist.flatMap(p => keys.map(k => p[k]));
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * 0.14; lo -= pad; hi += pad;
+  const t0 = raceHist[0].t, t1 = raceHist[raceHist.length - 1].t;
+  const X = (t) => P.l + (t - t0) / Math.max(1, t1 - t0) * (W - P.l - P.r);
+  const Y = (b) => P.t + (hi - b) / (hi - lo) * (H - P.t - P.b);
+  const path = (k) => raceHist.map(p => `${X(p.t)},${Y(p[k])}`).join(" ");
+  const last = raceHist[raceHist.length - 1], now = last.machine;
+  // Every right-edge label sits at its line's last y, and the reference exits
+  // agree almost exactly for the first stretch of any race — without layout
+  // they print on top of each other. One relaxation pass: sort by target y,
+  // push apart, clamp to the plot. The machine pill rides in the same pass so
+  // no reference label ends up underneath it.
+  const GAP = 15;
+  const items = RACE_REFS.map(([k, label]) => ({ label, y: Y(last[k]) }));
+  items.push({ pill: true, y: Y(now) });
+  items.sort((a, b) => a.y - b.y);
+  items[0].y = Math.max(items[0].y, P.t + 5);
+  for (let i = 1; i < items.length; i++)
+    items[i].y = Math.max(items[i].y, items[i - 1].y + GAP);
+  items[items.length - 1].y = Math.min(items[items.length - 1].y, H - P.b - 4);
+  for (let i = items.length - 2; i >= 0; i--)
+    items[i].y = Math.min(items[i].y, items[i + 1].y - GAP);
+  const labelY = new Map(items.filter((it) => !it.pill).map((it) => [it.label, it.y]));
+  const pillY = items.find((it) => it.pill).y;
+  let g = `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3 3"/>`
+        + `<text x="${P.l}" y="${Y(0) - 5}">doing nothing</text>`;
+  for (const [k, label, dash] of RACE_REFS) {
+    g += `<polyline points="${path(k)}" fill="none" stroke="var(--muted)" stroke-width="1.2"
+            stroke-dasharray="${dash}" opacity="0.85"/>`
+       + `<text x="${W - P.r + 5}" y="${labelY.get(label) + 3.5}">${label}</text>`;
+  }
+  g += `<polyline points="${path("machine")}" fill="none" stroke="var(--series-1)" stroke-width="2.5"
+          stroke-linejoin="round" stroke-linecap="round"/>`;
+  const txt = `${now >= 0 ? "+" : ""}${now.toFixed(1)}`;
+  const w = txt.length * 7 + 12;
+  g += `<rect x="${W - P.r + 2}" y="${pillY - 9}" width="${w}" height="18" rx="4" fill="var(--pill-fill)"/>`
+     + `<text x="${W - P.r + 2 + w / 2}" y="${pillY + 4}" text-anchor="middle" fill="var(--pill-ink)" font-weight="600">${txt}</text>`;
+  g += `<line id="racex" y1="${P.t}" y2="${H - P.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`;
+  svg.innerHTML = g;
+  // Same hover contract as the price chart: a crosshair plus one tooltip with
+  // all five values at that tick, ranked, so nobody has to trace a dashed
+  // line back to its end label.
+  svg.onmousemove = (ev) => {
+    const xh = $("racex");
+    if (!xh) return hideTip();
+    const r = svg.getBoundingClientRect();
+    const frac = (ev.clientX - r.left - P.l) / (W - P.l - P.r);
+    const i = Math.round(frac * (raceHist.length - 1));
+    if (i < 0 || i >= raceHist.length) return hideTip();
+    const p = raceHist[i], x = X(p.t);
+    xh.setAttribute("x1", x); xh.setAttribute("x2", x); xh.setAttribute("visibility", "visible");
+    const fmt = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}`;
+    const rows = [["<b>machine</b>", p.machine], ...RACE_REFS.map(([k, label]) => [label, p[k]])]
+      .sort((a, b) => b[1] - a[1]).map(([n, v]) => `${n} ${fmt(v)}`).join("<br>");
+    showTip(ev.clientX, ev.clientY, `tick <b>${p.t}</b> · bps vs hold<br>${rows}`);
+  };
+  svg.onmouseleave = () => { hideTip(); const xh = $("racex"); if (xh) xh.setAttribute("visibility", "hidden"); };
+  const beaten = RACE_REFS.filter(([k]) => now > raceHist[raceHist.length - 1][k]).length;
+  svg.setAttribute("aria-label",
+    `Live race over ${raceHist.length} ticks. The machine is ` +
+    `${now >= 0 ? now.toFixed(1) + " basis points ahead of" : (-now).toFixed(1) + " basis points behind"} ` +
+    `doing nothing, and ahead of ${beaten} of the ${RACE_REFS.length} reference exits.`);
+}
+
+// The five beats of the pitch, lit by whichever have actually happened. The
+// last reached beat is marked .now, so the ribbon doubles as a "you are here".
+function renderBeats(s) {
+  const ap = activePos(s);
+  const fills = ap ? ap.fills.length : 0;
+  const live = s.arms.find(a => a.index === s.live_arm);
+  const beats = [
+    ["enumerate", `${(s.strategies_enumerated || 0).toLocaleString()} machines`, (s.strategies_enumerated || 0) > 0],
+    ["tournament", `${s.completed_windows} windows fought`, s.completed_windows > 0],
+    ["prune", `${s.arms.length} hold seats`, s.arms.length > 0],
+    ["drive", live ? live.name : "no seat taken", !!live],
+    ["receipt", `<a href="/rail">${fills} fills on the rail ↗</a>`, fills > 0],
+  ];
+  const lastOn = beats.reduce((m, b, i) => (b[2] ? i : m), -1);
+  $("beats").innerHTML = beats.map(([n, v, on], i) =>
+    `<div class="beat${on ? " on" : ""}${i === lastOn ? " now" : ""}">
+       <span class="bn">${n}</span><span class="bv">${v}</span></div>`).join("");
+}
 
 function renderBoard(s) {
   if (!s.arms.length) return;
@@ -379,7 +904,22 @@ function renderFsm(s) {
   const arm = s.arms.find(a => a.index === armIdx);
   $("livechip").textContent = arm
     ? `${arm.name} ${hexTag(arm.id)}${s.live_arm == null ? " (last)" : ""}` : "";
-  if (!arm) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`; return; }
+  if (!arm) {
+    svg.setAttribute("aria-label", "No exit machine is driving yet");
+    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">no machine driving yet</text>`;
+    return;
+  }
+  // Same problem as the chart: describe the machine, not the widget. When the
+  // arm shown is the *last* one to drive rather than a live one there is no
+  // current state, so say that instead of announcing "state Sundefined".
+  const st_now = s.live_fsm_state;
+  const has_state = Number.isInteger(st_now) && st_now < arm.n_states;
+  svg.setAttribute("aria-label",
+    `Exit machine ${arm.name}, ${arm.n_states} states. ` +
+    (has_state
+      ? `Currently in state S${st_now}, which ${arm.outputs[st_now] === 1 ? "sells a tranche" : "holds"}.`
+      : "Not currently driving.") +
+    (s.live_confidence != null ? ` Confidence ${(s.live_confidence * 100).toFixed(0)} percent.` : ""));
   const n = arm.n_states, cx = W / 2, cy = H / 2, R = n === 1 ? 0 : 58;
   const pos = Array.from({ length: n }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / n;
@@ -415,6 +955,7 @@ function renderFsm(s) {
 }
 
 function renderGate(s) {
+  $("gatepanel").style.display = s.gate ? "" : "none";
   if (!s.gate) return;
   const pct = Math.round(s.gate.compression_ratio * 100);
   $("gate").className = "";
@@ -456,6 +997,7 @@ function feedLine(te, s) {
 
 function renderFeed(s) {
   const evs = s.recent_events || [];
+  $("feedpanel").style.display = evs.length ? "" : "none";
   if (!evs.length) { $("feed").className = "empty"; $("feed").textContent = "quiet so far"; return; }
   $("feed").className = "";
   $("feed").innerHTML = `<div style="display:grid; gap:4px; font-size:12.5px; color:var(--ink-2); max-height:180px; overflow-y:auto">${
@@ -468,6 +1010,7 @@ function renderFeed(s) {
 function renderTape(s) {
   const ap = activePos(s);
   const fills = ap ? [...ap.fills].reverse() : [];
+  $("tapepanel").style.display = fills.length ? "" : "none";
   if (!fills.length) { $("tape").className = "empty"; $("tape").textContent = "no fills yet"; return; }
   $("tape").className = "";
   $("tape").innerHTML = `<table><thead><tr><th>tick</th><th>frac</th><th>price</th></tr></thead><tbody>${
@@ -477,7 +1020,9 @@ function renderTape(s) {
 
 function render(s) {
   last = s;
-  renderStats(s); renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderFeed(s); renderTape(s);
+  sampleRace(s);
+  renderStats(s); renderBeats(s); renderField(s); renderPareto(s); renderRace(s);
+  renderChart(s); renderBoard(s); renderFsm(s); renderGate(s); renderFeed(s); renderTape(s);
 }
 
 $("open").onclick = () => {
@@ -679,7 +1224,7 @@ const STORE_KEY = "afterswap-learning-v1";
 
 import("./pkg/afterswap_wasm.js").then(async (mod) => {
   await mod.default();
-  engine = new mod.WasmEngine(12, 3, 0.1, 24);
+  engine = new mod.WasmEngine(WINDOW_LEN, 3, 0.1, 24);
   // Restore what the robots learned in earlier sessions (realized rewards,
   // evolved genomes) BEFORE the first prices, then replay saved prices so
   // the chart and windows have continuity across refreshes.
@@ -803,19 +1348,25 @@ function renderSigChip(v) {
   if (v.ok === true) {
     el.innerHTML = `<span style="color:var(--delta-good)">✓ ${verifiedCount} DFlow-signed quotes verified in your browser</span>`;
   } else if (v.ok === null) {
-    el.textContent = `signed quote · ${v.reason}`;
+    // Digest checked, signature not — this browser has no WebCrypto Ed25519.
+    // Reported separately from `verifiedCount` because a digest alone proves
+    // the body is intact, not that DFlow sent it. Counting these as
+    // "verified" would overstate exactly the claim the chip is making.
+    el.textContent = `${digestOnlyCount} quotes: digest ok, signature unchecked (${v.reason})`;
   } else {
     el.innerHTML = `<span style="color:var(--delta-bad)">signature ${v.reason}</span>`;
   }
 }
 
-let verifiedCount = 0;
+let verifiedCount = 0, digestOnlyCount = 0;
 
 async function fetchPrice() {
-  // Every quote is signed and verified. Measured cost: 0.055 ms per quote —
-  // 0.006% of a core at one quote per second. Sampling would mean the
-  // machines act on prices nobody checked, which is not a property worth
-  // trading for a rounding error of CPU.
+  // Every quote is checked, and none is sampled: measured cost is 0.055 ms
+  // per quote — 0.006% of a core at one quote per second — so there is
+  // nothing to buy by skipping some. Signature verification needs WebCrypto
+  // Ed25519; where the browser lacks it the digest still verifies and the
+  // tick is still traded, but it is counted and displayed as digest-only,
+  // never as signature-verified. Only a *failed* signature discards a tick.
   const requestId = `afterswap-${Date.now()}`;
   const res = await fetch(quoteUrl(), {
     headers: { "x-sign-request": "true", "x-request-id": requestId },
@@ -827,7 +1378,8 @@ async function fetchPrice() {
     renderSigChip(lastVerified);
     throw new Error(`unverified quote: ${lastVerified.reason}`);
   }
-  verifiedCount += 1;
+  if (lastVerified.ok === true) verifiedCount += 1;
+  else digestOnlyCount += 1;
   renderSigChip(lastVerified);
   const q = JSON.parse(text);
   const rp = q.routePlan;

@@ -19,6 +19,14 @@ pinocchio-system = "0.3"
 
 [dev-dependencies]
 litesvm = "0.6"
+# Ergonomic SPL Token test helpers (CreateMint / CreateAccount / MintTo /
+# get_spl_account) — the test harness for the vault-sourced `ValidateAndSell`.
+litesvm-token = "0.6"
 solana-sdk = "2"
 base64 = "0.22"
 bincode = "1"
+# SPL Token + ATA (native token programs) for the vault tests.
+# `no-entrypoint` keeps the SBF target clean; we only need the instruction
+# builders and `Pack` state types, both of which are available without it.
+spl-token = { version = "7", features = ["no-entrypoint"] }
+spl-associated-token-account = "6"

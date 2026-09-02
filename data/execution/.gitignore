@@ -1,1 +1,2 @@
-data/execution/*.jsonl
+# Relative to this directory; see the note in data/rail/.gitignore.
+*.jsonl

@@ -5,7 +5,7 @@
 
 ## Pitch
 
-**AfterSwap** — the moment your DFlow swap fills, ~956 exhaustively enumerated
+**AfterSwap** — the moment your DFlow swap fills, 1,054 exhaustively enumerated
 finite-state machines start competing for the right to manage your exit.
 Wolfram-style ruliology (via `katgpt-ruliology` from katgpt-rs): enumerate ALL
 simple exit programs, tournament them on rolling windows of live DFlow quotes,
@@ -73,11 +73,151 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
 
 ## Submission checklist
 
-- [ ] Functional prototype (public URL)
-- [ ] 2-minute demo video
-- [ ] Public repo (this one) — push to GitHub
-- [ ] "How DFlow integrates" writeup (README section)
-- [ ] Application via Google Form on stth-buildathon.vercel.app
+- [x] Functional prototype (public URL) — `https://afterswap.solana-thailand.workers.dev`
+      returns 200 (125 ms); the rail at
+      `…-rail.solana-thailand.workers.dev/rail/stats` returns 200 (362 ms).
+      Re-verified again immediately before submission, 2026-08-28: app 200
+      (90 ms), rail `/rail/stats` 200 (416 ms), public repo 200 (933 ms).
+      `POST /decide` was serving a failing pre-fix build; the FSM-table fix was
+      deployed 2026-08-28 (version `4f69c750`) and re-measured at 80/80 across
+      two independent 40-call runs, p50 76/69 ms, p95 134/125 ms — see
+      `.plans/003_post_deploy_doc_edits.md`. All three surfaces are healthy.
+- [ ] 2-minute demo video — **user-only**, cannot be produced from here
+      **Pre-recording flight check done 2026-08-28** (still `[ ]`: the
+      recording itself is the deliverable and needs a human). Every shot
+      dependency re-verified live — page/WASM/engine assets 200, served
+      WASM 487,094 B = 476 KB, the 1,054 figure test-pinned, `?replay`
+      200, and both devnet fallback PDAs present at 60 bytes. Table in
+      `.plans/004_submission_kit.md`. One claim was corrected: the
+      "11 demo commits spent" figure was removed as stale and
+      unverifiable — `/slot` increments on read and the GET surface hides
+      the counter, so the budget cannot be observed without spending it.
+      Everything except the recording is prepared in
+      `.plans/004_submission_kit.md`: a shot-by-shot script timed to 0:00–2:00,
+      recording notes (use `?replay` if live quotes are flat; `/decide` is now
+      deployed and measures 80/80 across two independent 40-call runs, so it is
+      safe but optional to demo), a **"do not say" guardrail** listing the
+      keeper / gasless / delegated-execution claims the program does not
+      support, and a stated
+      framing decision — lead with the rigor, not with the BONK number, because
+      the README's own finding is that there is no durable edge.
+      **Plain-language framing added 2026-08-29** after the opening tested
+      badly on a technical reader who could not see the benefit. New section
+      `## What is this, in one minute — plain-language framing` in
+      `.plans/004_submission_kit.md`: the one-liner "cruise control plus a
+      dashcam, for selling", a today-vs-AfterSwap table, the reason the benefit
+      is hard to feel (it is insurance-shaped), the customer that actually has
+      the problem (anyone selling on behalf of someone else), and an
+      alternative 0:00–0:12 line that trades the 1,054 hook for comprehension.
+      The same framing now opens `README.md`, replacing "exhaustively
+      enumerated exit machines"; the two are worded to agree. While rewriting
+      it, one overclaim was removed from the README masthead — "switch to BONK
+      to watch it in the market where the out-of-sample evidence says exit
+      discipline pays", which contradicts the framing decision above and the
+      README's own reading of BONK as selection.
+      **All shot dependencies re-verified live 2026-08-29** (third pass):
+      `/` 200, `/?replay` 200 at 54,215 B, `POST /decide` 200 returning
+      `fills 7` / `fully_exited false` / `edge_vs_hold_bps 700`, repo 200,
+      rail `/rail/proof/10`, `/rail/proof/100`, `/rail/records` all 200,
+      program `GEz2tF…8bD8` executable on devnet, and both fallback PDAs live
+      under that owner. Note for the day of recording: the rail worker 404s on
+      `/`, `/health` and `/rail/head` — it only serves the documented paths, so
+      a 404 there is not an outage.
+      **Memo-shot risk retired, 2026-08-28 (verified live, not reasoned).** An
+      earlier note warned the 1:10–1:32 commitment shot needs
+      `signAndSendTransaction` and could trip Phantom's new-domain heuristics
+      on workers.dev. That was wrong: it described the *live-mode* path
+      (`commitPolicy`, `index.html:579`, `CHAIN = "solana:mainnet"`, real SOL,
+      reachable only with the `livemode` checkbox on). The shot uses
+      `commitDemoPolicy` (`index.html:963`), which fires automatically when
+      live mode is **off**, is signed server-side by `/api/commit-policy`, and
+      is broadcast to devnet by the page — no wallet, no popup, no heuristic.
+      The script's "no wallet needed" line was already correct.
+      Exercised end-to-end against production on 2026-08-28: `/api/commit-policy`
+      → 200 with `signed_tx` + `policy_pda`, broadcast to devnet, PDA
+      `ExiLSj7CGwFF1bknhJ6h48s1L5RZf8bKec1Nc2hZYcnt` created owned by
+      `GEz2tF…8bD8`, 60 bytes decoding to position_id 10, fingerprint
+      `0x165ef4aabbcc`, 3 states, tranche 1000 bps, committed_at
+      2026-08-28T16:05:21Z. Cost: 1 of the 380-commit demo budget
+      (`Scoreboard.MAX_DEMO_COMMITS`) and ~5000 devnet lamports.
+      Fallback still available if the live take misbehaves: the original PDA
+      `5LRDFS9WckZUA1BNoBmt6N3A6r2Pzie3TcULADSKEXiA` re-verified the same day —
+      same fingerprint/states/tranche, commit tx succeeded (`err: None`,
+      slot 488168150, fee 5000).
+      **Flight check re-run 2026-08-29** so the take rests on same-day probes,
+      not two-day-old ones: `/` and `/?replay` 200, served WASM still
+      487,094 B, `/pkg/afterswap_wasm.js` 200, repo 200, `POST /decide` 200
+      returning the documented `fills 7 / edge 700`, and all three devnet
+      accounts still live (program executable, both fallback PDAs 60 bytes).
+      Full table under "Re-verified again 2026-08-29" in
+      `.plans/004_submission_kit.md`. **Nothing is left to prepare — the script,
+      shot list, timings, fallbacks and guardrails are all written; only the
+      recording itself remains, and it needs a human.**
+      **Re-checked after the 2026-08-29 deploy.** The page the camera will see
+      is no longer the one the script was written against: `/` is now 54,215 B
+      and carries three `@media` breakpoints, so it lays out correctly below
+      desktop width instead of overflowing. This *helps* the take — the window
+      no longer has to be full-width to look right — and changes no shot, since
+      every element the script names is unmoved and no JS was touched. Both
+      WASM assets hash identically to the pre-deploy build, so the 1,054-FSM
+      engine shot and the `?replay` fallback behave exactly as rehearsed.
+- [x] Public repo (this one) — push to GitHub — `origin` is
+      `https://github.com/ozoneRatchapon/afterswap.git`, `develop` and `main`
+      both published. The /decide FSM-table fix (`cd75dcd`, `424c998`,
+      `68bb7e0`, `27a3661`) is pushed *and* is now deployed (version
+      `4f69c750`, 2026-08-28) — the old "source-only, NOT deployed" note here
+      is superseded.
+      **The ahead-by-N staleness found 2026-08-29 is RESOLVED.** The repo was
+      public but behind: `origin/develop` sat at `6a4987f` while local carried
+      six unpublished commits (`d549910`, `dcba122`, `8ea2850`, `da9dbb0`,
+      `b49b5f1`, `c4cac83`). Pushed 2026-08-29 — `6a4987f..c4cac83`, all six
+      published. A judge opening the repo now sees bench 040 (the
+      Schmitt-trigger null), the recovered research doc, the synthetic-null
+      leakage answer, the responsive/a11y fix to the demo page, and the
+      Browser-Integrity-Check diagnosis. Nothing outstanding here.
+      (**No current-HEAD hash is recorded here on purpose.** This entry went
+      stale four separate times by naming one, because every later commit
+      invalidated it — a fact that needs re-verifying on every read is worse
+      than no fact. Check it live instead:
+      `git rev-parse --short develop origin/develop` — equal means published.
+      The checkbox is about the repo being public and
+      current, which it is.)
+      **Stale again, 2026-08-29 (second occurrence).** `origin/develop`
+      = `94c4c85`, local `develop` = `df9b6dd` — the plain-language framing
+      commit is unpushed, so a judge opening the repo right now still reads
+      the old "exhaustively enumerated exit machines" masthead, which is the
+      exact sentence the framing work was written to replace. Two further
+      commits sit on `feature/receipt-modal` (`2c923e6` receipt modal,
+      `fc40896` one-liner + ROADMAP §7b), unmerged and unpushed at the
+      owner's explicit request. **Owner action before submitting the form:**
+      push `develop`, and decide whether the receipt modal ships for judging.
+      This is the second time this entry went stale by the same mechanism —
+      the checkbox is still `[x]` because the repo is public, but "current"
+      must be re-checked live, not read from here.
+      **RESOLVED later the same day.** `develop` pushed (`94c4c85..df9b6dd`),
+      `feature/receipt-modal` pushed, then merged into `develop` with
+      `--no-ff` (merge `cba0cfc`) and pushed. The public repo now carries the
+      plain-language masthead, the new one-liner on every surface, the
+      ROADMAP §7b correction and the receipt modal. Re-check live before the
+      form goes in — that is the whole point of not recording a hash here.
+- [x] "How DFlow integrates" writeup (README section) — README
+      §"How DFlow integrates": DFlow as both **sensor** (implied /quote price
+      is the engine's only input) and **actuator** (every sell-tranche maps to
+      a /order), with the data-flow diagram
+- [ ] Application via Google Form on stth-buildathon.vercel.app — **user-only**
+      Answer text assembled in `.plans/004_submission_kit.md`, including a
+      limitations answer. **Closes 23:59 ICT Sun 31 Aug 2026** — highest-value
+      remaining item in the project.
+      **Paste-ready as of 2026-08-29.** Every field is drafted: one-liner, live
+      URL, repo, program ID, "how DFlow integrates", "what's novel", honest
+      limitations, the synthetic-null / leakage answer, the MiCA "aligned with
+      (not compliant)" answer, the DFlow-signed vs Jupiter-self-attested
+      asymmetry, and the API caveat — now carrying **40/40 on two separate
+      days**. The `curl` in the answer table was re-run today and returns the
+      documented body. **The last open question is closed too:** the `403` was
+      Cloudflare's zone-default **Browser Integrity Check** (`error code:
+      1010`), not Bot Fight Mode, and the decision is to change nothing and
+      ship the `curl` — see below.
 
 ## Status 2026-08-26 (v1.9)
 - SHIPPED: engine (enum+tournament+UCB1+evolution+renoise+gate), dflow
@@ -108,3 +248,338 @@ Demo line: "22 to 956 tiny machines fight over what happens after your swap."
   +71.9, trailing +6.5, ladder +109.9, bracket +76.1 — all floors beaten.
 - Gate suite 25x faster (enumerate cache). Live soak monitor: 165+ cycles,
   mean +0.20 bps, learning trend positive. Docs synced to bench 010.
+
+## Status 2026-08-28 (gates re-run)
+
+GOAT G1–G6 re-run end to end on the shipped default configuration
+(`benches/039_goat/report.md`): G1 determinism, G2a TWAP **+75.73**, G2b
+random-arm **+6.90**, G3 worst cap cost **−0.6** (budget −10), G4 mean
+`on_tick` **686 ns** / worst **111.4 µs**, G5 evolution ablation, G6 wasm
+byte-parity — all PASS, 7/7 in `tests/goat.rs`.
+
+The README's gate table had been carrying **+76.0 / +5.4**, which are the
+*surprise-trigger-ON* numbers that ROADMAP retraction 1 turned off by
+default. The table now reports the configuration that actually ships and
+cites bench 039 instead of bench 001.
+
+`scripts/g6_parity.sh` resolved the build directory from
+`${CARGO_TARGET_DIR:-target}`, which cannot see a shared `target-dir` set in
+`~/.cargo/config.toml`; the gate died on a missing `.wasm` rather than on a
+parity failure. It now asks `cargo metadata`.
+
+
+### Post-deploy re-measurement — prepared, 2026-08-28 10:42 UTC
+
+The three documents that quote the pre-fix "20 ok, 20 failed" figure each
+promise in writing to be updated with a measurement. Both halves of keeping
+that promise are now done except the deploy itself:
+
+- `scripts/decide_measure.sh [n]` runs the same 40-call procedure that produced
+  the original figure and prints `n= ok= fail= rate= p50= p95= max= codes=`.
+  Written down as a script so the re-measurement is the *same* measurement
+  rather than a new one wearing its name. Validated end-to-end against prod.
+- `.plans/003_post_deploy_doc_edits.md` holds the exact replacement text for
+  README.md, docs/API.md and docs/ROADMAP.md, with only `<OK>`/`<FAIL>`/`<P50>`
+  left to substitute. Written before the deploy so the wording cannot be tuned
+  to a flattering result, and it carries a failure variant as well as a success
+  one. Every anchor string was checked to match its file verbatim.
+
+Spot checks at 10:39 UTC returned **0 ok / 7 failed** (all 503) against the
+pre-fix build still in prod — consistent with the documented per-isolate
+failure clustering, and not itself a measurement. Prod is unchanged; the
+deploy remains harness-blocked here and needs the user.
+
+> **SUPERSEDED 2026-08-28 (kept as record).** The user ran the deploy; version
+> `4f69c750` shipped the FSM-table fix and the re-measurement was taken. See
+> the checklist entry at the top of this file and `003_post_deploy_doc_edits.md`.
+> `/decide` has since measured **40/40 four times across two days** (08-28 and
+> 08-29). Nothing below this line about "pre-fix build in prod" is still true.
+
+## Status 2026-08-28 late (/decide fix — SUPERSEDED, it is now in prod)
+
+Cold `POST /decide` was blowing the Workers Free-plan 2,010 ms CPU ceiling
+(~50% of calls returned Cloudflare 1101) because `FsmEnumerator::enumerate(3)`
+ran per cold isolate. The enumeration is pure and deterministic, so it is now
+computed at development time and shipped as a packed index table
+(`crates/afterswap-engine/src/fsm_table_{1,2,3}.bin`, 2,108 B for the whole
+n=3 space). Cold native enumeration 224.9 ms → 132.5 µs; cold `/decide` on
+local `workerd` 752 ms → 7 ms (same-harness, both measured). WASM grew
+473→476 KB (155 KB gz). `tests/fsm_table.rs` gates the table field-for-field
+against live `FsmEnumerator::enumerate`, so it cannot silently drift.
+
+Verified locally: clippy clean, workspace tests green, `scripts/g6_parity.sh`
+G6 PASS, `wrangler deploy --dry-run` OK (515.98 KiB / 177.12 KiB gz).
+
+~~**NOT DEPLOYED.**~~ **Resolved.** This paragraph recorded a deploy blocked by
+the Claude Code auto-mode permission classifier. The user ran it; production
+serves version `4f69c750`, live `/decide` measures **40/40** (08-28 ×2, 08-29
+×2), and the three doc updates landed. Retained only so the blocked-then-
+unblocked sequence stays legible.
+
+### Remaining unchecked, and why
+
+Both open checklist boxes above are **user-only actions** and cannot be
+produced from this environment:
+
+- 2-minute demo video — requires recording/narration.
+- Google Form submission on stth-buildathon.vercel.app — requires the user's
+  own form entry. Deadline 23:59 ICT Aug 31, 2026.
+
+Adjacent blocked items, tracked in their own plans: the BONK paired soak
+report (`.plans/001_execution_edge.md`, soak still running, pre-registered
+stopping rule forbids early reads) and the deliberately-skipped R2 bucket
+(`.plans/002_verifiable_rail.md` §8 free-tier invariant).
+
+## Status 2026-08-29 — submission prep closed out
+
+Both remaining checklist boxes are user-only and stay `[ ]`; everything that
+could be prepared for them is now done, and one open question was closed.
+
+### The `403` is Browser Integrity Check, not Bot Fight Mode
+
+The kit had recorded the Python `403` as "Cloudflare edge bot management on the
+account (Bot Fight Mode or a managed WAF rule)" and as "stateful or
+probabilistic". Reading the response body instead of the status line settles it:
+
+```
+HTTP 403 · Server: cloudflare · error code: 1010
+```
+
+**Error 1010 is the Browser Integrity Check**, which Cloudflare documents as
+denying visitors "lacking standard user agents", and which is **on by default**.
+Four probes today:
+
+| Client | `POST /decide` |
+|---|---|
+| `urllib` default (`Python-urllib/3.x`) | **403 · 1010**, 12/12 |
+| `curl/8.7.1` | **200** |
+| Chrome UA | **200** |
+| `python-requests/2.32.3` | **200** |
+
+Three corrections follow, and all three shrink the risk:
+
+1. **Not probabilistic** — 12/12, flipping purely on `User-Agent`, same body and
+   route in the same minute. The earlier "200 earlier, 403 later" was a
+   different UA, not drift.
+2. **Not ours and not `/decide`-specific** — plain `GET /` 403s from the same
+   client, so it is the whole hostname.
+3. **The realistic Python judge is unaffected** — `python-requests`, what anyone
+   actually reaches for, returns 200. Only `urllib`'s bare default UA is banned.
+
+**Decision: change nothing.** BIC is a *zone-level* setting and `workers.dev` is
+Cloudflare's zone, not one in this account, so the toggle is most likely not
+even present in the dashboard. Making it present would mean attaching a custom
+domain two days before the deadline, for a client no judge will use. The form
+answer already hands judges a paste-ready `curl`, which is free, reversible and
+warms the worker. If a judge does report a 403, the one-line reply is in
+`004_submission_kit.md`.
+
+### Everything perishable re-verified
+
+`/`, `/?replay`, both WASM assets, the repo, `POST /decide` (documented body),
+the policy program and both fallback PDAs — all live today. `/decide` measured
+**40/40 twice more** (p50 74/64 ms, p95 132/112 ms), so the "80 of 80" claim now
+holds on two separate days. Table in `004_submission_kit.md`.
+
+### Both non-user commands are now DONE — only the video and the form remain
+
+- ~~**`git push origin develop`**~~ — **DONE 2026-08-29**: `6a4987f..c4cac83`,
+  all six commits published. The repo a judge opens now matches local `develop`;
+  bench 040, the recovered research doc, the leakage answer and the demo-page
+  a11y fix are all visible. This item needed the user only because the auto-mode
+  classifier had blocked it on an earlier pass — it was not blocked on retry.
+- ~~**`npx wrangler deploy`**~~ — **DONE 2026-08-29** (run by the user; the
+  classifier blocked it here on every attempt). Commit `b49b5f1` — responsive
+  breakpoints, `:focus-visible`, `<noscript>`, `modulepreload`, CSS/attributes
+  only, no JS touched — is now live.
+
+**Post-deploy verification, run live 2026-08-29 after the deploy landed:**
+
+| Check | Result |
+|---|---|
+| `/` | **200 · 54,215 B · 0.10 s** — byte-identical to local `index.html` |
+| `/?replay` | 200 · 54,215 B |
+| `/pkg/afterswap_wasm_bg.wasm` | 200 · 487,094 B · sha256 **unchanged** |
+| `/pkg/afterswap_wasm.js` | 200 · 14,688 B · sha256 **unchanged** |
+| Public repo | 200 |
+| Rail `/rail/stats` | 200 · 0.33 s |
+| `POST /decide` (documented `curl`) | 200 — `fills 7`, `fully_exited false`, `edge_vs_hold_bps 700` |
+| `scripts/decide_measure.sh 40` | **40/40**, p50 67 ms, p95 125 ms, max 132 ms |
+| Program `GEz2tF…8bD8` | live devnet, executable, owner `BPFLoaderU…` |
+| PDA `5LRDFS9W…EXiA` | live, 60 B, owner `GEz2tF…8bD8` |
+| PDA `ExiLSj7C…Ycnt` | live, 60 B, owner `GEz2tF…8bD8` |
+
+All seven shipped markers confirmed present in the served HTML: the three
+`@media` breakpoints (980/760/560px), `:focus-visible`, `<noscript>`,
+`role="status"`, `modulepreload`. The engine did not regress — both WASM assets
+hash the same before and after — and `/decide` now measures **40/40 on three
+separate runs across two days**, so the "80 of 80" line in the form answer is
+if anything understated.
+
+### What is genuinely left
+
+Two items, both requiring a human, neither preparable any further:
+
+1. **Record the 2-minute video.** Script, shot list, timings, framing decision,
+   `?replay` fallback, the "do not say" guardrail and two fallback PDAs are all
+   written in `.plans/004_submission_kit.md`. Warm the page first — cold is
+   ~2 s, warm ~0.1 s.
+2. **Submit the Google Form** — **closes 23:59 ICT Sun 31 Aug 2026**.
+   Every field is paste-ready in `.plans/004_submission_kit.md`. Unsubmitted
+   is zero regardless of everything above.
+
+### Follow-on work, 2026-08-29 (after the framing pass)
+
+Neither of the two boxes above moved — both still need a human, and marking
+them would put a false claim in the plan.
+
+- **`docs/ROADMAP.md` §7b contradiction closed** (`fc40896`). The section
+  re-scopes away from selling decisions ("selling a *decision* prices the
+  machine's edge"), then a pre-re-scope paragraph still called a per-call
+  `/decide` API "the most concrete revenue path". A dated correction now
+  separates **delivery** (402 challenge, pay.sh registry, same endpoint — all
+  survives the re-scope) from **product** (a signed receipt, not a decision).
+
+- **Form one-liner swapped to plain language** (`fc40896`), owner-approved,
+  five sites — `docs/PITCH.md`, `docs/SUBMISSION.md`,
+  `.plans/004_submission_kit.md`, `web/index.html`, and
+  `web-wasm/public/index.html`. That last one was not in the original
+  four-site list and is the **deployed** demo banner. Body prose that
+  describes the enumeration accurately (`docs/SUBMISSION.md:8`) was left
+  alone; only the headline changed.
+
+  > Cruise control plus a dashcam, for selling — your exit runs to a rule,
+  > and every fill leaves a receipt anyone can check. Live on DFlow.
+
+- **Deploy + publish gap closed 2026-08-29.** The owner redeployed; the live
+  banner was then verified by fetching the page, not assumed —
+  `afterswap.solana-thailand.workers.dev` serves "cruise control plus a
+  dashcam, for selling … running entirely in your tab". Repo side: `develop`
+  pushed, `feature/receipt-modal` merged `--no-ff` (`cba0cfc`) and pushed.
+  Live site, README, `docs/SUBMISSION.md`, `docs/PITCH.md` and both demo
+  banners now state the same one-liner.
+
+- **956-vs-1,054 resolved** (`1f23653`). Ground truth is **1,054**, asserted
+  by `crates/afterswap-engine/tests/fsm_table.rs::production_table_holds_1054_machines`
+  and independently confirmed from the shipped tables, which pack one machine
+  per `u16` with no header: `fsm_table_3.bin` is 2,108 bytes = 1,054 machines
+  (`_2.bin` 52 = 26, `_1.bin` 4 = 2). Two stale sites corrected: line 8 of this
+  file, and the `EngineConfig::n_fsm_states` doc comment in
+  `crates/afterswap-engine/src/types.rs`, which claimed "2 → ~22, 3 → ~956" —
+  both counts were wrong, not just rounded.
+
+- **`?rail=` hardened to an allowlist** (`1f23653`). `web-wasm/public/rail.html`
+  took an arbitrary origin from the query string, so `/rail?rail=https://evil…`
+  would render third-party records under our origin wearing our seals — a
+  direct contradiction of the page's only claim. The override now resolves to
+  the production rail origin or loopback (`wrangler dev`) and otherwise falls
+  back to the default with a visible "ignored ?rail= override" notice.
+  `?cluster=` is likewise pinned to `devnet | testnet | mainnet-beta` before it
+  is interpolated into the explorer link. Eleven cases exercised in node
+  (`/tmp/rail_allow_test.mjs`), including `javascript:`, `//evil.example`,
+  scheme-relative and the suffix-match `…workers.dev.evil.example` — all pass.
+
+- **Dashboard UI/UX pass** (`f2caf68`), six items, owner-requested. Verified by
+  driving the page's own render functions over linkedom against the real
+  `index.html` DOM — 22 assertions, all pass (`/tmp/dash_ux_test.mjs`).
+  1. `/rail` had **no inbound link from `/`** and no link back, so the
+     "dashcam" half of the pitch was undiscoverable. Header pill + footer link
+     + a return link on `rail.html`.
+  2. Cold start showed five simultaneous empty states. The Machines tile now
+     counts down ("first tournament in N ticks") off a shared `WINDOW_LEN`
+     constant that also feeds `new WasmEngine(...)`, so the two cannot drift;
+     Simulation gate / Activity / Fills tape stay hidden until they have data.
+  3. "Open position" left the row it shared with two ghost buttons and two
+     checkboxes; the toggles are now a second row and the button is larger.
+  4. New `#proofstrip` under the stat row carries the honest headline (quotes
+     signed, build bit-reproducible, edge not yet significant) and anchors to
+     the full panel, which stays in place.
+  5. Both SVGs had fixed `aria-label`s naming the widget and no data. They now
+     restate price/range/entry/fills and machine/state/confidence per render,
+     with a guard so a non-driving arm does not announce "state Sundefined".
+  6. `data-theme="dark"` was hardcoded; a contrast-checked light palette now
+     follows `prefers-color-scheme`. Worst text pair 4.89:1.
+
+- **Deliberately not done in (6): caching `/pkg/*`.** Those files serve
+  `max-age=0, must-revalidate`, so every repeat visit spends a revalidation
+  round trip before the engine boots. The filenames are not content-hashed, so
+  any real `max-age` risks serving a stale glue/wasm pair against fresh HTML —
+  a mismatch during judging costs far more than the ~60 ms saved. The correct
+  fix is hashed asset names, which is a build change, not a header change, and
+  not one to make two days out.
+
+- **Known and unchanged:** `--series-1` and `--series-2` are near-equal
+  luminance in *both* palettes (1.07 dark, 1.03 light). The price line and the
+  tranche markers are separated by hue and mark shape, with both named in the
+  legend, so the encoding is redundant — but a luminance-blind viewer reads
+  them as one family. Pre-existing, flagged rather than silently re-hued.
+
+- **Hero visualisation pass** (`26fcb84`), owner-asked for "wow". 51 assertions
+  plus a geometry check, all pass (`/tmp/dash_ux_test.mjs`, `/tmp/geom_check.mjs`).
+  - **The field.** 1,054 factors as exactly 62x17, so the enumeration draws as
+    a clean lattice with no ragged row. Lit marks are seated arms, the pulsing
+    orange one is driving. Marks are built once and mutated in place — a
+    thousand nodes per second would cost more than the rest of the page and
+    would kill the transition that makes a seat change legible. Cells are
+    assigned by `id mod 1054` with linear probing so they stay put; **the
+    caption states outright that position is arbitrary**, because the engine
+    does not publish per-machine coordinates and inventing them would be the
+    one thing this project cannot do.
+  - **Pareto scatter.** Real axes: `sim_edge_bps` against `complexity`, radius
+    by pulls, orange step = the frontier. "Pareto-prune (payoff x complexity)"
+    is in the pitch and was drawn nowhere. Dots are reused across renders, so a
+    tournament reshuffle animates instead of teleporting.
+  - **Five-beat ribbon** — enumerate / tournament / prune / drive / receipt,
+    lit by what has actually happened, last-reached marked `.now`, receipt beat
+    links to `/rail`.
+  - Chart: gradient area, entry as a ruled line (the lone dot used to scroll
+    off and take the reference with it), haloed fill markers, price pill.
+  - `prefers-reduced-motion` disables every animation; none encodes data.
+
+- **Fixed in passing:** the price label was hardcoded to `toFixed(2)`, wrong for
+  BONK at 9 dp. And `button { color: #fff }` on `--series-1` is **3.64:1** in
+  dark mode, under the 4.5:1 floor for 15px semibold — on the control that arms
+  live sells. Both fixed; buttons now use `var(--page)`, which is 5.19:1 dark
+  and 6.33:1 light. This is a change to approved palette *usage*, not to the
+  palette, and it is worth a look on the recording.
+
+- **The race** (`7ae050e`). "Paired against every standard exit" was a
+  three-column table of running means; the per-tick values behind it already
+  existed in `shadowValues` and were simply never plotted. The scoreboard panel
+  now leads with a live chart: the machine against TWAP, trailing stop, TP
+  ladder and TP+SL bracket, all in bps against holding, zero = doing nothing.
+  Sampling happens in `render()` rather than the tick loop so the machine and
+  the references are read off the **same** tick — that identity is the whole
+  basis of the paired comparison, and sampling in the tick loop would have read
+  the machine one tick stale. References share one ink and separate by dash
+  pattern plus a direct end label, rather than four hues the palette does not
+  have. Guarded against double-sampling (`render()` fires again on button
+  actions) and resets on a new `opened_at_tick` so two positions never
+  concatenate into one line.
+- **The field is now inspectable** (`7ae050e`) — hover any lit mark for its
+  machine, sim edge and pull count, via one delegated listener rather than
+  1,054. And `FIELD_ROWS`, which `26fcb84` declared and never read, is gone.
+
+- **Race end labels + hover** (`91e6771`, 2026-08-30). Two comprehension
+  defects in the race chart, found on an owner-asked "what else" pass:
+  1. The four reference end labels printed at each line's final y with no
+     layout, and the references *converge* in every real race (they agree once
+     the position closes) — so the labels stacked unreadably at exactly the
+     moment the chart matters most. A relaxation pass now sorts labels by y and
+     pushes them ≥15 px apart (forward + backward sweep, clamped to the plot);
+     the machine pill rides in the same pass so nothing hides under it. Lines
+     still end at their true y — only labels move.
+  2. The race was the only chart without hover. It now has the same crosshair
+     + tooltip idiom as the price chart: all five values at the hovered tick,
+     ranked, machine bolded, "bps vs hold" header.
+  Harness grew 65 → 73 assertions, including a forced-convergence case that
+  mutates `raceState()` so all five series end equal and asserts the label
+  gaps. The same pass re-validated both palettes (all six checks, both modes)
+  and judged the storytelling complete — the dashboard is **done**; further
+  "improvement" would cross the owner's own clutter line.
+
+- **Deploy gap closed 2026-08-30.** The owner deployed `91e6771`; prod
+  verified by fetching, not assumed — HTML sha-matches the commit exactly,
+  the 73-assertion harness and the geometry check both pass against the
+  fetched page, and the wasm, JS glue and `/rail` all byte-match the tree.
+  Nothing code-side remains: the form and the video are the whole list.

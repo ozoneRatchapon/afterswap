@@ -37,12 +37,11 @@ fn corpora() -> Vec<(String, Vec<f64>)> {
         .unwrap_or_default();
     recs.sort();
     for path in recs {
-        if let Ok(real) = load_corpus(&path) {
-            if real.len() >= 100 {
+        if let Ok(real) = load_corpus(&path)
+            && real.len() >= 100 {
                 let name = path.rsplit('/').next().unwrap_or("rec").trim_end_matches(".jsonl");
                 out.push((format!("dflow_{name}"), real));
             }
-        }
     }
     out
 }

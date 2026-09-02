@@ -49,12 +49,11 @@ fn main() {
         .unwrap_or_default();
     recs.sort();
     for path in recs {
-        if let Ok(real) = load_corpus(&path) {
-            if real.len() >= 100 {
+        if let Ok(real) = load_corpus(&path)
+            && real.len() >= 100 {
                 let name = path.rsplit('/').next().unwrap_or("rec").trim_end_matches(".jsonl");
                 corpora.push((format!("dflow_{name}"), real));
             }
-        }
     }
 
     let mut md = String::from("# GOAT report — AfterSwap exit engine\n\n");

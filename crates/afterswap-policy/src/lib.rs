@@ -1,101 +1,105 @@
-//! AfterSwap exit-policy registry (Pinocchio build).
+//! AfterSwap exit-policy registry + delegated-execution gate (Pinocchio).
 //!
-//! One instruction: `CommitPolicy` — create an immutable PDA recording
-//! which exit machine (blake3-64 fingerprint) governs a position, before
-//! any fill follows it. Anyone can later audit every DFlow fill against
-//! the committed policy. Phase B (delegated execution) builds on this.
+//! Seven instructions:
+//!   tag 0 `CommitPolicy`       — immutable PDA recording which exit machine
+//!                                (blake3-64 fingerprint) governs a position,
+//!                                before any fill follows it. The rulebook.
+//!   tag 1 `AuthorizeExecution` — owner authorizes a crank pubkey (a PDA —
+//!                                the account that signs each sell) for a
+//!                                time-bounded window. Phase B step 1.
+//!   tag 3 `RevokeAuthorization` — owner alone clears the authorized crank.
+//!                                Idempotent. Phase B step 1.
+//!   tag 4 `DepositToVault`     — owner locks tokens into a program PDA
+//!                                vault (the source of every sell). Idempotent
+//!                                top-up on subsequent calls. Phase B step 2.
+//!   tag 2 `ValidateAndSell`    — the gate: validates against the committed
+//!                                policy + authorization, then moves tokens
+//!                                from the vault to the destination ATA via
+//!                                `TransferChecked` signed by the vault PDA.
+//!                                Phase B step 2 (the critical path).
+//!   tag 5 `CloseVault`         — owner reclaims remaining vault tokens to
+//!                                their ATA. Idempotent no-op when empty.
+//!                                Phase B step 2.
+//!   tag 6 `AnchorFill`         — publishes the fill as an SPL memo, the
+//!                                sell-side counterpart of the shipped
+//!                                `afterswap:quote` commit-side memo. Moves
+//!                                no tokens, writes no account state; every
+//!                                field but the quote digest is read from the
+//!                                policy and execution PDAs. Phase B step 3.
+
+//! Phase B step 2 design (vault-sourced):
+//!   The owner deposits the position into a program PDA vault (tag 4).
+//!   The vault PDA signs every `TransferChecked` (tag 2) — the cranker is
+//!   a signer/fee-payer who never holds the vault's signing authority. The
+//!   authorized-crank check (tag 1) gates which crankers may trigger sells;
+//!   the crank picks *when* and *how much* (within the committed tranche
+//!   budget) but never *where* — the payout account is bound at
+//!   authorization time (`execution.settlement_ata`) and tag 2 rejects any
+//!   other destination. An earlier version of this note said the cranker
+//!   "can never move funds on their own", which the code did not support:
+//!   the destination was unchecked, so an authorized crank could name its
+//!   own ATA.
+//!   The owner reclaims remaining tokens via `CloseVault` (tag 5).
+//!   This **does take custody** between deposit and sell: the tokens sit in
+//!   a PDA-owned ATA, and the SPL Token program offers the owner no
+//!   unilateral exit from it. `CloseVault` is that exit — owner-only, needs
+//!   no cooperation from the crank or the Worker, always available — but
+//!   "non-custodial" is not a claim this design may make. The alternative
+//!   that would earn it (a program PDA as SPL delegate on the owner's *own*
+//!   ATA) is open and unbuilt; see `docs/PHASE_B_DELEGATED_EXECUTION.md` §8.
 //!
-//! PDA: seeds = ["policy", owner, position_id_le], owned by this program.
-//! Immutability is the point: commits cannot be overwritten or resized.
+//! `ValidateAndSell` IS implemented (an earlier version of this header said
+//! it was not, and that "nothing in this program can move tokens" — both
+//! false since Phase B step 2). Tokens move only through tags 2, 4 and 5.
+//! Authorization is revocable by the owner alone at any time; a revoked
+//! crank can never sell.
+//!
+//! PDAs: seeds = ["policy", owner, position_id_le]
+//!           ["execution", owner, position_id_le], both owned by this program.
+//! Immutability of the rulebook is the point: policy commits cannot be
+//! overwritten or resized. The `execution` PDA is the only mutable state
+//! (the gate's progress); the `vault` PDA holds the funds and signs for them.
 //! Byte layout and instruction interface identical to the original
 //! solana-program build — the LiteSVM tests are framework-agnostic.
+//!
+//! Layout constants live in `types`; each instruction's handler lives in the
+//! module named after the account it governs. This file is the entrypoint and
+//! the tag dispatch, nothing else.
 
-use pinocchio::{
-    account_info::AccountInfo,
-    instruction::{Seed, Signer},
-    program_error::ProgramError,
-    pubkey::{self, Pubkey},
-    sysvars::{clock::Clock, rent::Rent, Sysvar},
-    ProgramResult,
-};
-use pinocchio_system::instructions::CreateAccount;
+mod execution;
+mod memo;
+mod policy;
+mod sell;
+mod token;
+mod types;
+mod vault;
 
-#[cfg(target_os = "solana")]
+pub use types::*;
+
+use execution::{authorize_execution, revoke_authorization};
+use memo::anchor_fill;
+use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult};
+use policy::commit_policy;
+use sell::validate_and_sell;
+use vault::{close_vault, deposit_to_vault};
+
 pinocchio::program_entrypoint!(process_instruction);
-
-/// PDA seed prefix.
-pub const POLICY_SEED: &[u8] = b"policy";
-
-/// Committed policy account layout (fixed size, no realloc ever):
-/// owner(32) + position_id(8) + fingerprint(8) + n_states(1) +
-/// tranche_bps(2) + committed_at_unix(8) + bump(1)
-pub const POLICY_LEN: usize = 32 + 8 + 8 + 1 + 2 + 8 + 1;
-
-/// Instruction data: tag(1=0) + position_id u64 LE + fingerprint u64 LE +
-/// n_states u8 + tranche_bps u16 LE
-pub const IX_COMMIT_POLICY: u8 = 0;
-pub const COMMIT_IX_LEN: usize = 1 + 8 + 8 + 1 + 2;
 
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     data: &[u8],
 ) -> ProgramResult {
-    if data.len() != COMMIT_IX_LEN || data[0] != IX_COMMIT_POLICY {
-        return Err(ProgramError::InvalidInstructionData);
+    match data.first().copied() {
+        Some(IX_COMMIT_POLICY) => commit_policy(program_id, accounts, data),
+        Some(IX_AUTHORIZE_EXECUTION) => authorize_execution(program_id, accounts, data),
+        Some(IX_REVOKE_AUTHORIZATION) => revoke_authorization(program_id, accounts, data),
+        Some(IX_DEPOSIT_TO_VAULT) => deposit_to_vault(program_id, accounts, data),
+        Some(IX_CLOSE_VAULT) => close_vault(program_id, accounts, data),
+        Some(IX_VALIDATE_SELL) => validate_and_sell(program_id, accounts, data),
+        Some(IX_ANCHOR_FILL) => anchor_fill(program_id, accounts, data),
+        // tag 4 is `DepositToVault`; tag 5 is `CloseVault`. `AnchorFill`
+        // took tag 6 because 4 and 5 were already spent by the vault path.
+        Some(_) | None => Err(ProgramError::InvalidInstructionData),
     }
-    let position_id_le: [u8; 8] = data[1..9].try_into().unwrap();
-    let fingerprint: [u8; 8] = data[9..17].try_into().unwrap();
-    let n_states = data[17];
-    let tranche_bps = u16::from_le_bytes(data[18..20].try_into().unwrap());
-    if n_states == 0 || n_states > 4 || tranche_bps == 0 || tranche_bps > 10_000 {
-        return Err(ProgramError::InvalidInstructionData);
-    }
-
-    let [owner, policy, _system] = accounts else {
-        return Err(ProgramError::NotEnoughAccountKeys);
-    };
-    if !owner.is_signer() {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    let (expected, bump) = pubkey::find_program_address(
-        &[POLICY_SEED, owner.key().as_ref(), &position_id_le],
-        program_id,
-    );
-    if &expected != policy.key() {
-        return Err(ProgramError::InvalidSeeds);
-    }
-    // Immutable: a policy for this (owner, position) may only exist once.
-    if policy.lamports() > 0 || policy.data_len() > 0 {
-        return Err(ProgramError::AccountAlreadyInitialized);
-    }
-
-    let rent = Rent::get()?.minimum_balance(POLICY_LEN);
-    let bump_arr = [bump];
-    let seeds = [
-        Seed::from(POLICY_SEED),
-        Seed::from(owner.key().as_ref()),
-        Seed::from(position_id_le.as_ref()),
-        Seed::from(bump_arr.as_ref()),
-    ];
-    CreateAccount {
-        from: owner,
-        to: policy,
-        lamports: rent,
-        space: POLICY_LEN as u64,
-        owner: program_id,
-    }
-    .invoke_signed(&[Signer::from(&seeds[..])])?;
-
-    let now = Clock::get()?.unix_timestamp;
-    let mut out = policy.try_borrow_mut_data()?;
-    out[0..32].copy_from_slice(owner.key().as_ref());
-    out[32..40].copy_from_slice(&position_id_le);
-    out[40..48].copy_from_slice(&fingerprint);
-    out[48] = n_states;
-    out[49..51].copy_from_slice(&tranche_bps.to_le_bytes());
-    out[51..59].copy_from_slice(&now.to_le_bytes());
-    out[59] = bump;
-    Ok(())
 }

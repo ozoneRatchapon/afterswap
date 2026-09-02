@@ -62,16 +62,41 @@ volatile tokens, measured against trailing stops out-of-sample.
       establishes is: no DFlow-only signal helps *by more than ~22 bps*, which
       is a weak statement. The harness now prints that column so the weakness
       is visible rather than implied.
-- [ ] **Re-run again at ~5,000 ticks** (MDE would fall to roughly 11 bps), then
-      decide whether to thread depth through the engine or record the null
-- [ ] **Still gated on that re-run — only if the 3-bit protocol wins:** thread depth through
-      `WindowStore` → `on_tick` → `evaluate_matrix` behind `depth_bit: bool`
-      (default off), then re-run GOAT + wasm parity
-- [ ] **A/B on a frozen corpus** (move the recording out of `data/incoming/`
-      only when the recorder is stopped — see the corpus-freeze rule in
-      ROADMAP 7e)
-- [ ] **Ship or revert with a recorded reason**; update README claim table
-- [ ] Re-run GOAT gates + wasm parity (G1–G6) before any deploy
+- [—] **Re-run again at ~5,000 ticks** — **CLOSED, not executed.** The corpus
+      is 1,207 ticks and the recorder stopped 2026-08-27 19:06. Reaching 5,000
+      means restarting it for ~13 more hours on a track already closed for
+      arithmetic, not for measurement (−13.2 bps net). Collecting more data
+      *after* seeing an unfavourable result, in the hope the next look reads
+      differently, is exactly the optional-stopping pattern commit `5b3eedd`
+      pre-registered this project against. The null stands as recorded.
+- [—] **Thread depth through the engine** — **CLOSED, not taken.** It was
+      gated on the 3-bit protocol winning and it did not: bench 029 put depth
+      at +9.2 ± 10.5 against the 2-bit control's +8.7 ± 8.0. No engine change
+      was made; `sim::replay_exit_with_bit` stays a harness-only path, so the
+      shipping engine never carried the feature and needs no revert.
+- [x] **A/B on a frozen corpus** — ran against a stationary file: the recorder
+      was already stopped when benches 029 and 038 read
+      `data/incoming/bonk_depth.jsonl`, and it has not changed since.
+      **The file deliberately stays in `data/incoming/`.** GOAT's `corpora()`
+      does a non-recursive `read_dir("../../data")`, so promoting it would add
+      a seventh corpus and silently move every documented GOAT and bench
+      number in the repo — the precise failure ROADMAP 7e's freeze rule was
+      written after. Freezing means "not changing under an experiment", not
+      "moved into the scanned set"; for a closed track the move buys nothing
+      and costs the comparability of every prior bench.
+- [x] **Ship or revert with a recorded reason**; update README claim table —
+      **reverted**, reason in README §"What we stopped doing, and why" (the
+      27 bps depth spread against 40.2 bps of unavoidable cost) and in this
+      plan's header. Claim table refreshed 2026-08-28 to bench 039.
+- [x] Re-run GOAT gates + wasm parity (G1–G6) before any deploy — **all PASS**
+      on 2026-08-28, `benches/039_goat/report.md`: G1 determinism, G2a TWAP
+      +75.73, G2b random-arm +6.90, G3 worst cap cost −0.6 (budget −10), G4
+      686 ns mean / 111.4 µs worst, G5 evolution ablation, G6 wasm
+      byte-parity; 7/7 in `tests/goat.rs`. Two things fell out: the README
+      gate table had been quoting the *surprise-trigger-ON* numbers that
+      ROADMAP retraction 1 turned off by default, and `scripts/g6_parity.sh`
+      could not find the `.wasm` when the target dir comes from
+      `~/.cargo/config.toml` rather than `$CARGO_TARGET_DIR`.
 
 ## Running in parallel while the recorder fills
 
@@ -81,7 +106,166 @@ volatile tokens, measured against trailing stops out-of-sample.
 - [x] **Live soak moved to BONK** with paired evaluation
       (`--pair bonk --paired`), so the live evidence is gathered in the market
       the claim is about rather than the one it is not.
-- [ ] Report the BONK paired soak once it has enough cycles for a t-value.
+- [x] Report the BONK paired soak once it has enough cycles for a t-value.
+      **RESULT: null. Reported below — `reports/bonk_soak.txt`.**
+      **Pre-registration, written 2026-08-28 before a single cycle was
+      collected** (the live evidence in `docs/SOAK.md` is SOL/USDC only, so
+      the market the +34 ± 10 claim is about has never been soaked):
+      - Primary endpoint: **mean `vs_trailing_bps` per completed cycle**, with
+        its standard error and t. Chosen because bench 018's BONK claim is
+        against trailing stops.
+      - Secondary, reported but not interpreted as findings: vs hold, TWAP,
+        ladder, bracket.
+      - Stopping rule: **stop at 300 completed cycles or at 4,500 ticks,
+        whichever comes first** — fixed now, not revisited after looking. If
+        the run is cut short, report the cycle count reached and treat the
+        result as underpowered rather than re-launching for more.
+      - Paper mode, live BONK/USDC quotes, zero capital.
+
+      **Harness defect and restart, 2026-08-28 08:51 UTC — disclosed.** The
+      first launch (PID 22851, 07:02 UTC) reached tick 3,146 having recorded
+      exactly **one** cycle. Cause: the CLI paper loop latched `opened` on the
+      first position and never cleared it, so the position closed at tick 44
+      and the process idled for the remaining ticks. `--paired` had therefore
+      never been capable of producing the pre-registered sample; the dashboard's
+      learn-forever reopen was never wired into the CLI. Fixed in `0415e44`
+      with a regression test (`tests/paired_soak_cycles.rs`, verified to fail
+      without the fix: 1 cycle in 1,200 ticks, and 58 cycles in 1,500 with it).
+
+      This restart is **not** the "cut short → re-launch for more" the stopping
+      rule forbids: the first run did not collect an underpowered sample, it
+      collected no sample, because the instrument did not implement the design.
+      The stopping rule is unchanged (300 cycles or 4,500 ticks, whichever
+      first). **Bias vector disclosed:** that single cycle was visible before
+      the restart and was favourable (+0.61 bps vs trailing). It is therefore
+      **discarded, not merged** — the new run starts from an empty file
+      (the broken output is archived outside the repo at
+      `/tmp/bonk_soak_paired.BROKEN_1cycle.jsonl`). Restarted as PID 25782.
+
+      **Analysis-script amendment, 2026-08-28 10:28 UTC — disclosed, made
+      while blind to the data.** Auditing `scripts/soak_report.sh` before the
+      run finished (soak at tick ~2823/4500; the paired file was NOT read —
+      not a row, not a summary) turned up two arithmetic faults. Both are
+      corrections, not design changes: the primary endpoint, the secondary
+      list, the reported order and the stopping rule are all untouched.
+
+      1. **MDE was wrong by 40%.** The script computed `1.96 * se * 2`
+         (3.92·SE) and labelled it the minimum detectable effect at 80% power.
+         The correct quantity — and this repo's own audited definition, in
+         `crates/afterswap-engine/src/power.rs::mde_from_se` — is
+         `(z_α + z_power)·SE` = 2.8016·SE. The script had been contradicting
+         the crate it is meant to report on. That module exists precisely
+         because this project already shipped two ~9%-power experiments, so an
+         inflated MDE here is a repeat of the exact failure it was written to
+         prevent. On a worked example the reported MDE drops 4.5 → 3.2 bps.
+      2. **Significance assumed n was large.** The verdict used a hardcoded
+         normal cutoff of 1.96, justified in-comment by "n here is large
+         enough" — an assertion about n written before n was known, and wrong
+         if the 4,500-tick cap binds before 300 cycles. It now computes the
+         exact two-sided Student-t p-value on n−1 df (regularized incomplete
+         beta, Lentz continued fraction), verified against published critical
+         values at df = 10, 20, 49, 86, 1000 and the normal limit — all
+         return p = 0.05000. The report now prints p alongside t.
+
+      Also hardened: the script fails with a named-field error instead of a
+      `KeyError` traceback if the paired schema drifts from
+      `afterswap-server::shadow::PairedResult`, and it states explicitly that
+      the secondary rows are uncorrected for multiplicity.
+
+      The duplication that allowed fault 1 to persist — a shell script
+      re-declaring constants the crate already owns — is now covered by
+      `tests/power.rs::soak_report_script_agrees_with_power_module`, which
+      asserts the script carries both z constants at full precision, applies
+      them in the `(Z_ALPHA + Z_POWER80) * se` shape, and has not
+      reintroduced the 3.92·SE form. Mutation-tested: reverting the live line
+      to the old formula makes it fail, restoring it makes it pass.
+
+      **Amendment 3, 2026-08-28 10:34 UTC — disclosed, still blind.** The
+      schema-drift error named a struct `PairedCycle` that has never existed;
+      the emitted type is `shadow::PairedResult`. Message text only — no
+      arithmetic, endpoint, field order or stopping rule touched. The wider
+      point is that the one message whose job is to explain a schema break was
+      itself wrong about the schema, so both the field names and the type name
+      are now pinned by
+      `tests/power.rs::soak_report_script_matches_paired_result_schema`
+      (mutation-tested).
+
+      **Report harness ready, 2026-08-28 10:37 UTC.** The report must not
+      depend on a human typing it at the one moment it becomes permissible, so
+      `scripts/soak_watch.sh <pid>` blocks on `kill -0` until the soak process
+      exits and then runs the pre-registered report exactly once, writing it to
+      `reports/bonk_soak.txt`. Verified end-to-end against a dummy process (it
+      really waits) and against the unrelated 539-cycle `exploratory_539.jsonl`
+      fixture (the report renders); the empty-file path exits 1. The BONK
+      paired file itself is still unread — not a row, not a summary.
+
+      **Exception to that claim, logged 2026-08-28 while the run was still
+      live.** Near the end of the run a `wc -l` on the paired file revealed its
+      **cycle count** (245 at the time). No outcome data was exposed — a line
+      count carries no `vs_trailing_bps` — and the stopping rule is enforced by
+      the soak process itself, not by the observer, so it could not have
+      induced optional stopping. It is recorded because a blind-analysis claim
+      that silently omits its own exceptions is worth nothing. The stronger
+      claim above ("not a row, not a summary") should be read as holding for
+      the file's *contents*, with the row count as the logged exception.
+
+      ---
+
+      **RESULT — 2026-08-28 11:21 UTC. The pre-registered soak is a null.**
+
+      The run stopped on the **4,500-tick arm** of the stopping rule, not the
+      300-cycle arm: 253 completed cycles over 4,461 ticks accounted for in
+      paired cycles (median 10 ticks/cycle; the ~39-tick remainder is the
+      trailing cycle that never closed, so it is not a paired result). This is
+      the branch amendment 2 was written for — with 252 df the exact Student-t
+      barely differs from the normal, but the cutoff was no longer an
+      assumption. Integrity checked before reading any values: 253 rows, 0
+      malformed, field set matches `shadow::PairedResult`.
+
+      ```
+      endpoint                      mean       SE       t         p   win rate
+      PRIMARY  vs trailing         -0.02     0.45   -0.05    0.9566  145/253
+               vs hold             -0.11     0.37   -0.29    0.7709  144/253
+               vs TWAP             -0.10     0.41   -0.25    0.8017  144/253
+               vs ladder           -0.49     0.37   -1.32    0.1884  142/253
+               vs bracket          -0.54     0.44   -1.21    0.2293  143/253
+      ```
+
+      **Primary endpoint: -0.02 bps (SE 0.45, t -0.05, p 0.9566, 252 df) — not
+      significant.** MDE at 80% power is **1.3 bps**.
+
+      **This is not an underpowered shrug — it is a decisive non-replication.**
+      Bench 018 measured BONK at **+34 ± 10 bps vs trailing**, and that number
+      is the entire reason the demo pair switcher and this soak exist. The
+      soak's 95% CI on the same endpoint is roughly **[-0.90, +0.86] bps**.
+      A +34 bps effect sits about **76 standard errors** outside it, and the
+      run was powered to see something **26x smaller** than the claim. Whatever
+      bench 018 measured, the live paired soak does not find it.
+
+      **The honest limit on that statement:** this is not a like-for-like
+      replication. Bench 018 was a backtest over a frozen recorded corpus;
+      this is a live paper soak on streaming BONK/USDC quotes, different
+      window, different period. So the correct reading is not "bench 018 is
+      arithmetically wrong" — it is that **the effect does not survive out of
+      the sample it was found in**, which is precisely what selection looks
+      like. That was already the README's stated interpretation (Romano–Wolf,
+      zero survivors across 1,054 machines on 11 assets, BONK read as
+      selection); this soak is the first *direct live* evidence for it rather
+      than an inference from the multiplicity correction.
+
+      **No secondary row is a finding.** All five point negative, none is
+      significant, and they are uncorrected for multiplicity — reported for
+      completeness only, exactly as pre-registered. The two nominally largest
+      (ladder -0.49, bracket -0.54) are the ones a fishing expedition would
+      seize on; they are not claims.
+
+      **Stopping rule honoured.** No extension was launched after seeing this.
+      The rule said report the count reached and treat it as what it is; the
+      result is reported as-is.
+
+      Command, to run the moment PID 25782 exits (or now, since it blocks):
+
+          bash scripts/soak_watch.sh 25782
 
 ## Adjacent results while the recorder fills
 
@@ -90,7 +274,11 @@ volatile tokens, measured against trailing stops out-of-sample.
 - [x] **Venue capture** added to the recorder: every quote already carries
       `routePlan[].venue` and hop count, so route churn is a free
       thin-liquidity signal alongside the size-spread one.
-- [ ] Depth A/B once the recording has ≥ 6 windows (see checklist above).
+- [x] Depth A/B once the recording has ≥ 6 windows — done twice: bench 022
+      (4/4 windows, preliminary) and bench 029 (12 train / 8 test, 1,207
+      ticks). Bench 038 later reused the same recording for a different
+      question and found the depth reading *is* worth 34.6% CUPED variance
+      reduction at lag 1 — as a control variate, not as an exit signal.
 
 ## Rules this plan inherits
 

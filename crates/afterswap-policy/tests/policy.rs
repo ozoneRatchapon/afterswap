@@ -59,8 +59,24 @@ fn setup() -> (LiteSVM, Pubkey, Keypair) {
     let program_id = Pubkey::new_unique();
     svm.add_program(program_id, &program_so());
     let owner = Keypair::new();
-    svm.airdrop(&owner.pubkey(), 1_000_000_000).expect("airdrop");
+    svm.airdrop(&owner.pubkey(), 1_000_000_000)
+        .expect("airdrop");
     (svm, program_id, owner)
+}
+
+fn send(svm: &mut LiteSVM, owner: &Keypair, ix: &Instruction) -> Result<(), String> {
+    let tx = Transaction::new_signed_with_payer(
+        &[(*ix).clone()],
+        Some(&owner.pubkey()),
+        &[owner],
+        svm.latest_blockhash(),
+    );
+    match svm.send_transaction(tx) {
+        Ok(_) => Ok(()),
+        // `meta.logs` carries the program's `msg!` / panic-handler output —
+        // include it so a failed assert shows *where* the program stopped.
+        Err(e) => Err(format!("err={:?} logs={:?}", e.err, e.meta.logs)),
+    }
 }
 
 #[test]
@@ -69,38 +85,50 @@ fn commit_writes_immutable_policy() {
     let position_id = 42u64;
     let fingerprint = 0x165e_f4aa_bbcc_ddee_u64;
     let (policy, bump) = Pubkey::find_program_address(
-        &[POLICY_SEED, owner.pubkey().as_ref(), &position_id.to_le_bytes()],
+        &[
+            POLICY_SEED,
+            owner.pubkey().as_ref(),
+            &position_id.to_le_bytes(),
+        ],
         &program_id,
     );
 
-    let ix = commit_ix(program_id, owner.pubkey(), policy, position_id, fingerprint, 3, 1000);
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&owner.pubkey()),
-        &[&owner],
-        svm.latest_blockhash(),
+    let ix = commit_ix(
+        program_id,
+        owner.pubkey(),
+        policy,
+        position_id,
+        fingerprint,
+        3,
+        1000,
     );
-    svm.send_transaction(tx).expect("commit succeeds");
+    send(&mut svm, &owner, &ix).expect("commit succeeds");
 
     let acct = svm.get_account(&policy).expect("policy exists");
     assert_eq!(acct.owner, program_id);
     assert_eq!(acct.data.len(), POLICY_LEN);
     assert_eq!(&acct.data[0..32], owner.pubkey().as_ref());
-    assert_eq!(u64::from_le_bytes(acct.data[32..40].try_into().unwrap()), position_id);
-    assert_eq!(u64::from_le_bytes(acct.data[40..48].try_into().unwrap()), fingerprint);
+    assert_eq!(
+        u64::from_le_bytes(acct.data[32..40].try_into().unwrap()),
+        position_id
+    );
+    assert_eq!(
+        u64::from_le_bytes(acct.data[40..48].try_into().unwrap()),
+        fingerprint
+    );
     assert_eq!(acct.data[48], 3);
-    assert_eq!(u16::from_le_bytes(acct.data[49..51].try_into().unwrap()), 1000);
+    assert_eq!(
+        u16::from_le_bytes(acct.data[49..51].try_into().unwrap()),
+        1000
+    );
     assert_eq!(acct.data[59], bump);
 
     // Immutability: same (owner, position) cannot commit twice.
     let ix2 = commit_ix(program_id, owner.pubkey(), policy, position_id, 999, 2, 500);
-    let tx2 = Transaction::new_signed_with_payer(
-        &[ix2],
-        Some(&owner.pubkey()),
-        &[&owner],
-        svm.latest_blockhash(),
+    assert!(
+        send(&mut svm, &owner, &ix2).is_err(),
+        "double commit must fail"
     );
-    assert!(svm.send_transaction(tx2).is_err(), "double commit must fail");
 }
 
 #[test]
@@ -109,13 +137,7 @@ fn rejects_wrong_pda_and_bad_params() {
     // Wrong PDA (random account) must be rejected.
     let bogus = Pubkey::new_unique();
     let ix = commit_ix(program_id, owner.pubkey(), bogus, 7, 1, 3, 1000);
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&owner.pubkey()),
-        &[&owner],
-        svm.latest_blockhash(),
-    );
-    assert!(svm.send_transaction(tx).is_err(), "wrong PDA must fail");
+    assert!(send(&mut svm, &owner, &ix).is_err(), "wrong PDA must fail");
 
     // n_states out of range must be rejected.
     let (policy, _) = Pubkey::find_program_address(
@@ -123,11 +145,5 @@ fn rejects_wrong_pda_and_bad_params() {
         &program_id,
     );
     let ix = commit_ix(program_id, owner.pubkey(), policy, 7, 1, 9, 1000);
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&owner.pubkey()),
-        &[&owner],
-        svm.latest_blockhash(),
-    );
-    assert!(svm.send_transaction(tx).is_err(), "n_states=9 must fail");
+    assert!(send(&mut svm, &owner, &ix).is_err(), "n_states=9 must fail");
 }

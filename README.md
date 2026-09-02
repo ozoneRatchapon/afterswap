@@ -1,23 +1,56 @@
 # AfterSwap
 
-> **Exhaustively enumerated exit machines, fighting over your position — live on DFlow.**
+> **Cruise control plus a dashcam, for selling.**
 >
 > DFlow × Superteam Thailand Buildathon 2026 — *"build what happens after the swap."*
 >
 > **Live demo (no install, no wallet): https://afterswap.solana-thailand.workers.dev**
 > — the entire engine runs in your browser as WASM; quotes come straight
-> from DFlow. Switch the pair to **BONK** to watch it in the market where the
-> out-of-sample evidence says exit discipline pays. Add `?replay` for the
-> recorded deterministic segment.
+> from DFlow. Add `?replay` for the recorded deterministic segment.
 
-You swapped into SOL. Now what? Every wallet goes silent at exactly the moment
-that decides whether you make money: **the exit**. AfterSwap picks up where the
-swap ends — it watches live DFlow quotes and lets a population of tiny machines
-compete for the right to scale you out.
+## What is this, in one minute
+
+Every wallet goes silent at exactly the moment that decides whether you made
+money: **the exit**. You swapped into SOL — now what? Today the answer is you,
+watching a chart, at 3am, in a mood.
+
+AfterSwap replaces that with two things.
+
+**Cruise control.** A rule scales you out of the position, every tick, whether
+you are awake or not. It cannot change its mind halfway through because the
+position frightened it — that is the entire point, and it is the part a human
+cannot do.
+
+**A dashcam.** The rule is stamped on Solana *before* the first sale, next to
+the digest of a venue-signed quote. Afterwards, "this fill followed a policy
+committed in advance" is checkable against the chain rather than your word,
+and the quote it was priced off is one anyone can re-verify against DFlow's
+published key.
+
+| | How exits work today | With AfterSwap |
+|---|---|---|
+| Who decides when to sell | You, watching a chart, in a mood | A rule fixed before you were in the trade |
+| When it acts | When you happen to be awake and looking | Every tick, with or without you |
+| Can the rule change mid-trade | Yes — that is the whole problem | No; it was committed on-chain before the first sale |
+| "Did it really follow the plan?" | Your word | Checkable by a stranger, from public data |
+| How it did against just holding | Nobody ever tells you | Reported every time, including when holding wins |
+
+**It will not make you more money, and we are the ones who proved that.** We
+built the search, then built a harness good enough to catch it, and the harness
+says no: no machine survives correcting for having looked at a thousand
+candidates. The six facts below are mostly the story of establishing that
+honestly instead of shipping a green backtest.
+
+**So who is it for?** The dashcam half only matters when you sell on behalf of
+someone else — a fund, a team treasury, a DAO, a copy-trade or bot service.
+Those people cannot say "trust me" today; they have a screenshot. This gives
+them a receipt that was written *before* the trade. If you are selling your own
+bag and answer to nobody, only the cruise-control half is real for you, and you
+should judge it on that alone.
 
 ![dashboard](docs/dashboard.png)
 
-## What makes this different, in five facts
+## What makes this different, in six facts
 
 1. **Nobody designed these strategies.** We enumerate *every* deterministic
    3-state exit machine that can exist — 1,054 after behavioral dedup — then
@@ -83,14 +116,29 @@ compete for the right to scale you out.
    relays the transaction.
 5. **The whole chain is verifiable, and the last link closes on-chain.**
    DFlow signs its API responses (RFC 9421, ed25519); **every** quote is
-   checked in your own tab — body digest *and* signature against DFlow's
-   published key — and a quote that fails verification is discarded rather
-   than traded on (measured cost: 0.055 ms, 0.006% of a core). The machine's
-   policy is then committed to Solana **bound to that exact signed quote**:
-   the commitment transaction carries `afterswap:quote sha-256=…` in a memo
-   beside it. So "this fill followed a policy committed in advance, at a price
-   the venue really offered" is three cryptographic facts, not a claim.
-6. **There is no backend.** The whole engine compiles to a 208 KB WASM binary
+   checked in your own tab — body digest *and*, on any browser with
+   WebCrypto Ed25519, signature against DFlow's published key — and a quote
+   whose signature fails is discarded rather than traded on (measured cost:
+   0.055 ms, 0.006% of a core). Where the browser has no Ed25519 the digest
+   still verifies and the tick is still traded; the page counts and labels
+   those separately from signature-verified quotes rather than folding them
+   into one number. The machine's
+   policy is then committed to Solana next to that quote's digest: the
+   commitment transaction carries `afterswap:quote sha-256=…` in a memo
+   beside it.
+
+   Be precise about what that memo proves. The digest is computed and
+   RFC 9421-checked **in the visitor's tab**, then relayed to the signing
+   Worker, which checks its shape and not its provenance — so the memo binds
+   the commitment to a quote *the client says* it verified. Two of the three
+   links are unconditional: the policy PDA is immutable and timestamped by
+   the chain, and DFlow's signature over any quote you hold can be re-checked
+   by anyone against its published key. The third — that the memo names the
+   quote the engine actually traded — currently rests on the client, because
+   the engine runs in the client. Carrying DFlow's signature itself in the
+   memo would close it without a backend; that is not built yet
+   (`.plans/009`).
+6. **There is no backend.** The whole engine compiles to a 476 KB WASM binary
    that runs in the visitor's tab and polls DFlow directly — byte-identical to
    the native build (gate G6), self-custodial, free to run, impossible to
    rug-pull.
@@ -156,6 +204,8 @@ survived a gate that was allowed to say no.
 |---|---|
 | [`docs/PITCH.md`](docs/PITCH.md) | The same product explained five ways — for traders, judges, the DFlow team, engineers, and social — plus Q&A armor |
 | [`docs/SOAK.md`](docs/SOAK.md) | Live-quote soak results, including a retraction of an earlier over-claim |
+| [`docs/PHASE_B_DELEGATED_EXECUTION.md`](docs/PHASE_B_DELEGATED_EXECUTION.md) | The missing trust-ladder rung: the program enforces the committed policy before any `TransferChecked`, and the per-tranche wallet prompt dissolves. Six instructions **built and tested (26 LiteSVM tests), not yet deployed** — devnet still runs the Phase A `CommitPolicy`-only program. Includes the custody trade-off the built design makes, and a corrected claim about SPL delegates |
+| [`docs/DFLOW_PARTNER_ASK.md`](docs/DFLOW_PARTNER_ASK.md) | The ask to DFlow: production API + declarative swaps, in exchange for a verifiable-execution-rail reference architecture and a public execution-quality dataset |
 | [`docs/QUESTIONS.md`](docs/QUESTIONS.md) | The agent's own open questions after its harness killed four of its claims — what it still does not know about not fooling itself |
 | [`docs/OPPORTUNITIES.md`](docs/OPPORTUNITIES.md) | The whole DFlow API surface mapped against what we use, the katgpt-rs primitives worth pulling now that alpha is off the table, and the research method this repo converged on |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Everything deliberately *not* built yet, each with its evidence — and the ideas that were tried and reverted |
@@ -231,7 +281,7 @@ DFlow /quote ──► tick ──► FSM population ──► UCB1 bandit ─�
 ## Run it
 
 **Zero-install:** open the [live demo](https://afterswap.solana-thailand.workers.dev)
-— engine compiled to WASM (208 KB), no server anywhere, your browser polls
+— engine compiled to WASM (476 KB, 155 KB gzipped), no server anywhere, your browser polls
 DFlow directly (their dev API allows CORS). Falls back to the bundled
 recording automatically if DFlow is unreachable.
 
@@ -254,6 +304,45 @@ cargo run -p afterswap-server -- --serve 8787 --interval-ms 1000   --window 12 -
 
 Add `--record <file>` to any live run to capture your own segment.
 
+**In Telegram (no wallet, no install, no dashboard):**
+
+The dashboard answers *"what is this engine doing?"* — a state diagram, a
+leaderboard, a gate meter. That is the wrong first question for someone who
+just wants to know when to sell. The bot answers the other one, over the same
+engine and the same DFlow quotes:
+
+```
+/watch SOL 1.0
+> Watching 1 SOL from 102.4636.
+> saw a dip → sell-state S1 → sold 10% of your SOL at 102.4504. 90% left.
+> ...
+> Position fully exited. The plan finished at -0.8 bps versus your entry price.
+```
+
+That transcript is real output from a live DFlow run, not a mockup. Run it
+yourself with no bot token at all — the same loop reads commands from stdin:
+
+```bash
+cargo run -p afterswap-bot -- --dry-run --interval-ms 1000
+```
+
+With a token from [@BotFather](https://t.me/botfather):
+
+```bash
+TELEGRAM_BOT_TOKEN=... cargo run -p afterswap-bot
+```
+
+Commands: `/watch <SOL|BONK> [size]`, `/status`, `/proof`, `/stop`, `/help`.
+Add `--loud` to also narrate tournaments, arm changes and per-window scoring.
+
+The bot adds **no** engine behaviour — same `EngineConfig`, same
+`EngineEvent` stream the dashboard renders, same shipped constants. What is
+new is only the phrasing, and that is tested as strictly as the numbers are:
+`crates/afterswap-bot/tests/phrase.rs` asserts that losing windows are
+reported as losses, that the position value never appears without its
+hold baseline, that the onboarding message states the negative result, and
+that no message contains a word promising the reader money.
+
 Terminal-only e2e (no dashboard):
 
 ```bash
@@ -265,18 +354,18 @@ cargo run -p afterswap-server -- --ticks 75 --interval-ms 1000 \
 
 The engine passes the GOAT gate discipline inherited from katgpt-rs — no
 performance claim without a named floor
-(full report: [`benches/001_goat/report.md`](benches/001_goat/report.md)):
+(full report: [`benches/039_goat/report.md`](benches/039_goat/report.md), re-run 2026-08-28):
 
 | Gate | Result |
 |---|---|
 | **G1 determinism** | PASS — bit-identical event stream on every corpus, two runs |
-| **G2a floor: TWAP** | PASS — **+76.0 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
-| **G2b floor: random arm** | PASS — **+5.4 bps mean** vs seeded random arm selection (8 seeds) |
-| **G2c vs hold** (report-only) | **+364.5 bps** in trend-down, +11.1 chop, −145.8 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
-| **G3 arm-cap ablation** | PASS — 24-arm cap costs **0.0 bps** vs uncapped front on every corpus |
-| **G4 latency** (release) | PASS — **1.16 µs** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **197 µs** |
+| **G2a floor: TWAP** | PASS — **+75.7 bps mean** vs same-cadence TWAP exit across 6 corpora (4 synthetic regimes + 2 recorded DFlow segments) |
+| **G2b floor: random arm** | PASS — **+6.9 bps mean** vs seeded random arm selection (8 seeds) |
+| **G2c vs hold** (report-only) | **+372.2 bps** in trend-down, +14.9 chop, −137.7 v-shape, +0.0 trend-up — an exit product wins when exiting matters and pays opportunity cost in a rally, as it should |
+| **G3 arm-cap ablation** | PASS — 24-arm cap costs at worst **−0.6 bps** vs the uncapped front (chop; 0.0 on four of six corpora), against a −10 bps budget |
+| **G4 latency** (release) | PASS — **686 ns** mean `on_tick`; worst tick (1,054-FSM enumeration + tournament) **111 µs**. Budgets 1 ms / 1 s |
 | **G5 evolution ablation** | PASS — evolution on ≥ off within tolerance across corpora |
-| **Ecosystem floors** (report) | Beats every standard Solana exit on 6-corpus mean: **+114.0 bps vs TP-ladder**, **+80.2 bps vs TP/SL bracket**, **+10.5 bps vs Jupiter-style trailing stop** (fresh out-of-sample recorded segment: +29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
+| **Ecosystem floors** (report) | 6-corpus mean: **+113.7 bps vs TP-ladder**, **+79.9 bps vs TP/SL bracket**, **+10.3 bps vs Jupiter-style trailing stop**. **That mean is an upper bound, not a result** — it is carried by the 4 synthetic regimes; on the **2 recorded DFlow corpora alone the engine loses** (trailing **−21.1**, ladder **−7.9**, bracket **−8.9**), though one of the two is a win (+29.3 vs trailing). Bench 004 measured a −24.5 bps loss to trailing stops (machines couldn't see "distance from peak"); adding the off-peak input bit (alphabet v2, roadmap #1) closed it (bench 005, confirmed 007) — trailing-stop behavior now *emerges from enumeration*, plus hybrids |
 | **G6 wasm parity** | PASS — the browser (WASM) engine produces **byte-identical** `simulate()` output to the native binary (`scripts/g6_parity.sh`). Caught a real bug: `rng.usize` is platform-width-dependent — now fixed-width everywhere |
 
 Reproduce: `cargo test -p afterswap-engine --test goat` (gates) and
@@ -296,11 +385,47 @@ Returns the tournament roster (names, blake3 fingerprints, simulated
 edges) or, with `open_at`, a full simulated exit with fills and the
 honest edge vs holding. Same input → byte-identical output (G1/G6).
 
-**Status:** fully working under `wrangler dev` and on Workers Paid; the
-free tier's 10 ms CPU budget cannot fit an honest 1,054-machine
-enumeration and we don't ship degraded modes, so the public endpoint
-returns 503 until the plan upgrade. Pay-per-decision via pay.sh HTTP-402
-is the roadmap (7b).
+**Status: measured 2026-08-28 over two independent 40-request runs — 80 of
+80 returned a real roster, 0 failed (p50 76/69 ms, p95 134/125 ms).** The
+free-plan CPU
+ceiling that used to kill cold starts — a 1,694 ms p95 against a 2,010 ms
+limit — is no longer reached: the 1,054-machine enumeration is precomputed and
+shipped as a 2,108-byte table, so a cold call costs ~7 ms instead of 752 ms.
+The local WASM path (`docs/API.md`) remains the route for anything that must
+answer without a network hop.
+
+**How it used to fail.** The cause was measured, not guessed. This account is
+on the Workers **Free** plan, whose CPU ceiling is **2,010 ms** (a `limits`
+block is rejected outright, API error 100328). A cold isolate had to enumerate
+the 1,054 machines, which cost **1.0–2.0 s of CPU under wasm** — right at the
+ceiling, so cold starts were killed mid-enumeration. Enumeration was
+process-cached, so a warm call cost **1 ms**; the endpoint was either nearly
+free or dead, with little in between.
+
+A killed request was worse than a slow one: it left the wasm instance
+trapped, and because the instance is cached per isolate, every later call
+there aborted until Cloudflare recycled it — which is why the failures
+arrived in runs rather than spread evenly, and why the pre-fix success rate
+had no single stable value (two 40-call runs the same day gave 20/40 and
+25/40). Two bugs found along that path
+are fixed (a poisoned-mutex abort in `enumerate_cached`, and a leaked
+`WasmEngine` handle), and both `/decide` modes now return a clean
+`503 {"error":"engine unavailable, retry shortly"}` instead of a raw
+Cloudflare 1101 crash page. That improved the success rate from ~40% to
+~50%, but it did not touch the CPU ceiling.
+
+**The ceiling itself is addressed at the source; the numbers above are the
+post-deploy measurement.** Enumeration is pure and deterministic, so
+its result is precomputed and shipped: the 1,054 survivors are stored as
+the raw indices that survived behavioural dedup (2,108 bytes,
+`crates/afterswap-engine/src/fsm_table_3.bin`), and the engine rebuilds the
+identical machines from them. Natively that is **224.9 ms → 132.5 µs**; a
+cold `/decide` in local `workerd`, same harness before and after, went from
+**752 ms / 730 ms → 7 ms**, which is ~280x under the free-plan ceiling.
+`tests/fsm_table.rs` gates the table field-for-field against a live
+`FsmEnumerator::enumerate`, so it stays a cache and never becomes a second
+source of truth.
+Pay-per-decision via pay.sh HTTP-402 is the roadmap (7b).
 
 ## Architecture
 
@@ -310,7 +435,7 @@ is the roadmap (7b).
 | `afterswap-dflow` | DFlow Trading API client (`/quote`, `/order`), price poller. Types verified against live captures. |
 | `afterswap-server` | Paper loop + axum server, SSE snapshot stream, vanilla-JS/SVG dashboard. |
 | `afterswap-wasm` | Browser build of the engine (wasm-bindgen) — powers the serverless live demo on Cloudflare Workers static assets. |
-| `afterswap-policy` | On-chain exit-policy registry (Pinocchio, 18 KB) — **live on devnet**: [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
+| `afterswap-policy` | On-chain exit-policy registry (Pinocchio) — **the 18 KB `CommitPolicy`-only build is live on devnet**; the crate now also carries the built-but-undeployed Phase B instructions, all seven tags including `AnchorFill` (44.5 KB, see `docs/PHASE_B_DELEGATED_EXECUTION.md`): [`GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8`](https://explorer.solana.com/address/GEz2tFVTrrtHjvHKw2BTNrjndEQ54SSUMoMEUvHk8bD8?cluster=devnet), autofixer-clean, LiteSVM-tested against the real SBF binary. |
 
 Every window the position is open emits an honest score:
 `reward = tranche-exit value ÷ counterfactual hold value` (in bps). The
@@ -361,6 +486,6 @@ Durable-Object world, prediction-market outcome tokens:
   price (no slippage/fee model beyond DFlow's own quoted amounts).
 - Live mode sells real tranches but is deliberately minimal (throwaway keypair,
   no retry logic) — it is a buildathon proof, not custody software.
-- Built during the buildathon (Aug 21–31, 2026); not previously released.
+- Built during the buildathon (Aug 21 – Sep 2, 2026); not previously released.
 
 MIT.

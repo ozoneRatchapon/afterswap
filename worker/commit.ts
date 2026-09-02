@@ -67,13 +67,19 @@ function shortvec(n: number): number[] {
 
 /** PKCS#8 wrapper so WebCrypto will import a raw 32-byte Ed25519 seed. */
 function pkcs8(seed: Uint8Array): Uint8Array {
+  // `out` is pre-zeroed, so a short seed used to be zero-padded into a
+  // perfectly valid — and entirely wrong — Ed25519 key. WebCrypto would
+  // sign with it happily and every resulting transaction would be rejected
+  // on chain for a signature that doesn't match the fee payer, burning one
+  // demo slot per request. Refuse instead.
+  if (seed.length < 32) throw new Error("signing key too short");
   const prefix = Uint8Array.from([
     0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
     0x04, 0x22, 0x04, 0x20,
   ]);
   const out = new Uint8Array(prefix.length + 32);
   out.set(prefix);
-  out.set(seed.slice(0, 32), prefix.length);
+  out.set(seed.subarray(0, 32), prefix.length);
   return out;
 }
 

@@ -440,3 +440,87 @@ fn fingerprint_crosses_json_as_hex_and_survives_a_float_hostile_round_trip() {
     let old: AuditRecord = serde_json::from_str(&legacy).expect("legacy parses");
     assert_eq!(old.policy_fingerprint, r.policy_fingerprint);
 }
+
+// -------------------------------------------------------------------------
+// Archive framing
+// -------------------------------------------------------------------------
+//
+// A closed segment is written to R2 as JSONL — the stored record bodies
+// joined by `\n` — and the proof path rebuilds its Merkle leaves by splitting
+// that object back apart and re-parsing each line. Once the SQLite rows have
+// been trimmed, that read-back is the *only* copy, so the framing is
+// load-bearing: these tests pin the round-trip and the one input that breaks
+// it.
+
+/// `n` distinct records, differing in the fields the segment index keys on.
+fn segment(n: u64) -> Vec<AuditRecord> {
+    (0..n)
+        .map(|i| {
+            let mut r = fixture();
+            r.seq = 100 + i;
+            r.t_ms += i * 250;
+            r
+        })
+        .collect()
+}
+
+#[test]
+fn an_archived_segment_rebuilds_identical_leaves_and_proofs() {
+    let records = segment(9);
+    let expected: Vec<[u8; 32]> = records.iter().map(record_hash).collect();
+    let root = merkle_root(&expected).expect("root");
+
+    // Close: bodies joined into one JSONL object, exactly as the worker writes.
+    let bodies: Vec<String> = records
+        .iter()
+        .map(|r| serde_json::to_string(r).expect("compact"))
+        .collect();
+    let object = bodies.join("\n");
+
+    // Read back: split and re-parse, exactly as the proof path does.
+    let rebuilt: Vec<[u8; 32]> = object
+        .split('\n')
+        .map(|line| record_hash(&serde_json::from_str::<AuditRecord>(line).expect("archived line parses")))
+        .collect();
+
+    assert_eq!(rebuilt, expected, "read-back leaves must be byte-identical");
+    assert_eq!(merkle_root(&rebuilt).expect("root"), root);
+    for (i, leaf) in rebuilt.iter().enumerate() {
+        let proof = merkle_proof(&rebuilt, i).expect("proof");
+        assert!(merkle_verify(leaf, &proof, &root), "i={i}");
+    }
+}
+
+/// Compact serialisation is what makes the framing safe: every string field
+/// that could carry a newline is escaped, so a record is always one line.
+#[test]
+fn a_compact_record_never_contains_a_literal_newline() {
+    let mut r = fixture();
+    r.instrument = "SOL\n/USDC\r".into();
+    let body = serde_json::to_string(&r).expect("compact");
+    assert!(!body.contains('\n') && !body.contains('\r'));
+    // The newline survives as an escape, so the value itself is preserved.
+    assert_eq!(
+        serde_json::from_str::<AuditRecord>(&body).expect("parses").instrument,
+        r.instrument
+    );
+}
+
+/// Why the worker rejects a body carrying a literal newline at ingest: such a
+/// body parses and verifies exactly like a compact one, but shreds on
+/// read-back — and by then the SQLite rows may be gone.
+#[test]
+fn a_pretty_printed_body_shreds_the_jsonl_framing() {
+    let r = fixture();
+    let pretty = serde_json::to_string_pretty(&r).expect("pretty");
+    // Indistinguishable from compact JSON at ingest.
+    assert_eq!(record_hash(&serde_json::from_str::<AuditRecord>(&pretty).expect("parses")), record_hash(&r));
+    // But not a single line, so the archive splits it into unparseable pieces.
+    assert!(pretty.contains('\n'));
+    let fragments: Vec<&str> = pretty.split('\n').collect();
+    assert!(fragments.len() > 1);
+    assert!(
+        fragments.iter().any(|f| serde_json::from_str::<AuditRecord>(f).is_err()),
+        "a split pretty body must fail to re-parse"
+    );
+}

@@ -8,6 +8,7 @@ members = [
     "crates/afterswap-policy",
     "crates/afterswap-rail",
     "crates/afterswap-worker",
+    "crates/afterswap-bot",
 ]
 
 [workspace.package]

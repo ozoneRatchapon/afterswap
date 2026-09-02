@@ -77,7 +77,12 @@ is allowed to make.
    to a specific signed price — verified on devnet
    (`afterswap:quote sha-256=…`, no program change needed).
    Remaining to make it end-to-end for *mainnet fills*: the same memo on the
-   live sell transaction, which needs the production API.
+   live sell transaction. The **program-side half is now built** —
+   `AnchorFill` (tag 6, `afterswap:fill fp=… pos=… tranche=… slot=…
+   quote=sha256:…`), 8 LiteSVM tests, 2026-08-29 — but it is **not deployed**:
+   devnet still runs the Phase A `CommitPolicy`-only program, and the live
+   sell path still needs the production API. See
+   `PHASE_B_DELEGATED_EXECUTION.md` §4.4.
 3. ~~**Depth/venue-aware exits** (Plan 001)~~ — **closed**. The spread is
    real (27 bps on BONK) but smaller than its unavoidable cost on public
    routes (40.2 bps: 25 pool fee + 10 tip + 5 drift + 0.2 L1) — **−13.2 bps

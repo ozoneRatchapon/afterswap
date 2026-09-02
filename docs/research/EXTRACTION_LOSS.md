@@ -1,8 +1,8 @@
 # Extraction loss and recovery — external research documents
 
-Both source documents render formulas and most numeric table cells as
-**images**. The plain-text exports committed beside this file drop that
-content silently: no placeholder, just whitespace. This file records what was
+Every source document renders its formulas — and, in rounds one and two, most
+numeric table cells — as **images**. The plain-text exports committed beside
+this file drop that content silently: no placeholder, just whitespace. This file records what was
 lost and what the images actually said, recovered by exporting each document
 as `.docx` and reading `word/media/` against the image references in
 `word/document.xml`.
@@ -12,6 +12,8 @@ destroy their value as a faithful export. Read them alongside this file.
 
 - Round one — `2026-08-27_epistemic_governance.txt`, 70 images
 - Round two — `2026-08-27_nondirectional_execution.txt`, 194 images
+- Round three — `2026-08-27_statistical_foundations.txt`, 116 images
+- Round four — `2026-08-29_empirical_validation_taxonomy.txt`, 227 images
 
 ## Round one: table survived, inline math did not
 
@@ -181,6 +183,134 @@ recommendation depends on tick rate and has not been verified.
 Competitive-landscape latencies were also images (Carbium 31 ms P50, Titan
 87% claimed win-rate; the rest are ranges truncated by the same source
 defect). Nothing depends on them.
+
+## Round four: `2026-08-29_empirical_validation_taxonomy.txt`, 227 images
+
+*"Institutional Empirical Validation and Taxonomic Decomposition of Digital
+Asset Trading Strategies."* The `.docx` route recovered **227 of 227** images
+with nothing left unread. The loss profile is the inverse of round two: here
+the **tables survived as text** and it is **every formula** that is an image —
+the `.txt` export reads as continuous prose with the mathematics silently
+deleted, which is the most dangerous shape of this defect because nothing looks
+missing.
+
+### 1. Schmitt-trigger hysteresis — prescribed by the source, absent from the repo
+
+§4 specifies a dual-threshold filter with an internal memory state
+`m_t in {0,1}`, to stop binary features chattering across a decision boundary:
+
+```
+b_t^hyst = { 1                if X_t >= theta_high
+           { 0                if X_t <= theta_low
+           { b_{t-1}^hyst     if theta_low < X_t < theta_high
+```
+
+`rg -i "hysteresis|schmitt|theta_high|theta_low"` over the repo returns **0
+matches across 220 files**. This is a real, verified gap rather than a
+suspected one — the engine's bit thresholds are single-valued, so a feature
+sitting on its threshold flips the input word every tick.
+
+**Tested, 2026-08-29 — `benches/040_hysteresis/report.md`.** The gap is now
+closed as *measured*, not as *implemented*. `replay_exit_hysteresis` in
+`crates/afterswap-engine/src/sim.rs` applies the source's `b_t^hyst` to the
+off-peak drawdown bit — the only single-valued numeric threshold in the
+shipping alphabet — and `crates/afterswap-engine/tests/hysteresis.rs` asserts
+that at `theta_low == theta_high` it reproduces `replay_exit_cost` bit-for-bit,
+so the sweep's baseline row *is* the shipping protocol rather than a
+re-implementation of it. Sweeping 4 arm thresholds x 4 band widths over 3,462
+ticks (34 train / 23 test windows), **no band beats the shipping 30/30
+threshold**: every paired Delta is negative, and Romano-Wolf stepdown over all
+15 non-benchmark arms rejects none at alpha = 0.05.
+
+The null is a measured one rather than an unengaged one: the report's `flips`
+column shows the trigger firing 0.1-3.5 times per window and the band cutting
+that roughly in half, so the chatter the source is worried about is real here
+and simply is not costing the machines anything down to the sample's paired MDE
+of ~2.7 bps. **Decision: the shipping single threshold stays**, and the signal
+path is not touched two days before the submission deadline on the strength of
+a null. The prescription is not wrong — it is unmeasurable at this sample size,
+and the re-test is one command once the recorder has more ticks.
+
+### 2. Romano–Wolf — our implementation matches, with one divergence
+
+The recovered algorithm is step-for-step what `crates/afterswap-engine/src/stepdown.rs`
+does: studentise `t_k = mu-hat_k / (sigma-hat_k / sqrt(T))`, sort descending,
+recentre the bootstrap to impose the joint null, and compare each step against
+the bootstrap distribution of the maximum over the still-unrejected set.
+
+One divergence, stated plainly: the source prescribes a **Stationary
+Bootstrap** "to capture temporal autocorrelation"; ours draws
+`rng.usize(..n)` per index, i.e. an **i.i.d. resample of windows**. Since a
+window is already a contiguous block of 120 ticks, within-window dependence is
+absorbed, but cross-window dependence is not. Note also what our version gets
+right and is easy to get wrong: the resample index is drawn **once per
+bootstrap and shared across all machines**, which preserves the cross-sectional
+dependence structure that the whole Romano–Wolf construction rests on.
+
+### 3. The synthetic-null protocol is not the one we ran
+
+§3 prescribes two null constructions, both applied to the **real** series:
+
+- **Intra-bar OHLCV permutation** — permute `{u_t, d_t, c_t, g_t, V_t}` where
+  `u_t = ln(H_t/O_t)`, `d_t = ln(L_t/O_t)`, `c_t = ln(C_t/O_t)`,
+  `g_t = ln(O_{t+1}/C_t)`, then rebuild the path iteratively. This destroys
+  temporal and cross-autocorrelation while preserving marginals and intra-bar
+  geometry — shuffling univariate returns instead would break the candle.
+- **Fourier phase randomization** — add `theta(k) ~ Uniform[0, 2pi)` with
+  `theta(k) = -theta(N-k)`, preserving the power spectrum and linear
+  autocorrelation while destroying non-linear dependence.
+
+`benches/036_reversion_causal`'s `phi = +0.0` arm is a **synthetic AR(1)**, not
+either of these. It serves the same purpose — the source's diagnostic is
+"positive Sharpe on noise indicates look-ahead/asymmetry leaks", and our arm
+returns `Delta = -0.365 bps` — but it is a *different construction*, and a
+weaker one in a specific way: it never touches the real series, so it cannot
+detect a leak that only fires on real intra-bar geometry. Do not describe bench
+036 as implementing this section.
+
+### 4. Deflated Sharpe Ratio — recovered, deliberately not adopted
+
+```
+DSR  = Phi( (SR-hat - SR*) sqrt(T-1) / sqrt(1 - g3 SR-hat + ((g4-1)/4) SR-hat^2) )
+SR*  ~= sqrt(V[{SR-hat_n}]) ( (1-gamma) Phi^-1(1 - 1/N) + gamma Phi^-1(1 - e^-1/N) )
+gamma ~= 0.5772156649        (Euler-Mascheroni)
+```
+
+Round three already ruled DSR out (`examples/policy_degeneracy.rs:192`), so
+there is nothing to reconcile. Recorded here so the decision is re-checkable
+against the actual formula rather than against a memory of it.
+
+### 5. The FSM formalism, and where we deliberately differ
+
+§4 gives the Deterministic Moore Machine `M = <S, s_0, Sigma, Lambda, delta, lambda>`
+with `Sigma = {0,1}^4` and `Lambda = {-1.0, -0.5, 0.0, +0.5, +1.0}`, over eight
+states (FLAT, LONG/SHORT_MOMENTUM, LONG/SHORT_TRAILING, MEAN_REV_LONG/SHORT,
+RISK_OFF). AfterSwap enumerates **3** states, not 8, and its outputs are
+sell-tranches rather than signed leverage — the source is a bidirectional
+strategy specification and we are an exit-only one. The divergence is a
+tractability choice (3 states enumerate to 1,054 machines), not an oversight.
+
+### 6. Eight images are truncated in the source itself
+
+Same defect class as round two's cost table: the rendered PNG stops
+mid-expression. Six are fully recoverable because the **surrounding text
+carries the same information** — in the transition table the bit pattern is
+plain text (`0101`, `* * 1 *`) and the truncated image is only a parenthetical
+gloss on it, so `image151` reading `b_0 = 1, b_1 = 0, b_2 =` closes from the
+`0101` beside it.
+
+Two do **not** close from context and are left marked rather than guessed:
+
+- `image48` (Bullish Engulfing) stops at `... (C_t - O_t) > kappa|C`. The
+  following sentence says `kappa >= 1.0` "parameterizes the relative magnitude
+  constraint", which makes `kappa |C_{t-1} - O_{t-1}|` the natural reading —
+  but that is **inference, not recovery**, and it is not written down anywhere
+  in the document.
+- `image127` (execution-modeling row) stops at
+  `Delta P_temp = eta sigma sqrt(Q/V) + Fees + P_exec(t +`. The body text gives
+  the square-root impact law in full, so only the latency term's argument is
+  lost.
+
 
 ## Rule
 

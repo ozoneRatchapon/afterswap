@@ -12,13 +12,18 @@ Each item carries its evidence and why it waits. Ordering = value ÷ effort.
 > is the thing both items propose to sell. See "What the evidence did to this
 > roadmap" at the end.
 
-## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench 005)
+## 1. Input alphabet v2 — "distance from peak" ✅ SHIPPED (v2.0, bench `005_goat`)
 
 **Outcome:** implemented via input unrolling (two binary steps per tick:
 direction, then off-peak ≥30 bps) — zero upstream changes needed. Result:
 trailing-stop gap closed (−24.5 → **+2.0 bps**), TWAP floor +60.0 → +87.4,
 TP-ladder +95.4 → +122.8, bracket +53.3 → +80.7. G1–G6 re-validated.
-Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench 008)
+(Those are the bench-`005_goat` endpoint values, recorded here as the
+result of *this* change. The shipped default now measures TWAP **+75.73**,
+trailing **+10.26**, ladder **+113.74**, bracket **+79.93** on the
+6-corpus mean — bench `039_goat` — and loses on the 2 recorded DFlow
+corpora alone; see §3a and Retraction 1.)
+Magnitude quantization as a third bit: ❌ TRIED & REVERTED (bench `008_goat`)
 — at 5 bps threshold every floor degraded and G2b FAILED (−7.3: the bit
 sits in the noise band and burns 3-state capacity); at 10 bps G2b
 improved (+5.7) but every other floor still degraded vs the 2-bit
@@ -65,7 +70,7 @@ triggers. Keeps every property that matters: full enumeration,
 auditability, bit-determinism. Learned embeddings are explicitly out —
 they would break the product's core honesty claim.
 
-## 3a. Off-policy credit assignment ✅ SHIPPED (v2.6, bench 013)
+## 3a. Off-policy credit assignment ✅ SHIPPED (v2.6, bench `013_goat`)
 
 The sample-efficiency problem the PL experiment was aiming at, solved a
 different way: only the seated arm used to be rewarded per window (1 of
@@ -73,12 +78,16 @@ different way: only the seated arm used to be rewarded per window (1 of
 credited with its counterfactual edge — the replay cost was already being
 paid by the tournament. Every floor improved: TWAP +72.3→**+76.0**,
 random-arm +1.8→**+5.4**, trailing +7.0→**+10.5**, ladder +110.3→+114.0,
-bracket +76.5→+80.2. Side effect worth noting: with all arms credited
+bracket +76.5→+80.2. **These endpoint values were measured with the
+surprise trigger ON** (the default at the time); Retraction 1 below turned it
+off, and the shipped default now measures TWAP **+75.73** / random-arm
+**+6.90** (bench `039_goat`). The *deltas* stand — the absolute figures do
+not describe what ships. Side effect worth noting: with all arms credited
 every window, UCB1's exploration bonus equalizes and selection tends
 toward follow-the-leader — appropriate, since this is now a
 full-information setting rather than a bandit one.
 
-## 3b. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench 006)
+## 3b. ELO / Plackett–Luce arm ratings ❌ TRIED & REVERTED (bench `006_goat`)
 
 **Outcome:** implemented (`rating.rs`, Hunter-MM PL, unit-tested,
 deterministic) and wired into survivor ranking — **every floor got worse**
@@ -131,9 +140,11 @@ keys, no custody — the exact UX failure observed in live testing
 (a wallet prompt on every tranche, plus Phantom's new-domain heuristics
 blocking the request) dissolves.
 
-Status: design only. Nothing here is tested by us; the table records what
-those repos state they do. Integration is post-buildathon work and Phase B
-still needs an audit before mainnet.
+Status: steps 1, 2 and 3 built and tested (2026-08-29) — every
+instruction in the design, `AnchorFill` (tag 6) included, is now built.
+Devnet deploy and audit remain. The table records what those repos state they do.
+Integration is post-buildathon work and Phase B still needs an audit before
+mainnet.
 **Phase A status: ✅ DEPLOYED ON DEVNET (v2.4).** Rewritten in Pinocchio
 (Anza) after evaluating Quasar (beta, unaudited — parked) and Anchor
 (Phase B candidate): binary 74 KB → **18 KB**, autofixer 0 issues, same
@@ -144,6 +155,73 @@ LiteSVM tests byte-for-byte. Live artifacts:
   (fingerprint 0x165ef4aabbcc, 3 states, 10% tranches — decoded and
   verified on-chain), tx `2WHpDfMD3K5DNMheEdHKGm8djxKZPGeRLiYHyMmrVkzQKoykjz9iAQUBFEPquk8F3fdSRwow4BeDVqKgXqp4RLA5`
 - Mainnet deploy ≈ 0.13 SOL rent at this size — post-audit.
+
+**Phase B step 1 status: ✅ BUILT AND TESTED (2026-08-29).**
+`AuthorizeExecution` (tag 1) and `RevokeAuthorization` (tag 3) implemented
+in `crates/afterswap-policy/src/lib.rs`, 7 new LiteSVM tests in
+`tests/execution.rs` (authorize sets crank + expiry, double-authorize
+rejected, non-owner / wrong-PDA / non-signer / past-expiry all rejected,
+revoke clears crank, revoke idempotent). Binary 18 KB → **23.8 KB** (still
+< 60 KB rent budget). `CommitPolicy` (tag 0) unchanged; existing tests in
+`tests/policy.rs` still pass.
+
+**Phase B step 2 status: ✅ BUILT AND TESTED (2026-08-29).**
+`ValidateAndSell` (tag 2) — the gate, and the only instruction that moves
+tokens — plus the vault path it needs: `DepositToVault` (tag 4) and
+`CloseVault` (tag 5). 16 further LiteSVM tests in `tests/vault.rs`, so the
+crate now runs **42 tests, all green** (`policy.rs` 2, `execution.rs` 9,
+`vault.rs` 23, `anchor.rs` 8 — the last added with step 3 below). Binary
+**45,600 bytes (44.5 KB)** after the 2026-09-01 gate fixes; it was 42,368
+bytes at rent-exempt minimum **0.29577216 SOL** (devnet RPC, 2026-08-29),
+and rent has not been re-queried since nothing is deployed. Both inside the
+< 60 KB / < 0.4 SOL budget. Before `AnchorFill` the same figures were
+35,736 bytes and 0.2496 SOL.
+
+**Gate hardening (2026-09-01).** A read of `validate_and_sell` against its
+own docstring turned up four gaps, all now closed and covered by 8 new
+tests. (1) The destination ATA was never verified — the vault PDA signs
+every transfer, so an authorized crank could name its own ATA and drain the
+vault at a legal tranche size. The payout account is now bound at
+authorization time (`execution.settlement_ata`, non-zero required). (2) The
+token program account was unpinned while the CPI carried the vault PDA's
+signature, handing vault signing authority to caller-chosen code; it is now
+pinned to SPL Token across tags 2, 4 and 5. (3) The `tranche_bps` bound the
+docstring promised was never enforced — the code read the field into
+`_tranche_bps` and discarded it. It is now enforced against `vault.deposited`,
+a new monotone field, so the denominator is the position as deposited rather
+than a shrinking remainder. (4) The tranche *count* was bounded by
+`n_states`, which `CommitPolicy` caps at 4 — meaning a 10% tranche policy
+could never sell more than 40% of a position. It is now
+`ceil(10_000 / tranche_bps)`. Separately, `AuthorizeExecution` returned
+`AccountAlreadyInitialized` for any existing account, so revoking once
+permanently ended the owner's ability to delegate that position; a revoked
+PDA is now re-authorizable in place. The header claim that the cranker "can
+never move funds on their own" was false when written and is now true.
+Since Phase B is undeployed, these layout changes cost no migration.
+
+**Phase B step 3 status: ✅ BUILT AND TESTED (2026-08-29).** `AnchorFill`
+(tag 6) publishes each fill as an SPL memo — the sell-side counterpart of the
+shipped `afterswap:quote` commit-side memo, and the third link
+`OPPORTUNITIES.md` §3.2 lists as missing. It moves no tokens and writes no
+account state. Every field but the quote digest is read from the policy and
+execution PDAs, so a caller cannot anchor a fill that did not happen or
+misreport which tranche it was; the digest is necessarily caller-supplied,
+which is why the signer is restricted to the authorized crank or the owner.
+
+Two caveats, stated because they change what may be claimed. The design is
+**vault-sourced**, so the program *does* take custody between deposit and
+sell — `CloseVault` is the owner-only exit, but "no custody" is not
+available as a claim for this design. And an earlier draft of the design doc
+justified the vault over an SPL delegate by asserting that a delegate cannot
+transfer to an arbitrary destination; **that is false**, and the
+delegate-on-owner-ATA alternative is still open. See
+`PHASE_B_DELEGATED_EXECUTION.md` §1 and §8. `AnchorFill` (tag 6) is now
+built (42 tests green, 45,600 B). Next: devnet deploy — but settle
+vault-vs-delegate first, because deploying makes the vault design the one
+demoed and written about. The 2026-09-01 hardening above is a further
+argument for settling it now: the vault path needed four fixes to make its
+own docstring true, and each one is a check the delegate path would not
+need in the same form.
 
 **Phase C — real-time on-chain execution (MagicBlock ephemeral rollups):**
 the endgame of the trust ladder. Delegate the position/policy PDA into an
@@ -235,19 +313,80 @@ conclusion from the cost side — "positioning an execution engine primarily as
 an alpha-generating trading system is commercially fragile".
 
 The surviving version sells **verifiability, not alpha**: the signed quote →
-on-chain policy commitment → verified fill chain (#7h, shipped) as a MiCA
-Article 78 best-execution compliance artifact. That product does not depend on
-the machine being good — only on the record being provable, which it is.
+on-chain policy commitment → verified fill chain (#7h, shipped) as a
+best-execution compliance artifact **aligned with MiCA Article 78**. Per the
+claims discipline in `docs/RAIL.md` §0, "aligned with" is the ceiling: whether
+an artifact *is* compliant is a determination for a regulator and counsel, not
+for a codebase. That product does not depend on the machine being good — only
+on the record being provable, which it is.
 
 
-**Preview ✅ built (v2.2), gated on plan:** `POST /decide` deployed —
-same wasm binary server-side, roster + full simulated exit, verified
-deterministic under `wrangler dev`. Free-tier Workers caps CPU at 10 ms;
-honest full enumeration needs more, and degraded modes are against the
-project's discipline → public endpoint 503s until Workers Paid ($5/mo,
-30 s CPU — also unlocks Durable Objects for #5). Enumeration is now
-process-cached (`enumerate_cached`) either way. Remaining for revenue:
-plan upgrade, pay.sh registry onboarding, 402 challenge.
+**Preview ✅ built (v2.2), deployed:** `POST /decide` runs
+the same wasm binary server-side, roster + full simulated exit, verified
+deterministic under `wrangler dev`.
+
+**Correction (2026-08-28):** an earlier revision of this entry claimed the
+plan upgrade "has happened." It has not — the account is on the Workers
+**Free** plan, confirmed by the API rejecting a `limits` block (error
+100328). The earlier "1 of 3 calls" figure also understated the problem,
+and the failures were misattributed to CPU-exceeded 1102 responses when
+most were in fact 1101 — uncaught Rust panics.
+
+**How it used to fail.** Measured over 40 consecutive requests: **20 ok, 20
+failed** (a second 40-call run the same day gave 25 ok / 15 failed — the rate
+had no single stable value). The free-plan CPU ceiling is **2,010 ms**; the
+cold 1,054-machine enumeration cost **1.0–2.0 s** under wasm, so cold starts
+were killed. Enumeration was process-cached (`enumerate_cached`), so warm
+calls cost **1 ms**. A killed request left the wasm instance trapped, and the
+instance is cached per isolate, so every later call there aborted until
+the isolate was recycled — the failures clustered in runs.
+
+Fixed on that path: `enumerate_cached` aborted on a poisoned mutex
+(`.expect`) instead of recovering into it, and the worker leaked its
+`WasmEngine` handle every request. Both `/decide` modes now degrade to a
+clean 503 rather than a raw 1101 crash page. Success went ~40% → ~50%.
+
+**Ceiling removed at the source (2026-08-28, re-measured in prod below).**
+The precompute option above is done. `FsmEnumerator::enumerate(3)` spends
+its time behaviourally fingerprinting 5,832 raw machines over 2^11 input
+sequences to find the 1,054 distinct ones; since it is pure and
+deterministic, the *survivors* are computed once at development time and
+shipped. Only their identity is new information, so the table stores the
+raw enumeration indices that survived, in order — 2 bytes each, 2,108
+bytes total (`src/fsm_table_3.bin`, regenerated by
+`examples/gen_fsm_table.rs`) — and the engine replays the raw index
+arithmetic to rebuild them.
+
+- native: **224.9 ms → 132.5 µs** (1,698x)
+- cold `/decide` in local `workerd`, same harness before and after:
+  **752 ms / 730 ms → 7 ms** (~280x under the 2,010 ms ceiling)
+- wasm: 473 KB → **476 KB** (155 KB gzipped); the indices do not compress
+- `tests/fsm_table.rs` asserts the decoded set is field-for-field
+  identical to a live enumeration — transitions, outputs, residual state,
+  blake3 id and complexity bits — so the table is a cache, not a second
+  source of truth. Live enumeration remains the fallback for any state
+  count no table covers.
+
+Re-measured on the hosted endpoint after deploy, 2026-08-28, same 40-call
+procedure (`scripts/decide_measure.sh`), run twice: **80 ok, 0 failed**, p50
+76/69 ms, p95 134/125 ms. It was run twice on purpose — the pre-fix build did
+not have one stable rate (two 40-call runs the same day gave **20 ok / 20
+failed** and **25 ok / 15 failed**), so a single clean post-fix run would not
+have been enough to distinguish a fix from a lucky draw. The comparison is
+against that pre-fix range, not a single number.
+
+Remaining for revenue: pay.sh registry onboarding, 402 challenge.
+
+**Read the next paragraph as delivery, not product (2026-08-29).** It was
+written before the re-scope above and still describes the *decision* as the
+sellable good — which is exactly what the re-scope retired. The metering rail
+survives the re-scope intact; the thing metered over it does not. Priced per
+call, `/decide` sells the machine's edge, and bench 035 cannot show that edge
+is non-zero on ten of eleven assets. Priced per call, a **signed receipt** for
+an execution the caller already intended to make sells the record, which is
+provable regardless of whether the machine is any good. Same 402 challenge,
+same registry entry, same endpoint — different line item. Where the paragraph
+below says "decision API", read "receipt API".
 
 pay.sh (Solana Foundation) lets AI agents pay per API call with no
 accounts — 74-provider registry, MCP tools, Solana-wallet funding. The
@@ -258,8 +397,9 @@ per call over 402. Everything an agent-facing decision API needs, we
 already have: determinism (reproducible), µs latency, on-chain-auditable
 policies, and the GOAT report as the sales page. The browser demo stays
 free (marketing); agents pay for the hosted endpoint + evolved-machine
-leaderboards + corpora. This is the most concrete revenue path on this
-list — pairs with #5 (the DO host becomes the paid endpoint).
+leaderboards + corpora. This is the most concrete *delivery* path on this
+list — see the correction above for what is actually sold over it. Pairs
+with #5 (the DO host becomes the paid endpoint).
 
 ## 7c. Paired online evaluation ✅ SHIPPED (v2.6)
 
@@ -434,7 +574,8 @@ the six corpora:
 every floor". A direct A/B now says otherwise: OFF gives TWAP +75.73 /
 random +6.90 / real-vs-trailing −21.05, ON gives +76.00 / +5.40 / −20.24 —
 under 1.5 bps, in both directions. The original claim came from one
-measurement with no control. **Now off by default**, flag retained.
+measurement with no control (bench `001_goat`, superseded by
+`039_goat`). **Now off by default**, flag retained.
 
 **Retraction 2 — the learning loop was mostly not running.** The same audit
 measured live cycle length: median ~15 ticks against a 24-tick evaluation
@@ -512,3 +653,57 @@ The honest summary is that the statistical work is well ahead of the product
 work, and it has spent the last several benches removing claims rather than
 adding them. That is the pipeline functioning as designed, and it is also why
 the roadmap is not clear.
+
+## Reconsideration — 2026-08-28
+
+Re-ranked after the submission-kit review, which turned up two things the
+ordering above hides. Written as an appended record, not an edit, so the
+earlier reasoning stays readable next to what replaced it.
+
+**Correction to "blocked on data rather than effort."** The CUPED / sub-bps
+bullet is filed under data-blocked, and that is the wrong label. The thing it
+waits on is the depth-aware recorder — a *build* that stopped when Plan 001
+closed, not a dataset the market refuses to hand us. It is effort-blocked and
+was mislabelled. The second bullet (generalisation across assets) is genuinely
+data-blocked: no amount of building produces 11 assets with stronger
+autocorrelation.
+
+**The trust ladder has a missing rung.** §4 lays it out as Memo commitment →
+PDA-enforced policy → machine-on-chain. What is deployed is the first rung
+plus a registry: `afterswap-policy` exposes exactly one instruction,
+`CommitPolicy`. Nothing validates a sell against the committed policy, and
+there is no delegate authority — so today the chain can prove a violation
+after the fact and cannot prevent one. That gap, not the marketplace and not
+the frontier, is what the next build should close.
+
+**Retention gap, closed as documentation (2026-08-28).** `RAIL.md` §3.3 and §6
+described five-year retention as an R2 bucket policy; no bucket is bound
+(§7 step 3, skipped per the free-tier invariant), and the trim `DELETE` in
+`sequencer.rs` is gated behind a successful R2 put — so nothing is deleted and
+durability is the Durable Object's SQLite. Both passages now say that. The
+archive path is written and unexercised; executing step 3 is what makes the
+R2 claim true rather than designed.
+
+### Worth continuing, in order
+
+1. **§4 Phase B — delegated execution.** Closes the missing rung and fixes the
+   UX failure observed live (a wallet prompt per tranche). MagicBlock's
+   `hydra` and `ephemeral-spl-token` are MIT and already Pinocchio, the same
+   framework as our program. Untested by us; needs an audit before mainnet.
+2. **Mainnet for the program and the anchors.** Devnet history is periodically
+   reset (`RAIL.md` §8). An audit trail whose anchors can vanish is not
+   durable evidence, which is the only claim that survived the benches.
+3. **The depth-aware recorder.** Unblocks CUPED and the paired execution
+   outcome — the item above says "blocked on data", and it is not.
+4. **Retention**: either execute §7 step 3 or leave the claim scoped to DO
+   SQLite as it now is. Both are honest; only one is an archive.
+
+### Dropped
+
+- **§7 marketplace** and **§7j frontier** — premise contradicted (bench 035)
+  and closed (bench 028) respectively.
+- **§5 shared world**, **§6 outcome tokens**, **§6b perps/maker exits** — all
+  three assume finding or selling edge. Benches 025 and 035 removed the edge;
+  what survived is verifiability, and none of these sell that.
+- **§4 Phase C** — the endgame of a ladder whose second rung is not built.
+  Reconsider once Phase B exists.

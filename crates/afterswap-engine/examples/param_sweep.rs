@@ -129,11 +129,10 @@ fn main() {
         .map(|&r| (r.name().to_string(), afterswap_engine::sim::synthetic_corpus(r, 300, 42)))
         .collect();
     for path in ["data/recorded.jsonl", "data/recorded2.jsonl"] {
-        if let Ok(c) = load_corpus(path) {
-            if c.len() >= 100 {
+        if let Ok(c) = load_corpus(path)
+            && c.len() >= 100 {
                 corpora.push((path.rsplit('/').next().unwrap_or("rec").to_string(), c));
             }
-        }
     }
     for (name, prices) in &corpora {
         let mut row = format!("| {name} |");
